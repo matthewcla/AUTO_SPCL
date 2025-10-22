@@ -63,9 +63,6 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Set wsRB = ThisWorkbook.Worksheets("Eligibles RED Board")
     Set wsSB = ThisWorkbook.Worksheets("Eligibles Status Board")
 
-    ' Create a new instance of the progressform
-    Set progressform = New progressform  ' Assuming progressform is a UserForm
-    
     ' Load ID/Name pairs into memory
     SetID
 
