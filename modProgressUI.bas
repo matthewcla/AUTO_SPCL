@@ -2,13 +2,35 @@ Attribute VB_Name = "modProgressUI"
 Option Explicit
 
 
-Public progressform As Object ' Declare as the actual UserForm type
+Public progressform As ProgressForm ' Strongly typed reference for compile-time safety
 
-' Safe wrappers so other modules don’t need to know the form’s internals.
+    On Error GoTo CleanExit
+CleanExit:
+    On Error GoTo 0
+    On Error GoTo CleanExit
+    If Not progressform Is Nothing Then progressform.UpdateProgress done, totalCount, status
+CleanExit:
+    On Error GoTo 0
 
-Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As String = "Record Review")
-    On Error Resume Next
+    On Error GoTo HandleError
+    GoTo CleanExit
+HandleError:
+    Progress_WaitIfPaused = True
+CleanExit:
+    On Error GoTo 0
     If progressform Is Nothing Then
+        Exit Function
+
+    On Error GoTo HandleError
+    Progress_Cancelled = progressform.Cancelled
+    GoTo CleanExit
+HandleError:
+    Progress_Cancelled = False
+CleanExit:
+    On Error GoTo 0
+    On Error GoTo CleanExit
+CleanExit:
+    On Error GoTo 0
         ' no-op - compiled reference
     End If
     On Error GoTo 0
