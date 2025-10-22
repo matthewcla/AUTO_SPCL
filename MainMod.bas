@@ -70,23 +70,35 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     
     ' Load ID/Name pairs into memory
     SetID
-    iLo = LBound(arrayID, 1)
-    iHi = UBound(arrayID, 1)
 
-    total = IIf(iHi >= iLo, iHi - iLo + 1, 0)
+    If IsEmpty(arrayID) Then
+        total = 0
+    Else
+        iLo = LBound(arrayID, 1)
+        iHi = UBound(arrayID, 1)
+        total = IIf(iHi >= iLo, iHi - iLo + 1, 0)
+    End If
+
     processed = 0
 
     ' Progress UI
     Progress_Show total, "Record Review Progress"
 
+    If total = 0 Then
+        Progress_Log "No IDs available for processing."
+        GoTo NoWork
+    End If
+
     ' Main review loop (module-level i is intentional so workers can use it)
     For i = iLo To iHi
         If Not Progress_WaitIfPaused() Then Exit For
         If Progress_Cancelled() Then Exit For  ' This exits the whole loop if cancelled
-        
+
         ' Process each record...
-        Progress_Log "Starting: " & nm & "  [" & id & "]"
-    
+        id = Trim$(CStr(arrayID(i, 1)))
+        nm = Trim$(CStr(arrayID(i, 2)))
+        Progress_Log "Starting: " & IIf(Len(nm) > 0, nm, id) & "  [" & id & "]"
+
         '=== Pipeline ===
         If Progress_Cancelled() Then Exit For
         lookINFO
@@ -101,10 +113,11 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         '================
     
         processed = processed + 1
-        Progress_Update processed, total, "Finished: " & nm
+        Progress_Update processed, total, "Finished: " & IIf(Len(nm) > 0, nm, id)
         DoEvents
     Next i
 
+NoWork:
     progressform.Hide
     Set progressform = Nothing  ' Clean up the object
 
@@ -145,7 +158,7 @@ Private Sub SetID()
 
     eRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).row
     If eRow < 2 Then
-        ReDim arrayID(1 To 0, 1 To 2) ' empty
+        arrayID = Empty
         Exit Sub
     End If
 
@@ -632,7 +645,7 @@ Public Function ParseYYYYMMDD(ByVal s As String) As Double
         m = CLng(Mid$(s, 5, 2))
         d = CLng(Right$(s, 2))
     ElseIf Len(s) = 6 And IsNumeric(s) Then
-        ' YYMMDD  -> pivot: 00–29 => 2000–2029, else 1900–1999
+        ' YYMMDD  -> pivot: 00Â–29 => 2000Â–2029, else 1900Â–1999
         Y = CLng(VBA.Left$(s, 2))
         If Y <= 29 Then
             Y = 2000 + Y
