@@ -36,8 +36,6 @@ Private MasLook As String
 Private BacLook As String
 
 Private arrayID As Variant          ' 2D array [row, 1..2] => ID, Name
-Private arrayAQD As Variant         ' scratch array for AQD checks
-
 Private wsSB As Worksheet           ' "Eligibles Status Board"
 Private wsRB As Worksheet           ' "Eligibles RED Board"
 
@@ -380,95 +378,80 @@ Private Sub lookAQD()
     ' Logs RED BOARD lines if required quals are missing.
 
     Dim r As Long, cT As Long
-    Dim AQD As String
-    Dim oRow As String
-    Dim chk As Long
+    Dim rowText As String
+    Dim rowCache() As String
 
     Dim WTI As Boolean, JI As Boolean, JII As Boolean, JT As Boolean
     Dim PCC As Boolean, PCA As Boolean, CQ As Boolean, SWCLA As Boolean
     Dim TAO As Boolean, EOOW As Boolean
+
+    Dim codesWTI As Variant
+    Dim codesJoint As Variant
+    Dim codesTAO As Variant
+    Dim codesEOOW As Variant
     
     If Progress_Cancelled() Then Exit Sub
-    
+
     If Not Trim$(iCS.GetText(1, 2, 4)) = "PRQS" Then ChangeScreen "PRQS"
 
-    ' WTI (KW1..KW4,KWC)
-    chk = 0
-    arrayAQD = Array(" KW1 ", " KW2 ", " KW3 ", " KW4 ", " KWC ")
+    ReDim rowCache(11 To 19)
     For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 79)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then WTI = True
-        Next cT
+        rowCache(r) = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
     Next r
 
-    ' JPME I (JS7)
-    AQD = " JS7 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then JI = True
-    Next r
+    codesWTI = Array(" KW1 ", " KW2 ", " KW3 ", " KW4 ", " KWC ")
+    codesJoint = Array(" JS1 ", " JS2 ")
+    codesTAO = Array(" LF6 ", " LF7 ")
+    codesEOOW = Array(" LC1 ", " LC2 ", " LC3 ", " LC6 ", " LC7 ", " LC8 ", " LC9 ", " KD2 ")
 
-    ' JPME II (JS8)
-    AQD = " JS8 "
     For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then JII = True
-    Next r
+        rowText = rowCache(r)
 
-    ' JOINT (JS1 or JS2)
-    arrayAQD = Array(" JS1 ", " JS2 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then JT = True
-        Next cT
-    Next r
+        If Not WTI Then
+            For cT = LBound(codesWTI) To UBound(codesWTI)
+                If InStr(rowText, CStr(codesWTI(cT))) > 0 Then
+                    WTI = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' P-CC (LN3)
-    AQD = " LN3 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then PCC = True
-    Next r
+        If Not JI Then If InStr(rowText, " JS7 ") > 0 Then JI = True
+        If Not JII Then If InStr(rowText, " JS8 ") > 0 Then JII = True
 
-    ' P-CAPT C (LN4)
-    AQD = " LN4 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then PCA = True
-    Next r
+        If Not JT Then
+            For cT = LBound(codesJoint) To UBound(codesJoint)
+                If InStr(rowText, CStr(codesJoint(cT))) > 0 Then
+                    JT = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' Command Qual (LN7)
-    AQD = " LN7 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then CQ = True
-    Next r
+        If Not PCC Then If InStr(rowText, " LN3 ") > 0 Then PCC = True
+        If Not PCA Then If InStr(rowText, " LN4 ") > 0 Then PCA = True
+        If Not CQ Then If InStr(rowText, " LN7 ") > 0 Then CQ = True
+        If Not SWCLA Then If InStr(rowText, " 2D1 ") > 0 Then SWCLA = True
 
-    ' SWCLA (2D1)
-    AQD = " 2D1 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then SWCLA = True
-    Next r
+        If Not TAO Then
+            For cT = LBound(codesTAO) To UBound(codesTAO)
+                If InStr(rowText, CStr(codesTAO(cT))) > 0 Then
+                    TAO = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' TAO (LF6, LF7)
-    arrayAQD = Array(" LF6 ", " LF7 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then TAO = True
-        Next cT
-    Next r
+        If Not EOOW Then
+            For cT = LBound(codesEOOW) To UBound(codesEOOW)
+                If InStr(rowText, CStr(codesEOOW(cT))) > 0 Then
+                    EOOW = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' EOOW (LC1,LC2,LC3,LC6..LC9,KD2)
-    arrayAQD = Array(" LC1 ", " LC2 ", " LC3 ", " LC6 ", " LC7 ", " LC8 ", " LC9 ", " KD2 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then EOOW = True
-        Next cT
+        If WTI And JI And JII And JT And PCC And PCA And CQ And SWCLA And TAO And EOOW Then Exit For
     Next r
 
     ' Write Y/N results and log deficiencies
