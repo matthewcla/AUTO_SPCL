@@ -37,7 +37,7 @@ Private maxBarWidth As Single          ' Captured from the design-time width
 Public Paused As Boolean
 Public Cancelled As Boolean
 
-'— Utility: format seconds as h:mm:ss
+'â€” Utility: format seconds as h:mm:ss
 Private Function HMS(ByVal secs As Double) As String
     If secs < 0 Or Not IsNumeric(secs) Then
         HMS = "--:--:--"
@@ -50,8 +50,8 @@ Private Function HMS(ByVal secs As Double) As String
     HMS = h & ":" & Format$(m, "00") & ":" & Format$(s, "00")
 End Function
 
-'— Call once, right after showing modeless
-Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing records…")
+'â€” Call once, right after showing modeless
+Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing recordsâ€¦")
     Me.Caption = captionText
     progressform.lblProcessed.Caption = "0"
     progressform.lblRemaining.Caption = CStr(totalCount)
@@ -77,7 +77,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     emaSecPerItem = 0#
 End Sub
 
-'— Append a time-stamped line to the log
+'â€” Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
     ' Ensure progressform is initialized
     If Not progressform Is Nothing Then
@@ -96,7 +96,7 @@ Public Sub LogLine(ByVal lineText As String)
     DoEvents
 End Sub
 
-'— Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
+'â€” Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
 Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
     Dim nowT As Double: nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400# ' handle midnight rollover
@@ -142,7 +142,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     DoEvents
 End Sub
 
-'— Blocks while paused; returns False if cancelled while waiting
+'â€” Blocks while paused; returns False if cancelled while waiting
 Public Function WaitIfPaused() As Boolean
     Do While Paused And Not Cancelled
         DoEvents
@@ -164,7 +164,7 @@ End Sub
 Private Sub btnCancel_Click()
     Cancelled = True
     btnCancel.Enabled = False
-    LogLine "Cancel requested. Finishing current step…"
+    LogLine "Cancel requested. Finishing current stepâ€¦"
 End Sub
 
 Private Sub bSettings_Click()
@@ -229,13 +229,8 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
-
-InitializeReflectionAndOAIS
-
-Set progressform = New progressform
-
-'A_Record_Review
-
+    Set progressform = Me
+    InitializeReflectionAndOAIS
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)

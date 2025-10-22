@@ -65,9 +65,6 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Set wsRB = ThisWorkbook.Worksheets("Eligibles RED Board")
     Set wsSB = ThisWorkbook.Worksheets("Eligibles Status Board")
 
-    ' Create a new instance of the progressform
-    Set progressform = New progressform  ' Assuming progressform is a UserForm
-    
     ' Load ID/Name pairs into memory
     SetID
 
@@ -118,8 +115,6 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Next i
 
 NoWork:
-    progressform.Hide
-    Set progressform = Nothing  ' Clean up the object
 
 CleanOK:
     Application.ScreenUpdating = True
@@ -134,7 +129,7 @@ CleanOK:
         Progress_Close "Cancelled by user."
     Else
         Progress_Update processed, total, "Review complete."
-        'Progress_Close "Completed."
+        Progress_Close "Completed."
     End If
     Exit Sub
 
