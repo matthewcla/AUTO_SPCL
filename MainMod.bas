@@ -51,6 +51,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
 
     Dim iLo As Long, iHi As Long
     Dim nm As String, id As String
+    Dim runWasCancelled As Boolean
+    Dim progressClosed As Boolean
 
     On Error GoTo CleanFail
     ResetRunState
@@ -113,8 +115,16 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Next i
 
 NoWork:
-    progressform.Hide
-    Set progressform = Nothing  ' Clean up the object
+    runWasCancelled = Progress_Cancelled()
+
+    If runWasCancelled Then
+        Progress_Close "Cancelled by user."
+        progressClosed = True
+    Else
+        Progress_Update processed, total, "Review complete."
+        Progress_Close "Review complete."
+        progressClosed = True
+    End If
 
 CleanOK:
     Application.ScreenUpdating = True
@@ -122,15 +132,14 @@ CleanOK:
     ' Record run-state for your follow-on userform (which will trigger CreateDraftsFromID)
     LastRunProcessed = processed
     LastRunTotal = total
-    LastRunWasCancelled = Progress_Cancelled()
-    LastRunCompleted = Not LastRunWasCancelled
-
-    If Progress_Cancelled() Then
-        Progress_Close "Cancelled by user."
-    Else
-        Progress_Update processed, total, "Review complete."
-        'Progress_Close "Completed."
+    If Not progressClosed Then
+        runWasCancelled = Progress_Cancelled()
+        Progress_Close "Terminated due to error."
+        progressClosed = True
     End If
+
+    LastRunWasCancelled = runWasCancelled
+    LastRunCompleted = Not LastRunWasCancelled
     Exit Sub
 
 CleanFail:
