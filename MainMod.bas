@@ -696,20 +696,29 @@ Private Function FindRow(nmSearch As String) As Long
     ' Finds (or allocates) the worksheet row in RED BOARD "Table13" for the given NAME.
     ' Returns the row number to write into.
     Dim lo As ListObject
-    Dim nextRow As Long
+    Dim nameCol As Range
+    Dim nameCell As Range
+    Dim newRow As ListRow
 
     FindRow = FoundCell(wsRB, "Table13", nmSearch)
-    If FindRow = 0 Then
-        Set lo = wsRB.ListObjects("Table13")
+    If FindRow <> 0 Then Exit Function
 
-        If lo.DataBodyRange Is Nothing Then
-            ' Empty table -> first data row is header + 1
-            FindRow = lo.HeaderRowRange.row + 1
-        Else
-            ' Append below last data row
-            FindRow = lo.DataBodyRange.Rows(lo.DataBodyRange.Rows.Count).row + 1
-        End If
+    Set lo = wsRB.ListObjects("Table13")
+
+    ' If the table already has rows, look for the first blank name slot to reuse.
+    If Not lo.DataBodyRange Is Nothing Then
+        Set nameCol = lo.ListColumns(1).DataBodyRange
+        For Each nameCell In nameCol
+            If Len(Trim$(CStr(nameCell.Value))) = 0 Then
+                FindRow = nameCell.row
+                Exit Function
+            End If
+        Next nameCell
     End If
+
+    ' No reusable row found; append a new row to the table and return its worksheet row.
+    Set newRow = lo.ListRows.Add
+    FindRow = newRow.Range.row
 End Function
 
 Private Function FoundCell(ws As Worksheet, TableName As String, _
