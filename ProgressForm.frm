@@ -16,17 +16,6 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-' --- Constants for screen-text detection (Reflection / OAIS banners) ---
-Private Const TXT_DISA As String = "Defense Information Systems Agency"
-Private Const TXT_SESSION_MENU As String = "CL/SuperSession"
-Private Const TXT_OAIS_BANNER As String = "Officer Assignment Information System"
-Private Const OAIS_MENU_CMD As String = "Start OAIS2"
-
-' --- Tuning knobs ---
-Private Const SMALL_WAIT_SEC As Double = 0.75
-Private Const RETRY_WAIT_SEC As Double = 1.2
-Private Const retries As Long = 3
-
 '==== Private state ====
 Private startTick As Double
 Private lastUpdate As Double
@@ -37,7 +26,7 @@ Private maxBarWidth As Single          ' Captured from the design-time width
 Public Paused As Boolean
 Public Cancelled As Boolean
 
-'— Utility: format seconds as h:mm:ss
+' Utility: format seconds as h:mm:ss
 Private Function HMS(ByVal secs As Double) As String
     If secs < 0 Or Not IsNumeric(secs) Then
         HMS = "--:--:--"
@@ -50,8 +39,8 @@ Private Function HMS(ByVal secs As Double) As String
     HMS = h & ":" & Format$(m, "00") & ":" & Format$(s, "00")
 End Function
 
-'— Call once, right after showing modeless
-Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing records…")
+' Call once, right after showing modeless
+Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing records")
     Me.Caption = captionText
     progressform.lblProcessed.Caption = "0"
     progressform.lblRemaining.Caption = CStr(totalCount)
@@ -77,7 +66,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     emaSecPerItem = 0#
 End Sub
 
-'— Append a time-stamped line to the log
+' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
     ' Ensure progressform is initialized
     If Not progressform Is Nothing Then
@@ -96,7 +85,7 @@ Public Sub LogLine(ByVal lineText As String)
     DoEvents
 End Sub
 
-'— Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
+' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
 Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
     Dim nowT As Double: nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400# ' handle midnight rollover
@@ -142,7 +131,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     DoEvents
 End Sub
 
-'— Blocks while paused; returns False if cancelled while waiting
+' Blocks while paused; returns False if cancelled while waiting
 Public Function WaitIfPaused() As Boolean
     Do While Paused And Not Cancelled
         DoEvents
@@ -164,54 +153,19 @@ End Sub
 Private Sub btnCancel_Click()
     Cancelled = True
     btnCancel.Enabled = False
-    LogLine "Cancel requested. Finishing current step…"
+    LogLine "Cancel requested. Finishing current step"
 End Sub
 
 Private Sub bSettings_Click()
     ToggleThisWorkbookVisibility
 End Sub
 
-'--- Drive Reflection > Session menu > OAIS2 with light retries ---
-Private Sub InitializeReflectionAndOAIS()
-    ' (1) Reflection Workspace Intro Screen?
-    If WaitForText(1, 1, 79, TXT_DISA, retries, RETRY_WAIT_SEC) Then
-        HitEnter ' pass the splash / login handoff
-
-        ' (2) Session selection menu?
-        If WaitForText(3, 1, 79, TXT_SESSION_MENU, retries, RETRY_WAIT_SEC) Then
-            entText 23, 15, OAIS_MENU_CMD
-
-            ' (3) Wait for OAIS banner, allow one "enter" nudge if needed
-            If Not WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC) Then
-                SafePause 0.6
-                HitEnter
-                ' final check
-                Call WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC)
-            End If
-        End If
-    End If
-
-    ' Refresh status light after attempts
-    SetOAISStatus Not (iCS Is Nothing)
-End Sub
-
-Private Sub SetOAISStatus(ByVal isConnected As Boolean)
-    If isConnected Then
-        lblOAIS.BackColor = vbGreen
-        lblOAIS.Caption = "Connected to OAIS"
-        lblOAIS.ForeColor = vbWhite
-    Else
-        lblOAIS.BackColor = vbRed
-        lblOAIS.Caption = "OAIS Not Connected"
-        lblOAIS.ForeColor = vbWhite
-    End If
-End Sub
 
 Private Sub bOAIS_Click()
     ' If not connected, try to connect; else toggle external frame if present.
     If lblOAIS.BackColor = vbRed Then
         ConnectToRunningOAIS
-        SetOAISStatus Not (iCS Is Nothing)
+        SetOAISStatus lblOAIS, Not (iCS Is Nothing), , , vbWhite, vbWhite
         Exit Sub
     End If
 
@@ -230,11 +184,11 @@ End Sub
 
 Private Sub UserForm_Initialize()
 
-InitializeReflectionAndOAIS
+    InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
 
-Set progressform = New progressform
+    Set progressform = New progressform
 
-'A_Record_Review
+    'A_Record_Review
 
 End Sub
 
@@ -246,25 +200,4 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
     End If
 End Sub
 
-Private Sub SafePause(ByVal seconds As Double)
-    Dim t As Single: t = Timer
-    Do While Timer - t < seconds
-        DoEvents
-    Loop
-End Sub
 
-' Polls for substring on the Reflection screen text with retries.
-Private Function WaitForText(ByVal row As Long, ByVal col As Long, ByVal nChars As Long, _
-                             ByVal needle As String, ByVal retries As Long, ByVal waitSec As Double) As Boolean
-    Dim i As Long, hay As String
-    On Error Resume Next
-    For i = 1 To retries
-        hay = iCS.GetText(row, col, nChars)
-        If InStr(1, hay, needle, vbTextCompare) > 0 Then
-            WaitForText = True
-            Exit Function
-        End If
-        SafePause waitSec
-    Next i
-    WaitForText = False
-End Function
