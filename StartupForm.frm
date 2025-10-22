@@ -16,23 +16,12 @@ Attribute VB_Exposed = False
 '==== UserForm: StartupForm ====
 Option Explicit
 
-' --- Constants for screen-text detection (Reflection / OAIS banners) ---
-Private Const TXT_DISA As String = "Defense Information Systems Agency"
-Private Const TXT_SESSION_MENU As String = "CL/SuperSession"
-Private Const TXT_OAIS_BANNER As String = "Officer Assignment Information System"
-Private Const OAIS_MENU_CMD As String = "Start OAIS2"
-
-' --- Tuning knobs ---
-Private Const SMALL_WAIT_SEC As Double = 0.75
-Private Const RETRY_WAIT_SEC As Double = 1.2
-Private Const retries As Long = 3
-
 Private Sub UserForm_Initialize()
     On Error GoTo EH
 
     ' === 1. Connect OAIS and set indicators ===
     ConnectToRunningOAIS
-    SetOAISStatus Not (iCS Is Nothing)
+    SetOAISStatus bOAIS, Not (iCS Is Nothing)
 
     ' === 2. Load board info safely ===
     lblBoardType.Caption = CStr(SafeCell("ID", "H4")) & " Board"
@@ -45,7 +34,7 @@ Private Sub UserForm_Initialize()
 
     ' === 4. Run OAIS reflection logic (background setup) ===
     If Not iCS Is Nothing Then
-        InitializeReflectionAndOAIS
+        InitializeOAISSession bOAIS
     End If
 
     Exit Sub
@@ -65,41 +54,6 @@ Private Sub UserForm_Activate()
     RevealLabels Array(lblRadiate, lblNew, lblASTABone, lblASTABtwo), 0.75
 End Sub
 
-'--- Drive Reflection > Session menu > OAIS2 with light retries ---
-Private Sub InitializeReflectionAndOAIS()
-    ' (1) Reflection Workspace Intro Screen?
-    If WaitForText(1, 1, 79, TXT_DISA, retries, RETRY_WAIT_SEC) Then
-        HitEnter ' pass the splash / login handoff
-
-        ' (2) Session selection menu?
-        If WaitForText(3, 1, 79, TXT_SESSION_MENU, retries, RETRY_WAIT_SEC) Then
-            entText 23, 15, OAIS_MENU_CMD
-
-            ' (3) Wait for OAIS banner, allow one "enter" nudge if needed
-            If Not WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC) Then
-                SafePause 0.6
-                HitEnter
-                ' final check
-                Call WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC)
-            End If
-        End If
-    End If
-
-    ' Refresh status light after attempts
-    SetOAISStatus Not (iCS Is Nothing)
-End Sub
-
-'--- Label/status helpers -----------------------------------------------------
-
-Private Sub SetOAISStatus(ByVal isConnected As Boolean)
-    If isConnected Then
-        bOAIS.BackColor = vbGreen
-        bOAIS.Caption = "Connected to OAIS"
-    Else
-        bOAIS.BackColor = vbRed
-        bOAIS.Caption = "OAIS Not Connected"
-    End If
-End Sub
 
 Private Sub RevealLabels(ByVal labels As Variant, ByVal stepSeconds As Double)
     Dim i As Long
@@ -156,7 +110,7 @@ Private Sub bOAIS_Click()
     ' If not connected, try to connect; else toggle external frame if present.
     If bOAIS.BackColor = vbRed Then
         ConnectToRunningOAIS
-        SetOAISStatus Not (iCS Is Nothing)
+        SetOAISStatus bOAIS, Not (iCS Is Nothing)
         Exit Sub
     End If
 
@@ -176,7 +130,7 @@ End Sub
 Private Sub bRadiate_Click()
     ConnectToRunningOAIS
     
-    SetOAISStatus Not (iCS Is Nothing)
+    SetOAISStatus bOAIS, Not (iCS Is Nothing)
     
     ClearTableColumnsCD ("RED_Board")
     
@@ -329,20 +283,6 @@ End Sub
 
 
 ' Polls for substring on the Reflection screen text with retries.
-Private Function WaitForText(ByVal row As Long, ByVal col As Long, ByVal nChars As Long, _
-                             ByVal needle As String, ByVal retries As Long, ByVal waitSec As Double) As Boolean
-    Dim i As Long, hay As String
-    On Error Resume Next
-    For i = 1 To retries
-        hay = iCS.GetText(row, col, nChars)
-        If InStr(1, hay, needle, vbTextCompare) > 0 Then
-            WaitForText = True
-            Exit Function
-        End If
-        SafePause waitSec
-    Next i
-    WaitForText = False
-End Function
 
 Private Sub UserForm_Terminate()
     On Error Resume Next
