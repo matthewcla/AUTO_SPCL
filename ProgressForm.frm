@@ -186,8 +186,6 @@ Private Sub UserForm_Initialize()
 
     InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
 
-    Set progressform = New progressform
-
     'A_Record_Review
 
 End Sub
