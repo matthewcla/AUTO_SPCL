@@ -5,7 +5,7 @@ Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ProgressForm
    ClientLeft      =   45
    ClientTop       =   375
    ClientWidth     =   10485
-   Enabled         =   0   'False
+   Enabled         =   -1  'True
    OleObjectBlob   =   "ProgressForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
