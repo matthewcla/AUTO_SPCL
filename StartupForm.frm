@@ -139,9 +139,8 @@ Private Sub bRadiate_Click()
     HideAndReleaseStartupForm
     
     A_Record_Review
-    
-    ' Initialize and show progressform
-    progressform.Show vbModeless ' Show modeless so code continues running
+
+    ' Progress UI is managed within A_Record_Review; no separate show call is needed here.
          
 End Sub
 
