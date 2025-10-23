@@ -573,13 +573,19 @@ Private Sub lookFITREP()
             dF3 = ParseYYYYMMDD(CStr(vF3)): dT3 = ParseYYYYMMDD(CStr(vT3))
 
             ' OCT FITREP (example rule): mark col 27 "Y" if most recent To-date is in Oct of current year
-            If dT1 > 0 And Year(CDate(dT1)) = Year(Date) And Month(CDate(dT1)) = 10 Then
-                wsSB.Cells(i + 1, 27).Value = "Y"
+            If dT1 > 0 Then
+                Dim dtMostRecent As Date
+                dtMostRecent = CDate(dT1)
+                If Year(dtMostRecent) = Year(Date) And Month(dtMostRecent) = 10 Then
+                    wsSB.Cells(i + 1, 27).Value = "Y"
+                Else
+                    wsSB.Cells(i + 1, 27).Value = "N"
+                End If
+                wsSB.Cells(i + 1, 26).Value = Format$(dtMostRecent, "DMMMYY")
             Else
                 wsSB.Cells(i + 1, 27).Value = "N"
+                wsSB.Cells(i + 1, 26).ClearContents
             End If
-
-            wsSB.Cells(i + 1, 26).Value = Format(CDate(dT1), "DMMMYY")
             first = False
 
             If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF1 - dT2) & " days):": nIssue = vT2 & " to " & vF1: writeRB
