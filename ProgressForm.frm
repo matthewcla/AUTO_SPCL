@@ -42,24 +42,24 @@ End Function
 ' Call once, right after showing modeless
 Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing records")
     Me.Caption = captionText
-    progressform.lblProcessed.Caption = "0"
-    progressform.lblRemaining.Caption = CStr(totalCount)
-    progressform.lblPercentage.Caption = "0%"
-    progressform.lblElapsed.Caption = "0:00:00"
-    progressform.lblETR.Caption = "--:--:--"
-    
-    CenterUserFormOnActiveMonitor progressform
+    Me.lblProcessed.Caption = "0"
+    Me.lblRemaining.Caption = CStr(totalCount)
+    Me.lblPercentage.Caption = "0%"
+    Me.lblElapsed.Caption = "0:00:00"
+    Me.lblETR.Caption = "--:--:--"
+
+    CenterUserFormOnActiveMonitor Me
     
     ' Capture the design-time width of the bar as the maximum; then collapse to zero
     maxBarWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
-    progressform.txtLog.Value = vbNullString
-    progressform.txtLog.SelStart = 0
+    Me.txtLog.Value = vbNullString
+    Me.txtLog.SelStart = 0
 
     Paused = False
     Cancelled = False
-    progressform.btnPause.Caption = "Pause"
+    Me.btnPause.Caption = "Pause"
 
     startTick = Timer
     lastUpdate = startTick
@@ -68,20 +68,15 @@ End Sub
 
 ' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
-    ' Ensure progressform is initialized
-    If Not progressform Is Nothing Then
-        With progressform.txtLog
-            If Len(.Text) > 0 Then
-                .SelStart = Len(.Text)  ' Move to the end of the text
-                .SelText = vbCrLf & Format$(Now, "hh:nn:ss") & "  " & lineText  ' Append the line
-            Else
-                .Text = Format$(Now, "hh:nn:ss") & "  " & lineText  ' Start with the first line
-            End If
-            .SelStart = Len(.Text)  ' Scroll to the end
-        End With
-    Else
-        MsgBox "ProgressForm is not initialized!"
-    End If
+    With Me.txtLog
+        If Len(.Text) > 0 Then
+            .SelStart = Len(.Text)  ' Move to the end of the text
+            .SelText = vbCrLf & Format$(Now, "hh:nn:ss") & "  " & lineText  ' Append the line
+        Else
+            .Text = Format$(Now, "hh:nn:ss") & "  " & lineText  ' Start with the first line
+        End If
+        .SelStart = Len(.Text)  ' Scroll to the end
+    End With
     DoEvents
 End Sub
 
