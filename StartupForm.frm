@@ -160,27 +160,28 @@ Private Sub ClearTableColumnsCD(ByVal TableName As String)
     ' Get the table object
     Set lo = ws.ListObjects(TableName)
     
+    ' Exit gracefully if the table has no data rows yet
+    If lo.DataBodyRange Is Nothing Then
+        Debug.Print "ClearTableColumnsCD: Table '" & TableName & "' has no data rows to clear."
+        Exit Sub
+    End If
+
     ' Determine first and last data rows in the table
-    firstRow = lo.DataBodyRange.row
-    lastRow = firstRow + lo.ListRows.Count - 1
-    
-    If Not lastRow = 2 Then
-        ' Build the range from C2 to D at last table row
-        Set targetRange = ws.Range("C2:D" & lastRow)
-        
+    firstRow = lo.DataBodyRange.Row
+    lastRow = firstRow + lo.DataBodyRange.Rows.Count - 1
+
+    If lastRow >= firstRow Then
+        ' Build the range using the table's actual position
+        Set targetRange = ws.Range(ws.Cells(firstRow, 3), ws.Cells(lastRow, 4))
+
         ' Clear contents only (keeps formatting and formulas)
         targetRange.ClearContents
-    
-        Exit Sub
-    
-    Else
-    
-        Exit Sub
-        
     End If
-    
+
+    Exit Sub
+
 ErrHandler:
-    MsgBox "Error: " & Err.Description, vbExclamation
+    Debug.Print "ClearTableColumnsCD error (" & Err.Number & "): " & Err.Description
 End Sub
 
 Private Sub bASTABone_Click()
