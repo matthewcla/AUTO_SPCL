@@ -188,6 +188,8 @@ Private Sub lookINFO()
     Dim j As Long
     Dim yearPart As Integer, monthPart As Integer
     Dim fiscalYear As Integer
+    Dim eddYear As Integer, eddMonth As Integer
+    Dim edaYear As Integer, edaMonth As Integer
 
     id = CStr(arrayID(i, 1))
     
@@ -223,10 +225,12 @@ Private Sub lookINFO()
         wsSB.Cells(i + 1, 6).Value = vFLG
     End If
 
-    ' EDD -> as first day of YYMM month
+    ' EDD -> as first day of YYMM month (expanded to full year)
     vEdd = Format$(Trim$(iCS.GetText(12, 73, 4)), "@")
     If vEdd <> vbNullString Then
-        wsSB.Cells(i + 1, 11).Value = DateSerial(CInt(VBA.Left$(vEdd, 2)), CInt(Right$(vEdd, 2)), 1)
+        eddYear = ExpandTwoDigitYear(CInt(VBA.Left$(vEdd, 2)))
+        eddMonth = CInt(Right$(vEdd, 2))
+        wsSB.Cells(i + 1, 11).Value = DateSerial(eddYear, eddMonth, 1)
     End If
 
     ' RESIGNATION/RETIREMENT indicator
@@ -253,10 +257,12 @@ Private Sub lookINFO()
     vuCMD = Format$(Trim$(iCS.GetText(12, 17, 16)), "@")
     wsSB.Cells(i + 1, 12).Value = vuCMD
 
-    ' EDA -> as first day of YYMM month (typo in earlier code fixed: vbNullString)
+    ' EDA -> as first day of YYMM month (expanded to full year)
     vEda = Format$(Trim$(iCS.GetText(12, 58, 4)), "@")
     If vEda <> vbNullString Then
-        wsSB.Cells(i + 1, 13).Value = DateSerial(CInt(VBA.Left$(vEda, 2)), CInt(Right$(vEda, 2)), 1)
+        edaYear = ExpandTwoDigitYear(CInt(VBA.Left$(vEda, 2)))
+        edaMonth = CInt(Right$(vEda, 2))
+        wsSB.Cells(i + 1, 13).Value = DateSerial(edaYear, edaMonth, 1)
     End If
 
     ' EMAILS (also written back to "ID" sheet cols C:F)
@@ -623,6 +629,18 @@ Private Sub lookFITREP()
 
     Application.ScreenUpdating = True
 End Sub
+
+' Expands a two-digit year to four digits using a 2000-2029 pivot, otherwise 1900s.
+Private Function ExpandTwoDigitYear(ByVal twoDigitYear As Integer) As Integer
+    Dim normalized As Integer
+
+    normalized = twoDigitYear Mod 100
+    If normalized <= 29 Then
+        ExpandTwoDigitYear = 2000 + normalized
+    Else
+        ExpandTwoDigitYear = 1900 + normalized
+    End If
+End Function
 
 ' Parses "YYYYMMDD" (preferred) or "YYMMDD" into a VBA date serial (Double).
 ' Returns 0 if the input is blank/invalid.
