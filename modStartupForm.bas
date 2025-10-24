@@ -61,15 +61,16 @@ End Function
 ' === StartupForm single-instance helpers ===
 Public Sub HandleSplashComplete()
     If m_StartupShownOnce Then Exit Sub
-    If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
 
     m_StartupShownOnce = True
-    ShowStartupFormOnce
+    ShowStartupFormOnce True
 End Sub
 
-Public Sub ShowStartupFormOnce()
+Public Sub ShowStartupFormOnce(Optional ByVal forceShow As Boolean = False)
     Dim uf As Object
-    If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
+    If Not forceShow Then
+        If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
+    End If
 
     ' If already up, just bring to front
     If StartupFormLoaded() Then

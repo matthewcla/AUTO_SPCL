@@ -44,7 +44,7 @@ Private Sub Workbook_Open()
     On Error GoTo EH
 
     ' 3) Ensure the form is present (modeless)
-    ShowStartupFormOnce
+    ShowStartupFormOnce True
     routineSucceeded = True
 
 CleanUp:
