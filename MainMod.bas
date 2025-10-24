@@ -1,4 +1,3 @@
-Attribute VB_Name = "MainMod"
 Option Explicit
 '========================================================================================
 ' Module: modRecordReview
@@ -36,8 +35,6 @@ Private MasLook As String
 Private BacLook As String
 
 Private arrayID As Variant          ' 2D array [row, 1..2] => ID, Name
-Private arrayAQD As Variant         ' scratch array for AQD checks
-
 Private wsSB As Worksheet           ' "Eligibles Status Board"
 Private wsRB As Worksheet           ' "Eligibles RED Board"
 
@@ -53,6 +50,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
 
     Dim iLo As Long, iHi As Long
     Dim nm As String, id As String
+    Dim runWasCancelled As Boolean
+    Dim progressClosed As Boolean
 
     On Error GoTo CleanFail
     ResetRunState
@@ -65,28 +64,37 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Set wsRB = ThisWorkbook.Worksheets("Eligibles RED Board")
     Set wsSB = ThisWorkbook.Worksheets("Eligibles Status Board")
 
-    ' Create a new instance of the progressform
-    Set progressform = New progressform  ' Assuming progressform is a UserForm
-    
     ' Load ID/Name pairs into memory
     SetID
-    iLo = LBound(arrayID, 1)
-    iHi = UBound(arrayID, 1)
 
-    total = IIf(iHi >= iLo, iHi - iLo + 1, 0)
+    If IsEmpty(arrayID) Then
+        total = 0
+    Else
+        iLo = LBound(arrayID, 1)
+        iHi = UBound(arrayID, 1)
+        total = IIf(iHi >= iLo, iHi - iLo + 1, 0)
+    End If
+
     processed = 0
 
     ' Progress UI
     Progress_Show total, "Record Review Progress"
 
+    If total = 0 Then
+        Progress_Log "No IDs available for processing."
+        GoTo NoWork
+    End If
+
     ' Main review loop (module-level i is intentional so workers can use it)
     For i = iLo To iHi
         If Not Progress_WaitIfPaused() Then Exit For
         If Progress_Cancelled() Then Exit For  ' This exits the whole loop if cancelled
-        
+
         ' Process each record...
-        Progress_Log "Starting: " & nm & "  [" & id & "]"
-    
+        id = Trim$(CStr(arrayID(i, 1)))
+        nm = Trim$(CStr(arrayID(i, 2)))
+        Progress_Log "Starting: " & IIf(Len(nm) > 0, nm, id) & "  [" & id & "]"
+
         '=== Pipeline ===
         If Progress_Cancelled() Then Exit For
         lookINFO
@@ -101,12 +109,21 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         '================
     
         processed = processed + 1
-        Progress_Update processed, total, "Finished: " & nm
+        Progress_Update processed, total, "Finished: " & IIf(Len(nm) > 0, nm, id)
         DoEvents
     Next i
 
-    progressform.Hide
-    Set progressform = Nothing  ' Clean up the object
+NoWork:
+    runWasCancelled = Progress_Cancelled()
+
+    If runWasCancelled Then
+        Progress_Close "Cancelled by user."
+        progressClosed = True
+    Else
+        Progress_Update processed, total, "Review complete."
+        Progress_Close "Review complete."
+        progressClosed = True
+    End If
 
 CleanOK:
     Application.ScreenUpdating = True
@@ -114,15 +131,14 @@ CleanOK:
     ' Record run-state for your follow-on userform (which will trigger CreateDraftsFromID)
     LastRunProcessed = processed
     LastRunTotal = total
-    LastRunWasCancelled = Progress_Cancelled()
-    LastRunCompleted = Not LastRunWasCancelled
-
-    If Progress_Cancelled() Then
-        Progress_Close "Cancelled by user."
-    Else
-        Progress_Update processed, total, "Review complete."
-        'Progress_Close "Completed."
+    If Not progressClosed Then
+        runWasCancelled = Progress_Cancelled()
+        Progress_Close "Terminated due to error."
+        progressClosed = True
     End If
+
+    LastRunWasCancelled = runWasCancelled
+    LastRunCompleted = Not LastRunWasCancelled
     Exit Sub
 
 CleanFail:
@@ -145,7 +161,7 @@ Private Sub SetID()
 
     eRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).row
     If eRow < 2 Then
-        ReDim arrayID(1 To 0, 1 To 2) ' empty
+        arrayID = Empty
         Exit Sub
     End If
 
@@ -171,6 +187,8 @@ Private Sub lookINFO()
     Dim j As Long
     Dim yearPart As Integer, monthPart As Integer
     Dim fiscalYear As Integer
+    Dim eddYear As Integer, eddMonth As Integer
+    Dim edaYear As Integer, edaMonth As Integer
 
     id = CStr(arrayID(i, 1))
     
@@ -206,10 +224,12 @@ Private Sub lookINFO()
         wsSB.Cells(i + 1, 6).Value = vFLG
     End If
 
-    ' EDD -> as first day of YYMM month
+    ' EDD -> as first day of YYMM month (expanded to full year)
     vEdd = Format$(Trim$(iCS.GetText(12, 73, 4)), "@")
     If vEdd <> vbNullString Then
-        wsSB.Cells(i + 1, 11).Value = DateSerial(CInt(VBA.Left$(vEdd, 2)), CInt(Right$(vEdd, 2)), 1)
+        eddYear = ExpandTwoDigitYear(CInt(VBA.Left$(vEdd, 2)))
+        eddMonth = CInt(Right$(vEdd, 2))
+        wsSB.Cells(i + 1, 11).Value = DateSerial(eddYear, eddMonth, 1)
     End If
 
     ' RESIGNATION/RETIREMENT indicator
@@ -236,10 +256,12 @@ Private Sub lookINFO()
     vuCMD = Format$(Trim$(iCS.GetText(12, 17, 16)), "@")
     wsSB.Cells(i + 1, 12).Value = vuCMD
 
-    ' EDA -> as first day of YYMM month (typo in earlier code fixed: vbNullString)
+    ' EDA -> as first day of YYMM month (expanded to full year)
     vEda = Format$(Trim$(iCS.GetText(12, 58, 4)), "@")
     If vEda <> vbNullString Then
-        wsSB.Cells(i + 1, 13).Value = DateSerial(CInt(VBA.Left$(vEda, 2)), CInt(Right$(vEda, 2)), 1)
+        edaYear = ExpandTwoDigitYear(CInt(VBA.Left$(vEda, 2)))
+        edaMonth = CInt(Right$(vEda, 2))
+        wsSB.Cells(i + 1, 13).Value = DateSerial(edaYear, edaMonth, 1)
     End If
 
     ' EMAILS (also written back to "ID" sheet cols C:F)
@@ -367,95 +389,80 @@ Private Sub lookAQD()
     ' Logs RED BOARD lines if required quals are missing.
 
     Dim r As Long, cT As Long
-    Dim AQD As String
-    Dim oRow As String
-    Dim chk As Long
+    Dim rowText As String
+    Dim rowCache() As String
 
     Dim WTI As Boolean, JI As Boolean, JII As Boolean, JT As Boolean
     Dim PCC As Boolean, PCA As Boolean, CQ As Boolean, SWCLA As Boolean
     Dim TAO As Boolean, EOOW As Boolean
+
+    Dim codesWTI As Variant
+    Dim codesJoint As Variant
+    Dim codesTAO As Variant
+    Dim codesEOOW As Variant
     
     If Progress_Cancelled() Then Exit Sub
-    
+
     If Not Trim$(iCS.GetText(1, 2, 4)) = "PRQS" Then ChangeScreen "PRQS"
 
-    ' WTI (KW1..KW4,KWC)
-    chk = 0
-    arrayAQD = Array(" KW1 ", " KW2 ", " KW3 ", " KW4 ", " KWC ")
+    ReDim rowCache(11 To 19)
     For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 79)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then WTI = True
-        Next cT
+        rowCache(r) = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
     Next r
 
-    ' JPME I (JS7)
-    AQD = " JS7 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then JI = True
-    Next r
+    codesWTI = Array(" KW1 ", " KW2 ", " KW3 ", " KW4 ", " KWC ")
+    codesJoint = Array(" JS1 ", " JS2 ")
+    codesTAO = Array(" LF6 ", " LF7 ")
+    codesEOOW = Array(" LC1 ", " LC2 ", " LC3 ", " LC6 ", " LC7 ", " LC8 ", " LC9 ", " KD2 ")
 
-    ' JPME II (JS8)
-    AQD = " JS8 "
     For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then JII = True
-    Next r
+        rowText = rowCache(r)
 
-    ' JOINT (JS1 or JS2)
-    arrayAQD = Array(" JS1 ", " JS2 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then JT = True
-        Next cT
-    Next r
+        If Not WTI Then
+            For cT = LBound(codesWTI) To UBound(codesWTI)
+                If InStr(rowText, CStr(codesWTI(cT))) > 0 Then
+                    WTI = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' P-CC (LN3)
-    AQD = " LN3 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then PCC = True
-    Next r
+        If Not JI Then If InStr(rowText, " JS7 ") > 0 Then JI = True
+        If Not JII Then If InStr(rowText, " JS8 ") > 0 Then JII = True
 
-    ' P-CAPT C (LN4)
-    AQD = " LN4 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then PCA = True
-    Next r
+        If Not JT Then
+            For cT = LBound(codesJoint) To UBound(codesJoint)
+                If InStr(rowText, CStr(codesJoint(cT))) > 0 Then
+                    JT = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' Command Qual (LN7)
-    AQD = " LN7 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then CQ = True
-    Next r
+        If Not PCC Then If InStr(rowText, " LN3 ") > 0 Then PCC = True
+        If Not PCA Then If InStr(rowText, " LN4 ") > 0 Then PCA = True
+        If Not CQ Then If InStr(rowText, " LN7 ") > 0 Then CQ = True
+        If Not SWCLA Then If InStr(rowText, " 2D1 ") > 0 Then SWCLA = True
 
-    ' SWCLA (2D1)
-    AQD = " 2D1 "
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        If InStr(oRow, AQD) > 0 Then SWCLA = True
-    Next r
+        If Not TAO Then
+            For cT = LBound(codesTAO) To UBound(codesTAO)
+                If InStr(rowText, CStr(codesTAO(cT))) > 0 Then
+                    TAO = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' TAO (LF6, LF7)
-    arrayAQD = Array(" LF6 ", " LF7 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then TAO = True
-        Next cT
-    Next r
+        If Not EOOW Then
+            For cT = LBound(codesEOOW) To UBound(codesEOOW)
+                If InStr(rowText, CStr(codesEOOW(cT))) > 0 Then
+                    EOOW = True
+                    Exit For
+                End If
+            Next cT
+        End If
 
-    ' EOOW (LC1,LC2,LC3,LC6..LC9,KD2)
-    arrayAQD = Array(" LC1 ", " LC2 ", " LC3 ", " LC6 ", " LC7 ", " LC8 ", " LC9 ", " KD2 ")
-    For r = 11 To 19
-        oRow = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
-        For cT = LBound(arrayAQD) To UBound(arrayAQD)
-            If InStr(oRow, CStr(arrayAQD(cT))) > 0 Then EOOW = True
-        Next cT
+        If WTI And JI And JII And JT And PCC And PCA And CQ And SWCLA And TAO And EOOW Then Exit For
     Next r
 
     ' Write Y/N results and log deficiencies
@@ -571,13 +578,19 @@ Private Sub lookFITREP()
             dF3 = ParseYYYYMMDD(CStr(vF3)): dT3 = ParseYYYYMMDD(CStr(vT3))
 
             ' OCT FITREP (example rule): mark col 27 "Y" if most recent To-date is in Oct of current year
-            If dT1 > 0 And Year(CDate(dT1)) = Year(Date) And Month(CDate(dT1)) = 10 Then
-                wsSB.Cells(i + 1, 27).Value = "Y"
+            If dT1 > 0 Then
+                Dim dtMostRecent As Date
+                dtMostRecent = CDate(dT1)
+                If Year(dtMostRecent) = Year(Date) And Month(dtMostRecent) = 10 Then
+                    wsSB.Cells(i + 1, 27).Value = "Y"
+                Else
+                    wsSB.Cells(i + 1, 27).Value = "N"
+                End If
+                wsSB.Cells(i + 1, 26).Value = Format$(dtMostRecent, "DMMMYY")
             Else
                 wsSB.Cells(i + 1, 27).Value = "N"
+                wsSB.Cells(i + 1, 26).ClearContents
             End If
-
-            wsSB.Cells(i + 1, 26).Value = Format(CDate(dT1), "DMMMYY")
             first = False
 
             If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF1 - dT2) & " days):": nIssue = vT2 & " to " & vF1: writeRB
@@ -616,6 +629,18 @@ Private Sub lookFITREP()
     Application.ScreenUpdating = True
 End Sub
 
+' Expands a two-digit year to four digits using a 2000-2029 pivot, otherwise 1900s.
+Private Function ExpandTwoDigitYear(ByVal twoDigitYear As Integer) As Integer
+    Dim normalized As Integer
+
+    normalized = twoDigitYear Mod 100
+    If normalized <= 29 Then
+        ExpandTwoDigitYear = 2000 + normalized
+    Else
+        ExpandTwoDigitYear = 1900 + normalized
+    End If
+End Function
+
 ' Parses "YYYYMMDD" (preferred) or "YYMMDD" into a VBA date serial (Double).
 ' Returns 0 if the input is blank/invalid.
 Public Function ParseYYYYMMDD(ByVal s As String) As Double
@@ -632,7 +657,7 @@ Public Function ParseYYYYMMDD(ByVal s As String) As Double
         m = CLng(Mid$(s, 5, 2))
         d = CLng(Right$(s, 2))
     ElseIf Len(s) = 6 And IsNumeric(s) Then
-        ' YYMMDD  -> pivot: 00–29 => 2000–2029, else 1900–1999
+        ' YYMMDD  -> pivot: 00?29 => 2000?2029, else 1900?1999
         Y = CLng(VBA.Left$(s, 2))
         If Y <= 29 Then
             Y = 2000 + Y
@@ -667,9 +692,25 @@ Private Sub writeRB()
     Dim rw As Long
     Dim nm As String
     Dim cT As Long
-
+    
+    On Error Resume Next
+    
     nm = CStr(arrayID(i, 2))
     rw = FindRow(nm)
+
+    ' If name not found (rw = 0), allocate a new row
+    If rw = 0 Then
+        rw = Application.WorksheetFunction.CountA(wsRB.Range("A:A")) + 1 ' Allocate a new row if name is not found
+    End If
+
+    'ToggleThisWorkbookVisibility
+    
+    ' If rw = 0 after trying to find a new row, then append a new row.
+    If rw = 0 Then
+        Dim newRow As ListRow
+        Set newRow = wsRB.ListObjects("RED_Board").ListRows.Add
+        rw = newRow.Range.row
+    End If
 
     ' If first issue, seed col 1/2 and start line; else append with newline
     cT = CountUnderscores(CStr(wsRB.Cells(rw, 3).Value))
@@ -694,20 +735,31 @@ Private Function FindRow(nmSearch As String) As Long
     ' Finds (or allocates) the worksheet row in RED BOARD "Table13" for the given NAME.
     ' Returns the row number to write into.
     Dim lo As ListObject
-    Dim nextRow As Long
+    Dim nameCol As Range
+    Dim nameCell As Range
+    Dim newRow As ListRow
+    
+    On Error Resume Next
+    
+    FindRow = FoundCell(wsRB, "RED_Board", nmSearch)
+    If FindRow <> 0 Then Exit Function
 
-    FindRow = FoundCell(wsRB, "Table13", nmSearch)
-    If FindRow = 0 Then
-        Set lo = wsRB.ListObjects("Table13")
+    Set lo = wsRB.ListObjects("RED_Table")
 
-        If lo.DataBodyRange Is Nothing Then
-            ' Empty table -> first data row is header + 1
-            FindRow = lo.HeaderRowRange.row + 1
-        Else
-            ' Append below last data row
-            FindRow = lo.DataBodyRange.Rows(lo.DataBodyRange.Rows.Count).row + 1
-        End If
+    ' If the table already has rows, look for the first blank name slot to reuse.
+    If Not lo.DataBodyRange Is Nothing Then
+        Set nameCol = lo.ListColumns(1).DataBodyRange
+        For Each nameCell In nameCol
+            If Len(Trim$(CStr(nameCell.Value))) = 0 Then
+                FindRow = nameCell.row
+                Exit Function
+            End If
+        Next nameCell
     End If
+
+    ' No reusable row found; append a new row to the table and return its worksheet row.
+    Set newRow = lo.ListRows.Add
+    FindRow = newRow.Range.row
 End Function
 
 Private Function FoundCell(ws As Worksheet, TableName As String, _
@@ -717,7 +769,9 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
     Dim lo As ListObject
     Dim col As Range
     Dim pos As Variant
-
+    
+    On Error Resume Next
+    
     Set lo = ws.ListObjects(TableName)
 
     If lo.DataBodyRange Is Nothing Then
@@ -735,5 +789,6 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
 
 

@@ -1,38 +1,12 @@
-VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} StartupForm 
-   ClientHeight    =   3060
-   ClientLeft      =   120
-   ClientTop       =   465
-   ClientWidth     =   9255.001
-   OleObjectBlob   =   "StartupForm.frx":0000
-   ShowModal       =   0   'False
-   StartUpPosition =   1  'CenterOwner
-End
-Attribute VB_Name = "StartupForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
 '==== UserForm: StartupForm ====
 Option Explicit
-
-' --- Constants for screen-text detection (Reflection / OAIS banners) ---
-Private Const TXT_DISA As String = "Defense Information Systems Agency"
-Private Const TXT_SESSION_MENU As String = "CL/SuperSession"
-Private Const TXT_OAIS_BANNER As String = "Officer Assignment Information System"
-Private Const OAIS_MENU_CMD As String = "Start OAIS2"
-
-' --- Tuning knobs ---
-Private Const SMALL_WAIT_SEC As Double = 0.75
-Private Const RETRY_WAIT_SEC As Double = 1.2
-Private Const retries As Long = 3
 
 Private Sub UserForm_Initialize()
     On Error GoTo EH
 
     ' === 1. Connect OAIS and set indicators ===
     ConnectToRunningOAIS
-    SetOAISStatus Not (iCS Is Nothing)
+    SetOAISStatus bOAIS, Not (iCS Is Nothing)
 
     ' === 2. Load board info safely ===
     lblBoardType.Caption = CStr(SafeCell("ID", "H4")) & " Board"
@@ -45,7 +19,7 @@ Private Sub UserForm_Initialize()
 
     ' === 4. Run OAIS reflection logic (background setup) ===
     If Not iCS Is Nothing Then
-        InitializeReflectionAndOAIS
+        InitializeOAISSession bOAIS
     End If
 
     Exit Sub
@@ -65,41 +39,6 @@ Private Sub UserForm_Activate()
     RevealLabels Array(lblRadiate, lblNew, lblASTABone, lblASTABtwo), 0.75
 End Sub
 
-'--- Drive Reflection > Session menu > OAIS2 with light retries ---
-Private Sub InitializeReflectionAndOAIS()
-    ' (1) Reflection Workspace Intro Screen?
-    If WaitForText(1, 1, 79, TXT_DISA, retries, RETRY_WAIT_SEC) Then
-        HitEnter ' pass the splash / login handoff
-
-        ' (2) Session selection menu?
-        If WaitForText(3, 1, 79, TXT_SESSION_MENU, retries, RETRY_WAIT_SEC) Then
-            entText 23, 15, OAIS_MENU_CMD
-
-            ' (3) Wait for OAIS banner, allow one "enter" nudge if needed
-            If Not WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC) Then
-                SafePause 0.6
-                HitEnter
-                ' final check
-                Call WaitForText(2, 1, 79, TXT_OAIS_BANNER, 2, RETRY_WAIT_SEC)
-            End If
-        End If
-    End If
-
-    ' Refresh status light after attempts
-    SetOAISStatus Not (iCS Is Nothing)
-End Sub
-
-'--- Label/status helpers -----------------------------------------------------
-
-Private Sub SetOAISStatus(ByVal isConnected As Boolean)
-    If isConnected Then
-        bOAIS.BackColor = vbGreen
-        bOAIS.Caption = "Connected to OAIS"
-    Else
-        bOAIS.BackColor = vbRed
-        bOAIS.Caption = "OAIS Not Connected"
-    End If
-End Sub
 
 Private Sub RevealLabels(ByVal labels As Variant, ByVal stepSeconds As Double)
     Dim i As Long
@@ -114,16 +53,13 @@ End Sub
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblNew.ForeColor = vbWhite:        lblNewL.ForeColor = vbWhite
+    lblNew.ForeColor = vbWhite
     lblSettings.ForeColor = vbBlack
-    lblRadiate.ForeColor = vbWhite:    lblRadiateL.ForeColor = vbWhite
+    lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
 
-    lblRadiateL.Visible = False
-    lblNewL.Visible = False
-
-    lblASTABone.ForeColor = vbWhite:   lblASTABoneL.ForeColor = vbWhite: lblASTABoneL.Visible = False
-    lblASTABtwo.ForeColor = vbWhite:   lblASTABtwoL.ForeColor = vbWhite: lblASTABtwoL.Visible = False
+    lblASTABone.ForeColor = vbWhite
+    lblASTABtwo.ForeColor = vbWhite
 End Sub
 
 Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -131,7 +67,7 @@ Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer,
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblRadiate.ForeColor = vbRed: lblRadiateL.ForeColor = vbRed: lblRadiateL.Visible = True
+    lblRadiate.ForeColor = vbRed
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -139,15 +75,15 @@ Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblNew.ForeColor = vbRed: lblNewL.ForeColor = vbRed: lblNewL.Visible = True
+    lblNew.ForeColor = vbRed
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABone.ForeColor = vbRed: lblASTABoneL.ForeColor = vbRed: lblASTABoneL.Visible = True
+    lblASTABone.ForeColor = vbRed
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABtwo.ForeColor = vbRed: lblASTABtwoL.ForeColor = vbRed: lblASTABtwoL.Visible = True
+    lblASTABtwo.ForeColor = vbRed
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
@@ -156,7 +92,7 @@ Private Sub bOAIS_Click()
     ' If not connected, try to connect; else toggle external frame if present.
     If bOAIS.BackColor = vbRed Then
         ConnectToRunningOAIS
-        SetOAISStatus Not (iCS Is Nothing)
+        SetOAISStatus bOAIS, Not (iCS Is Nothing)
         Exit Sub
     End If
 
@@ -176,7 +112,7 @@ End Sub
 Private Sub bRadiate_Click()
     ConnectToRunningOAIS
     
-    SetOAISStatus Not (iCS Is Nothing)
+    SetOAISStatus bOAIS, Not (iCS Is Nothing)
     
     ClearTableColumnsCD ("RED_Board")
     
@@ -185,9 +121,8 @@ Private Sub bRadiate_Click()
     HideAndReleaseStartupForm
     
     A_Record_Review
-    
-    ' Initialize and show progressform
-    progressform.Show vbModeless ' Show modeless so code continues running
+
+    ' Progress UI is managed within A_Record_Review; no separate show call is needed here.
          
 End Sub
 
@@ -206,27 +141,28 @@ Private Sub ClearTableColumnsCD(ByVal TableName As String)
     ' Get the table object
     Set lo = ws.ListObjects(TableName)
     
+    ' Exit gracefully if the table has no data rows yet
+    If lo.DataBodyRange Is Nothing Then
+        Debug.Print "ClearTableColumnsCD: Table '" & TableName & "' has no data rows to clear."
+        Exit Sub
+    End If
+
     ' Determine first and last data rows in the table
     firstRow = lo.DataBodyRange.row
-    lastRow = firstRow + lo.ListRows.Count - 1
-    
-    If Not lastRow = 2 Then
-        ' Build the range from C2 to D at last table row
-        Set targetRange = ws.Range("C2:D" & lastRow)
-        
+    lastRow = firstRow + lo.DataBodyRange.Rows.Count - 1
+
+    If lastRow >= firstRow Then
+        ' Build the range using the table's actual position
+        Set targetRange = ws.Range(ws.Cells(firstRow, 3), ws.Cells(lastRow, 4))
+
         ' Clear contents only (keeps formatting and formulas)
         targetRange.ClearContents
-    
-        Exit Sub
-    
-    Else
-    
-        Exit Sub
-        
     End If
-    
+
+    Exit Sub
+
 ErrHandler:
-    MsgBox "Error: " & Err.Description, vbExclamation
+    Debug.Print "ClearTableColumnsCD error (" & Err.Number & "): " & Err.Description
 End Sub
 
 Private Sub bASTABone_Click()
@@ -329,22 +265,9 @@ End Sub
 
 
 ' Polls for substring on the Reflection screen text with retries.
-Private Function WaitForText(ByVal row As Long, ByVal col As Long, ByVal nChars As Long, _
-                             ByVal needle As String, ByVal retries As Long, ByVal waitSec As Double) As Boolean
-    Dim i As Long, hay As String
-    On Error Resume Next
-    For i = 1 To retries
-        hay = iCS.GetText(row, col, nChars)
-        If InStr(1, hay, needle, vbTextCompare) > 0 Then
-            WaitForText = True
-            Exit Function
-        End If
-        SafePause waitSec
-    Next i
-    WaitForText = False
-End Function
 
 Private Sub UserForm_Terminate()
     On Error Resume Next
     Set startup = Nothing
 End Sub
+

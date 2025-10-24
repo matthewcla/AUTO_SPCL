@@ -1,18 +1,21 @@
-VERSION 1.0 CLASS
-BEGIN
-  MultiUse = -1  'True
-END
-Attribute VB_Name = "ThisWorkbook"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = True
 '==== ThisWorkbook ====
 Option Explicit
 
-Private Sub Workbook_Open()
-    On Error GoTo EH
+Private m_SavedWindowState As XlWindowState
+Private m_HasSavedWindowState As Boolean
 
+Private Sub Workbook_Open()
+    Dim routineSucceeded As Boolean
+
+    On Error GoTo EH2
+
+    Set iApp = GetObject(, "Attachmate_Reflection_Objects_Framework.ApplicationObject")
+    Set iFrame = iApp.GetObject("Frame")
+    Set iCT = iFrame.SelectedView.Control
+    Set iCS = iCT.screen
+
+    On Error GoTo EH
+    
     ' Make sure THIS workbook is visible before any UI/setup
     SetWorkbookVisibility ThisWorkbook, True
 
@@ -23,10 +26,13 @@ Private Sub Workbook_Open()
     Application.ScreenUpdating = False
     Application.EnableCancelKey = xlErrorHandler
     ActiveWindow.DisplayWorkbookTabs = False
+    m_SavedWindowState = Application.WindowState
+    m_HasSavedWindowState = True
     Application.WindowState = xlMinimized
+       
     ' Only show the startup UI if THIS workbook is visible
     ShowStartupOnceOnOpen
-    
+
     ToggleThisWorkbookVisibility
     ' 1) Load Board Type safely
     BoardType = SafeReadBoardType("ID", "H5")
@@ -38,14 +44,26 @@ Private Sub Workbook_Open()
 
     ' 3) Ensure the form is present (modeless)
     ShowStartupFormOnce
-    Application.WindowState = xlMaximized
+    routineSucceeded = True
 
 CleanUp:
+    If m_HasSavedWindowState Then
+        Application.WindowState = m_SavedWindowState
+    Else
+        Application.WindowState = xlMaximized
+    End If
+    If routineSucceeded Then
+        m_HasSavedWindowState = False
+    End If
     Application.ScreenUpdating = True
     Exit Sub
 EH:
     Debug.Print "Workbook_Open error: "; Err.Number; Err.Description
     Resume CleanUp
+EH2:
+    MsgBox "OAIS Session not found. Open OAIS and try opening AUTO_SPCL again.", vbCritical
+    Resume CleanUp
+    ThisWorkbook.Close
 End Sub
 
 Private Sub Workbook_Activate()
