@@ -713,15 +713,20 @@ Private Sub writeRB()
     End If
 
     ' If first issue, seed col 1/2 and start line; else append with newline
+    Dim issueLine As String
+    issueLine = "_" & IssueCAT & ": " & nIssue
+
     cT = CountUnderscores(CStr(wsRB.Cells(rw, 3).Value))
     If cT = 0 Then
         wsRB.Cells(rw, 1).Value = nm
         wsRB.Cells(rw, 2).Value = wsSB.Cells(i + 1, 2).Value
-        wsRB.Cells(rw, 3).Value = "_" & IssueCAT & ": " & nIssue
+        wsRB.Cells(rw, 3).Value = issueLine
     Else
         issues = CStr(wsRB.Cells(rw, 3).Value)
-        wsRB.Cells(rw, 3).Value = issues & vbNewLine & "_" & IssueCAT & ": " & nIssue
+        wsRB.Cells(rw, 3).Value = issues & vbNewLine & issueLine
     End If
+
+    Progress_Log nm & ": " & issueLine
 End Sub
 
 Private Function CountUnderscores(inputText As String) As Long
