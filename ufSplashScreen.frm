@@ -146,7 +146,7 @@ Private Sub StartProgress()
     ' -----------------------
     
     ' Give a moment to see the "100%" before closing
-    Sleep 500
+    Sleep 1000
 
     HandleSplashComplete
     Unload Me
