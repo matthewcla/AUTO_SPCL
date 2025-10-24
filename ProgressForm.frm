@@ -53,14 +53,17 @@ End Sub
 
 ' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
+    Dim newLine As String
+    newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
+
     With Me.txtLog
         If Len(.Text) > 0 Then
-            .SelStart = Len(.Text)  ' Move to the end of the text
-            .SelText = vbCrLf & Format$(Now, "hh:nn:ss") & "  " & lineText  ' Append the line
+            .Text = .Text & vbCrLf & newLine  ' Append the line
         Else
-            .Text = Format$(Now, "hh:nn:ss") & "  " & lineText  ' Start with the first line
+            .Text = newLine  ' Start with the first line
         End If
-        .SelStart = Len(.Text)  ' Scroll to the end
+        .SelStart = Len(.Text)
+        .SelLength = 0
     End With
     DoEvents
 End Sub
