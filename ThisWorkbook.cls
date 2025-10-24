@@ -3,6 +3,7 @@ Option Explicit
 
 Private m_SavedWindowState As XlWindowState
 Private m_HasSavedWindowState As Boolean
+Private m_SplashScreenShown As Boolean
 
 Private Sub Workbook_Open()
     Dim routineSucceeded As Boolean
@@ -30,8 +31,8 @@ Private Sub Workbook_Open()
     m_HasSavedWindowState = True
     Application.WindowState = xlMinimized
        
-    ' Only show the startup UI if THIS workbook is visible
-    ShowStartupOnceOnOpen
+    ' Only show the splash UI if THIS workbook is visible
+    ShowSplashScreenWhenVisible
 
     ToggleThisWorkbookVisibility
     ' 1) Load Board Type safely
@@ -67,6 +68,7 @@ EH2:
 End Sub
 
 Private Sub Workbook_Activate()
+    ShowSplashScreenWhenVisible
     If Not g_SuspendStartupAutoShow Then
         ShowStartupFormOnce
     End If
@@ -87,6 +89,14 @@ Private Sub ShowStartupOnceOnOpen()
     If m_StartupShownOnce Then Exit Sub
     If Not IsWorkbookVisible(ThisWorkbook) Then Exit Sub
     ufSplashScreen.Show vbModeless
+End Sub
+' --- Called from Workbook_Open to guard one-time splash intent ---
+Private Sub ShowSplashScreenWhenVisible()
+    If m_SplashScreenShown Then Exit Sub
+    If Not IsWorkbookVisible(ThisWorkbook) Then Exit Sub
+
+    ufSplashScreen.Show vbModeless
+    m_SplashScreenShown = True
 End Sub
 
 Private Function SafeReadBoardType(ByVal sheetName As String, ByVal addr As String) As String
