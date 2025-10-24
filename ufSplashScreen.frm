@@ -78,11 +78,20 @@ Private Sub UserForm_Activate()
     Dim hWnd As LongPtr
     Dim currentStyle As LongPtr
     Dim newStyle As LongPtr
+    Dim originalCaption As String
+    Dim tempCaption As String
+
+    ' Temporarily swap the caption so FindWindow returns this form even if
+    ' another window shares the display caption (caption swap required).
+    originalCaption = Me.Caption
+    tempCaption = "ufsplash-" & Hex$(ObjPtr(Me))
+    Me.Caption = tempCaption
 
     ' 1. Find the UserForm's window handle (hWnd)
-    ' Note: This finds the form based on its *current* caption.
-    hWnd = FindWindow("ThunderDFrame", Me.Caption)
-    
+    ' Note: This finds the form based on its *temporary* caption.
+    hWnd = FindWindow("ThunderDFrame", tempCaption)
+    Me.Caption = originalCaption
+
     If hWnd = 0 Then Exit Sub ' Exit if window not found
 
     ' 2. Get the current style of the window
