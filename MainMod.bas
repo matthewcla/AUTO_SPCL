@@ -1,4 +1,3 @@
-Attribute VB_Name = "MainMod"
 Option Explicit
 '========================================================================================
 ' Module: modRecordReview
@@ -658,7 +657,7 @@ Public Function ParseYYYYMMDD(ByVal s As String) As Double
         m = CLng(Mid$(s, 5, 2))
         d = CLng(Right$(s, 2))
     ElseIf Len(s) = 6 And IsNumeric(s) Then
-        ' YYMMDD  -> pivot: 0029 => 20002029, else 19001999
+        ' YYMMDD  -> pivot: 00?29 => 2000?2029, else 1900?1999
         Y = CLng(VBA.Left$(s, 2))
         If Y <= 29 Then
             Y = 2000 + Y
@@ -693,9 +692,25 @@ Private Sub writeRB()
     Dim rw As Long
     Dim nm As String
     Dim cT As Long
-
+    
+    On Error Resume Next
+    
     nm = CStr(arrayID(i, 2))
     rw = FindRow(nm)
+
+    ' If name not found (rw = 0), allocate a new row
+    If rw = 0 Then
+        rw = Application.WorksheetFunction.CountA(wsRB.Range("A:A")) + 1 ' Allocate a new row if name is not found
+    End If
+
+    'ToggleThisWorkbookVisibility
+    
+    ' If rw = 0 after trying to find a new row, then append a new row.
+    If rw = 0 Then
+        Dim newRow As ListRow
+        Set newRow = wsRB.ListObjects("RED_Board").ListRows.Add
+        rw = newRow.Range.row
+    End If
 
     ' If first issue, seed col 1/2 and start line; else append with newline
     cT = CountUnderscores(CStr(wsRB.Cells(rw, 3).Value))
@@ -723,11 +738,13 @@ Private Function FindRow(nmSearch As String) As Long
     Dim nameCol As Range
     Dim nameCell As Range
     Dim newRow As ListRow
-
-    FindRow = FoundCell(wsRB, "Table13", nmSearch)
+    
+    On Error Resume Next
+    
+    FindRow = FoundCell(wsRB, "RED_Board", nmSearch)
     If FindRow <> 0 Then Exit Function
 
-    Set lo = wsRB.ListObjects("Table13")
+    Set lo = wsRB.ListObjects("RED_Table")
 
     ' If the table already has rows, look for the first blank name slot to reuse.
     If Not lo.DataBodyRange Is Nothing Then
@@ -752,7 +769,9 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
     Dim lo As ListObject
     Dim col As Range
     Dim pos As Variant
-
+    
+    On Error Resume Next
+    
     Set lo = ws.ListObjects(TableName)
 
     If lo.DataBodyRange Is Nothing Then
@@ -770,5 +789,6 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
 
 
