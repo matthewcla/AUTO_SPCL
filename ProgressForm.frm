@@ -38,6 +38,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     maxBarWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
+    Me.txtLog.ControlSource = vbNullString
     Me.txtLog.Value = vbNullString
     Me.txtLog.SelStart = 0
 
@@ -162,6 +163,8 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+
+    Me.txtLog.ControlSource = vbNullString
 
     InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
 
