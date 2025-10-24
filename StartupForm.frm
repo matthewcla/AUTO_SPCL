@@ -1,18 +1,3 @@
-VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} StartupForm 
-   ClientHeight    =   3060
-   ClientLeft      =   120
-   ClientTop       =   465
-   ClientWidth     =   9255.001
-   OleObjectBlob   =   "StartupForm.frx":0000
-   ShowModal       =   0   'False
-   StartUpPosition =   1  'CenterOwner
-End
-Attribute VB_Name = "StartupForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
 '==== UserForm: StartupForm ====
 Option Explicit
 
@@ -68,16 +53,13 @@ End Sub
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblNew.ForeColor = vbWhite:        lblNewL.ForeColor = vbWhite
+    lblNew.ForeColor = vbWhite
     lblSettings.ForeColor = vbBlack
-    lblRadiate.ForeColor = vbWhite:    lblRadiateL.ForeColor = vbWhite
+    lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
 
-    lblRadiateL.Visible = False
-    lblNewL.Visible = False
-
-    lblASTABone.ForeColor = vbWhite:   lblASTABoneL.ForeColor = vbWhite: lblASTABoneL.Visible = False
-    lblASTABtwo.ForeColor = vbWhite:   lblASTABtwoL.ForeColor = vbWhite: lblASTABtwoL.Visible = False
+    lblASTABone.ForeColor = vbWhite
+    lblASTABtwo.ForeColor = vbWhite
 End Sub
 
 Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -85,7 +67,7 @@ Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer,
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblRadiate.ForeColor = vbRed: lblRadiateL.ForeColor = vbRed: lblRadiateL.Visible = True
+    lblRadiate.ForeColor = vbRed
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -93,15 +75,15 @@ Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblNew.ForeColor = vbRed: lblNewL.ForeColor = vbRed: lblNewL.Visible = True
+    lblNew.ForeColor = vbRed
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABone.ForeColor = vbRed: lblASTABoneL.ForeColor = vbRed: lblASTABoneL.Visible = True
+    lblASTABone.ForeColor = vbRed
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABtwo.ForeColor = vbRed: lblASTABtwoL.ForeColor = vbRed: lblASTABtwoL.Visible = True
+    lblASTABtwo.ForeColor = vbRed
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
@@ -166,7 +148,7 @@ Private Sub ClearTableColumnsCD(ByVal TableName As String)
     End If
 
     ' Determine first and last data rows in the table
-    firstRow = lo.DataBodyRange.Row
+    firstRow = lo.DataBodyRange.row
     lastRow = firstRow + lo.DataBodyRange.Rows.Count - 1
 
     If lastRow >= firstRow Then
@@ -288,3 +270,4 @@ Private Sub UserForm_Terminate()
     On Error Resume Next
     Set startup = Nothing
 End Sub
+
