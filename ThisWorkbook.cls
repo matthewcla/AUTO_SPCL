@@ -1,12 +1,3 @@
-VERSION 1.0 CLASS
-BEGIN
-  MultiUse = -1  'True
-END
-Attribute VB_Name = "ThisWorkbook"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = True
 '==== ThisWorkbook ====
 Option Explicit
 
@@ -14,9 +5,17 @@ Private m_SavedWindowState As XlWindowState
 Private m_HasSavedWindowState As Boolean
 
 Private Sub Workbook_Open()
-    On Error GoTo EH
     Dim routineSucceeded As Boolean
 
+    On Error GoTo EH2
+
+    Set iApp = GetObject(, "Attachmate_Reflection_Objects_Framework.ApplicationObject")
+    Set iFrame = iApp.GetObject("Frame")
+    Set iCT = iFrame.SelectedView.Control
+    Set iCS = iCT.screen
+
+    On Error GoTo EH
+    
     ' Make sure THIS workbook is visible before any UI/setup
     SetWorkbookVisibility ThisWorkbook, True
 
@@ -30,6 +29,7 @@ Private Sub Workbook_Open()
     m_SavedWindowState = Application.WindowState
     m_HasSavedWindowState = True
     Application.WindowState = xlMinimized
+       
     ' Only show the startup UI if THIS workbook is visible
     ShowStartupOnceOnOpen
 
@@ -60,6 +60,10 @@ CleanUp:
 EH:
     Debug.Print "Workbook_Open error: "; Err.Number; Err.Description
     Resume CleanUp
+EH2:
+    MsgBox "OAIS Session not found. Open OAIS and try opening AUTO_SPCL again.", vbCritical
+    Resume CleanUp
+    ThisWorkbook.Close
 End Sub
 
 Private Sub Workbook_Activate()
