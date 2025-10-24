@@ -67,10 +67,12 @@ Private Sub OAISConnect()
     Set iFrame = iApp.GetObject("Frame")
     Set iCT = iFrame.SelectedView.Control
     Set iCS = iCT.screen
+
     OAIS = True
+    Exit Sub
+
 EH:
     OAIS = False
-    Exit Sub
 End Sub
 Private Sub UserForm_Activate()
     Dim hWnd As LongPtr
