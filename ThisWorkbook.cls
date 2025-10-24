@@ -84,6 +84,12 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ActiveWindow.DisplayWorkbookTabs = True
 End Sub
 
+' --- Called from Workbook_Open to guard one-time autoshow intent ---
+Private Sub ShowStartupOnceOnOpen()
+    If m_StartupShownOnce Then Exit Sub
+    If Not IsWorkbookVisible(ThisWorkbook) Then Exit Sub
+    ufSplashScreen.Show vbModeless
+End Sub
 ' --- Called from Workbook_Open to guard one-time splash intent ---
 Private Sub ShowSplashScreenWhenVisible()
     If m_SplashScreenShown Then Exit Sub

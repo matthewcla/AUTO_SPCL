@@ -59,6 +59,14 @@ Public Function IsWorkbookVisible(ByVal wb As Workbook) As Boolean
 End Function
 
 ' === StartupForm single-instance helpers ===
+Public Sub HandleSplashComplete()
+    If m_StartupShownOnce Then Exit Sub
+    If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
+
+    m_StartupShownOnce = True
+    ShowStartupFormOnce
+End Sub
+
 Public Sub ShowStartupFormOnce()
     Dim uf As Object
     If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
