@@ -68,9 +68,9 @@ Private Sub OAISConnect()
     Set iCT = iFrame.SelectedView.Control
     Set iCS = iCT.screen
     OAIS = True
+    Exit Sub
 EH:
     OAIS = False
-    Exit Sub
 End Sub
 Private Sub UserForm_Activate()
     Dim hWnd As LongPtr
@@ -148,7 +148,7 @@ Private Sub StartProgress()
     ' Give a moment to see the "100%" before closing
     Sleep 1000
 
-    modStartupForm.HandleSplashComplete
+    HandleSplashComplete
     ResetSplashUiState
     Unload Me
 End Sub
