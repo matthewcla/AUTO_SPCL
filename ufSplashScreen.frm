@@ -148,11 +148,12 @@ Private Sub StartProgress()
     ' Give a moment to see the "100%" before closing
     Sleep 500
 
-    HandleSplashComplete
+    modStartupForm.HandleSplashComplete
+    ResetSplashUiState
     Unload Me
 End Sub
 
-Private Sub HandleSplashComplete()
+Private Sub ResetSplashUiState()
     ' Reset any UI state that may have been changed during the splash sequence
     lblSubTitle.ForeColor = originalSubTitleForeColor
 End Sub
