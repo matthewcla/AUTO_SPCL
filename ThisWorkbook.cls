@@ -86,8 +86,7 @@ End Sub
 Private Sub ShowStartupOnceOnOpen()
     If m_StartupShownOnce Then Exit Sub
     If Not IsWorkbookVisible(ThisWorkbook) Then Exit Sub
-    ShowStartupFormOnce
-    m_StartupShownOnce = True
+    ufSplashScreen.Show vbModeless
 End Sub
 
 Private Function SafeReadBoardType(ByVal sheetName As String, ByVal addr As String) As String

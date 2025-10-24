@@ -145,10 +145,12 @@ Private Sub StartProgress()
     
     ' Give a moment to see the "100%" before closing
     Sleep 500
-    
+
     ' Close the splash screen and show the main form or dashboard
     ' MsgBox "AUTO_SPCL is now ready!" ' You can add this back if you want
     ' Me.Hide
     ' Uncomment the line below to show the main form after the splash screen:
     ' MainForm.Show
+    HandleSplashComplete
+    Unload Me
 End Sub
