@@ -17,6 +17,7 @@ Attribute VB_Exposed = False
 Dim progress As Integer
 Dim progressText(5) As String
 Dim totalProgressBarWidth As Long
+Dim originalSubTitleForeColor As Long
 
 Dim OAIS As Boolean
 
@@ -51,6 +52,7 @@ Private Sub UserForm_Initialize()
     End If
     ' *** FIX 2: Store the final width of the progress bar (set in the designer) ***
     totalProgressBarWidth = lblProgressBar.Width
+    originalSubTitleForeColor = lblSubTitle.ForeColor
     
     ' Set initial progress
     progress = 0
@@ -145,10 +147,12 @@ Private Sub StartProgress()
     
     ' Give a moment to see the "100%" before closing
     Sleep 500
-    
-    ' Close the splash screen and show the main form or dashboard
-    ' MsgBox "AUTO_SPCL is now ready!" ' You can add this back if you want
-    ' Me.Hide
-    ' Uncomment the line below to show the main form after the splash screen:
-    ' MainForm.Show
+
+    HandleSplashComplete
+    Unload Me
+End Sub
+
+Private Sub HandleSplashComplete()
+    ' Reset any UI state that may have been changed during the splash sequence
+    lblSubTitle.ForeColor = originalSubTitleForeColor
 End Sub
