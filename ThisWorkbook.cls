@@ -43,8 +43,10 @@ Private Sub Workbook_Open()
     KeepAlive_Start
     On Error GoTo EH
 
-    ' 3) Ensure the form is present (modeless)
-    ShowStartupFormOnce True
+    ' 3) Ensure the form is present (modeless) once the splash is gone
+    If Not SplashScreenLoaded() Then
+        ShowStartupFormOnce True
+    End If
     routineSucceeded = True
 
 CleanUp:
@@ -98,6 +100,16 @@ Private Sub ShowSplashScreenWhenVisible()
     ufSplashScreen.Show vbModeless
     m_SplashScreenShown = True
 End Sub
+
+Private Function SplashScreenLoaded() As Boolean
+    Dim uf As Object
+    For Each uf In VBA.UserForms
+        If TypeOf uf Is ufSplashScreen Then
+            SplashScreenLoaded = True
+            Exit Function
+        End If
+    Next uf
+End Function
 
 Private Function SafeReadBoardType(ByVal sheetName As String, ByVal addr As String) As String
     On Error GoTo Fallback
