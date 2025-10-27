@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+Option Explicit
 '--- Global Variables ---
 Dim progress As Integer
 Dim progressText(5) As String
@@ -63,10 +64,7 @@ Private Sub OAISConnect()
 
     On Error GoTo EH
 
-    Set iApp = GetObject(, "Attachmate_Reflection_Objects_Framework.ApplicationObject")
-    Set iFrame = iApp.GetObject("Frame")
-    Set iCT = iFrame.SelectedView.Control
-    Set iCS = iCT.screen
+    modOAIS.ConnectToRunningOAIS
 
     OAIS = True
     Exit Sub
