@@ -128,7 +128,7 @@ NoWork:
         progressClosed = True
     Else
         Progress_Update processed, total, "Review complete."
-        Progress_Close "Review complete."
+        Progress_Close "Review complete.", True
         progressClosed = True
     End If
 
