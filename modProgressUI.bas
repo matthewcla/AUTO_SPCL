@@ -4,12 +4,14 @@ Option Explicit
 Public progressForm As progressForm
 Public paused As Boolean
 Public cancelled As Boolean
+Public progressRunComplete As Boolean
 
 Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As String = "")
     On Error GoTo HandleError
 
     Set progressForm = New ProgressForm
     cancelled = False
+    progressRunComplete = False
     progressForm.Show vbModeless
     progressForm.Init totalCount, title
     Exit Sub
@@ -57,6 +59,8 @@ Public Function Progress_Cancelled() As Boolean
 End Function
 
 Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
+    progressRunComplete = True
+
     If Not progressForm Is Nothing Then
         On Error Resume Next
         If Len(finalNote) > 0 Then
