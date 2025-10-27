@@ -5,8 +5,9 @@ Private Sub UserForm_Initialize()
     On Error GoTo EH
 
     ' === 1. Connect OAIS and set indicators ===
-    ConnectToRunningOAIS
-    SetOAISStatus bOAIS, Not (iCS Is Nothing)
+    Dim isConnected As Boolean
+    isConnected = EnsureReflectionsConnectionAlive(True)
+    SetOAISStatus bOAIS, isConnected
 
     ' === 2. Load board info safely ===
     lblBoardType.Caption = CStr(SafeCell("ID", "H4")) & " Board"
@@ -22,9 +23,20 @@ Private Sub UserForm_Initialize()
         InitializeOAISSession bOAIS
     End If
 
+    modReflectionsMonitor.RegisterReflectionsListener Me.Name
+
     Exit Sub
 EH:
     Debug.Print "StartupForm.Initialize error: "; Err.Number; Err.Description
+End Sub
+
+Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
+    SetOAISStatus bOAIS, isConnected
+End Sub
+
+Private Sub UserForm_Terminate()
+    On Error Resume Next
+    modReflectionsMonitor.UnregisterReflectionsListener Me.Name
 End Sub
 
 

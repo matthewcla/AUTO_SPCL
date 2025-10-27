@@ -68,6 +68,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.lblPercentage.Caption = "0%"
     Me.lblElapsed.Caption = "0:00:00"
     Me.lblETR.Caption = "--:--:--"
+    lblOAIS.Caption = ""
 
     CenterUserFormOnActiveMonitor Me
     
@@ -300,8 +301,8 @@ End Sub
 Private Sub bOAIS_Click()
     ' If not connected, try to connect; else toggle external frame if present.
     If lblOAIS.BackColor = vbRed Then
-        ConnectToRunningOAIS
-        SetOAISStatus lblOAIS, Not (iCS Is Nothing), , , vbWhite, vbWhite
+        EnsureReflectionsConnectionAlive True
+        UpdateOAISStatusIndicator
         Exit Sub
     End If
 
@@ -321,11 +322,41 @@ End Sub
 Private Sub UserForm_Initialize()
 
     Me.txtLog.ControlSource = ""
+    lblOAIS.Caption = ""
 
-    InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
+    modReflectionsMonitor.RegisterReflectionsListener Me.Name
+
+    Dim isConnected As Boolean
+    isConnected = EnsureReflectionsConnectionAlive(True)
+    HandleReflectionsConnection isConnected
+
+    If isConnected Then
+        InitializeOAISSession lblOAIS, "", "", vbWhite, vbWhite
+    Else
+        UpdateOAISStatusIndicator
+    End If
 
     'A_Record_Review
 
+End Sub
+
+Private Sub UserForm_Terminate()
+    On Error Resume Next
+    modReflectionsMonitor.UnregisterReflectionsListener Me.Name
+End Sub
+
+Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
+    lblOAIS.Caption = ""
+    lblOAIS.ForeColor = vbWhite
+    If isConnected Then
+        lblOAIS.BackColor = vbGreen
+    Else
+        lblOAIS.BackColor = vbRed
+    End If
+End Sub
+
+Private Sub UpdateOAISStatusIndicator()
+    HandleReflectionsConnection Not (iCS Is Nothing)
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
