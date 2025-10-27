@@ -40,12 +40,12 @@ Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 
+Public Paused As Boolean
+Public Cancelled As Boolean
+
 Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
 End Sub
-
-Public Paused As Boolean
-Public Cancelled As Boolean
 
 ' Utility: format seconds as h:mm:ss
 Private Function HMS(ByVal secs As Double) As String
