@@ -58,9 +58,10 @@ Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
-Private currentTotalCount As Long
-Private currentCompletedCount As Long
 Private titleBarHidden As Boolean
+
+Public TotalCount As Long
+Public CompletedCount As Long
 
 Public Paused As Boolean
 Public Cancelled As Boolean
@@ -116,8 +117,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     startTick = Timer
     lastUpdate = startTick
     emaSecPerItem = 0#
-    currentTotalCount = totalCount
-    currentCompletedCount = 0
+    TotalCount = totalCount
+    CompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
 End Sub
@@ -338,8 +339,8 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     Dim isComplete As Boolean
     isComplete = (totalCount > 0 And done >= totalCount)
 
-    currentCompletedCount = done
-    currentTotalCount = totalCount
+    CompletedCount = done
+    TotalCount = totalCount
 
     If Cancelled Then
         btnCancel.Caption = "Cancelling..."
@@ -365,15 +366,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 End Sub
 
 Public Property Get ProgressComplete() As Boolean
-    ProgressComplete = (currentTotalCount > 0 And currentCompletedCount >= currentTotalCount)
-End Property
-
-Public Property Get CompletedCount() As Long
-    CompletedCount = currentCompletedCount
-End Property
-
-Public Property Get TotalCount() As Long
-    TotalCount = currentTotalCount
+    ProgressComplete = (TotalCount > 0 And CompletedCount >= TotalCount)
 End Property
 
 ' Blocks while paused; returns False if cancelled while waiting
