@@ -32,6 +32,8 @@ Private Const EM_GETLINECOUNT As Long = &HBA
 Private Const EM_LINEFROMCHAR As Long = &HC9
 Private Const EM_CHARFROMPOS As Long = &HD7
 Private Const EM_GETRECT As Long = &HB2
+Private Const EM_SETSEL As Long = &HB1
+Private Const EM_SCROLLCARET As Long = &HB7
 
 '==== Private state ====
 Private startTick As Double
@@ -183,7 +185,33 @@ Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boole
     TextBoxIsScrolledToBottom = (lastVisibleLine >= totalLines - 1)
 End Function
 
+Private Function ApplyTextBoxSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selEnd As Long, Optional ByVal scrollCaret As Boolean = False) As Boolean
+#If VBA7 Then
+    Dim hWndTB As LongPtr
+#Else
+    Dim hWndTB As Long
+#End If
+
+    hWndTB = GetTextBoxHwnd(tb)
+
+    If hWndTB = 0 Then
+        Exit Function
+    End If
+
+    Call SendMessageLongPtr(hWndTB, EM_SETSEL, selStart, selEnd)
+
+    If scrollCaret Then
+        Call SendMessageLongPtr(hWndTB, EM_SCROLLCARET, 0&, 0&)
+    End If
+
+    ApplyTextBoxSelection = True
+End Function
+
 Private Sub RestoreSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selLength As Long)
+    If ApplyTextBoxSelection(tb, selStart, selStart + selLength) Then
+        Exit Sub
+    End If
+
     On Error Resume Next
     tb.SelStart = selStart
     tb.SelLength = selLength
@@ -191,8 +219,15 @@ Private Sub RestoreSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long
 End Sub
 
 Private Sub ScrollTextBoxToBottom(ByVal tb As MSForms.TextBox)
+    Dim textLen As Long
+    textLen = Len(tb.Text)
+
+    If ApplyTextBoxSelection(tb, textLen, textLen, True) Then
+        Exit Sub
+    End If
+
     On Error Resume Next
-    tb.SelStart = Len(tb.Text)
+    tb.SelStart = textLen
     tb.SelLength = 0
     On Error GoTo 0
 End Sub
