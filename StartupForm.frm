@@ -124,6 +124,7 @@ End Sub
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerDefault
     lblNew.ForeColor = vbWhite
     lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
@@ -133,23 +134,32 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
     lblRadiate.ForeColor = vbRed
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
     If bOAIS.BackColor <> vbGreen Then bOAIS.ForeColor = vbRed
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
     lblNew.ForeColor = vbRed
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
     lblASTABone.ForeColor = vbRed
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
     lblASTABtwo.ForeColor = vbRed
+End Sub
+
+Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    Me.MousePointer = fmMousePointerHand
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
