@@ -388,10 +388,6 @@ Private Sub btnPause_Click()
     End If
 End Sub
 
-Private Sub btnPause_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    btnPause.MousePointer = fmMousePointerHand
-End Sub
-
 Private Sub btnCancel_Click()
     If btnCancel.Caption = "Next" Then
         nextFormName = "EmailForm"
@@ -407,10 +403,6 @@ Private Sub btnCancel_Click()
     LogLine "Cancel requested. Finishing current step"
     nextFormName = "StartupForm"
     ' Keep the form visible until the worker loop finishes and closes it.
-End Sub
-
-Private Sub btnCancel_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    btnCancel.MousePointer = fmMousePointerHand
 End Sub
 
 Private Sub bOAIS_Click()
@@ -432,10 +424,6 @@ Private Sub bOAIS_Click()
         End If
     End If
     On Error GoTo 0
-End Sub
-
-Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bOAIS.MousePointer = fmMousePointerHand
 End Sub
 
 Private Sub UserForm_Initialize()
