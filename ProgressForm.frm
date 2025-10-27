@@ -413,15 +413,6 @@ Private Sub btnCancel_MouseMove(ByVal Button As Integer, ByVal Shift As Integer,
     btnCancel.MousePointer = fmMousePointerHand
 End Sub
 
-Private Sub bSettings_Click()
-    ToggleThisWorkbookVisibility
-End Sub
-
-Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bSettings.MousePointer = fmMousePointerHand
-End Sub
-
-
 Private Sub bOAIS_Click()
     ' If not connected, try to connect; else toggle external frame if present.
     If lblOAIS.BackColor = vbRed Then
