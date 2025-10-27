@@ -77,13 +77,76 @@ Private Sub Workbook_Activate()
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
-    ' Always restore workbook visibility on exit
-    SetWorkbookVisibility ThisWorkbook, True
+    Dim response As VbMsgBoxResult
+    Dim frm As Object
 
+    On Error GoTo Fail
+
+    Application.ScreenUpdating = False
+
+    ' Prompt to save changes (allow cancel)
+    If Not ThisWorkbook.Saved Then
+        response = MsgBox("Do you want to save changes before closing?", vbYesNoCancel + vbQuestion, ThisWorkbook.Name)
+        Select Case response
+            Case vbYes
+                On Error GoTo SaveError
+                ThisWorkbook.Save
+                On Error GoTo Fail
+            Case vbNo
+                ' continue with close
+            Case Else
+                Cancel = True
+                GoTo CleanExit
+        End Select
+    End If
+
+    ' Stop background tasks and clear temporary state
+    On Error Resume Next
+    KeepAlive_Stop
+    Progress_Close
+    ResetRunState
+    BoardType = ""
+    processed = 0
+    total = 0
+    cancelled = False
+    paused = False
+    m_StartupShownOnce = False
+    g_SuspendStartupAutoShow = False
+    m_SplashScreenShown = False
+    Set iCS = Nothing
+    Set iCT = Nothing
+    Set iFrame = Nothing
+    Set iApp = Nothing
+    On Error GoTo Fail
+
+    ' Close any userforms that might still be open
     HideAndReleaseStartupForm
+    For Each frm In VBA.UserForms
+        Unload frm
+    Next frm
+
+    ' Restore workbook and application UI defaults
+    SetWorkbookVisibility ThisWorkbook, True
     Application.DisplayFullScreen = False
     Application.DisplayFormulaBar = True
+    On Error Resume Next
     ActiveWindow.DisplayWorkbookTabs = True
+    On Error GoTo Fail
+
+CleanExit:
+    Application.ScreenUpdating = True
+    Exit Sub
+
+SaveError:
+    MsgBox "Unable to save changes: " & Err.Description, vbCritical
+    Cancel = True
+    On Error GoTo Fail
+    GoTo CleanExit
+
+Fail:
+    Application.ScreenUpdating = True
+    MsgBox "An error occurred while closing the workbook: " & Err.Description, vbCritical
+    Cancel = True
 End Sub
 
 ' --- Called from Workbook_Open to guard one-time autoshow intent ---
