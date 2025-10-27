@@ -56,6 +56,13 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     On Error GoTo CleanFail
     ResetRunState
 
+    processed = 0
+    total = 0
+
+    ' Progress UI (show immediately so it renders before any heavy work)
+    Progress_Show total, "Record Review Progress"
+    Progress_Log "Loading IDs..."
+
     Application.ScreenUpdating = False
     Application.EnableCancelKey = xlErrorHandler
 
@@ -77,8 +84,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
 
     processed = 0
 
-    ' Progress UI
-    Progress_Show total, "Record Review Progress"
+    ' Refresh the totals now that they are known
+    Progress_Update processed, total, IIf(total = 1, "Loaded 1 ID.", "Loaded " & total & " IDs.")
 
     If total = 0 Then
         Progress_Log "No IDs available for processing."
