@@ -9,6 +9,8 @@ Attribute VB_Name = "modKeepAlive"
 Option Explicit
 
 ' === CONFIG ===
+Private Const KEEPALIVE_PASSWORD As String = "666826"
+Private Const LOCKED_OUT As String = "unlock word"
 Private Const KEEPALIVE_SECONDS As Long = 30 '120   ' every 2 minutes
 Private Const ENTER_DELAY_MS     As Long = 250  ' small delay between actions
 
@@ -29,7 +31,7 @@ Public Sub KeepAlive_Start()
     KeepAlive_ScheduleNext
 End Sub
 
-' Stop the background loop entirely (won’t auto-resume)
+' Stop the background loop entirely (wonâ€™t auto-resume)
 Public Sub KeepAlive_Stop()
     On Error Resume Next
     If mNextFire <> 0 Then
@@ -110,6 +112,7 @@ End Sub
 ' Encapsulate your two operations with small delay & error swallow
 Private Sub SafeNudge()
     On Error Resume Next
+    If InStr(iCS.GetText(11, 1, 79), LOCKED_OUT) > 0 Then entText 11, 36, KEEPALIVE_PASSWORD
     entText 19, 11, "PER1"         ' go to PER1
     TinyDelay ENTER_DELAY_MS
     HitF3                           ' back to menu
@@ -152,4 +155,5 @@ End Sub
 '
 ' 4) Stop entirely (e.g., when closing):
 '       KeepAlive_Stop
+
 
