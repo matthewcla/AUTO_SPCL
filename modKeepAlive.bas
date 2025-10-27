@@ -59,7 +59,10 @@ End Sub
 ' Convenience wrapper to run any procedure "as priority"
 ' Example: RunPriority "DoBigSync" or RunPriority("DoThingWithArgs", arg1, arg2)
 Public Sub RunPriority(ByVal procName As String, ParamArray args() As Variant)
-    On Error GoTo CleanExit
+    Dim capturedErrNumber As Long
+    Dim capturedErrDescription As String
+
+    On Error GoTo HandleError
     KeepAlive_Suspend
     Select Case UBound(args)
         Case -1: Application.Run procName
@@ -72,8 +75,17 @@ Public Sub RunPriority(ByVal procName As String, ParamArray args() As Variant)
             ' Add more cases if you need >5 args
             Application.Run procName, args(0), args(1), args(2), args(3), args(4)
     End Select
-CleanExit:
     KeepAlive_Resume
+    Exit Sub
+
+HandleError:
+    capturedErrNumber = Err.Number
+    capturedErrDescription = Err.Description
+    KeepAlive_Resume
+    If capturedErrNumber <> 0 Then
+        Err.Clear
+        Err.Raise capturedErrNumber, , capturedErrDescription
+    End If
 End Sub
 
 ' ========= Internals =========
