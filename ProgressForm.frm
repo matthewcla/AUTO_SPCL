@@ -39,12 +39,14 @@ Private lastUpdate As Double
 Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
+Private nextFormName As String
 
 Public Paused As Boolean
 Public Cancelled As Boolean
 
 Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
+    nextFormName = ""
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -69,6 +71,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.lblElapsed.Caption = "0:00:00"
     Me.lblETR.Caption = "--:--:--"
     lblOAIS.Caption = ""
+    lblOAISCap.Caption = ""
 
     CenterUserFormOnActiveMonitor Me
     
@@ -84,6 +87,10 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Cancelled = False
     modProgressUI.cancelled = False
     Me.btnPause.Caption = "Pause"
+    Me.btnPause.Visible = True
+    Me.btnCancel.Caption = "Cancel"
+    Me.btnCancel.Enabled = True
+    nextFormName = ""
 
     startTick = Timer
     lastUpdate = startTick
@@ -264,6 +271,24 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     ' Optional status line to log
     If Len(status) > 0 Then LogLine (status)
 
+    Dim isComplete As Boolean
+    isComplete = (totalCount > 0 And done >= totalCount)
+    If isComplete Then
+        If btnCancel.Caption <> "Next" Then
+            btnCancel.Caption = "Next"
+        End If
+        btnCancel.Enabled = True
+        btnPause.Visible = False
+    Else
+        If btnCancel.Caption <> "Cancel" Then
+            btnCancel.Caption = "Cancel"
+        End If
+        btnCancel.Enabled = True
+        If Not btnPause.Visible Then
+            btnPause.Visible = True
+        End If
+    End If
+
     DoEvents
 End Sub
 
@@ -287,10 +312,18 @@ Private Sub btnPause_Click()
 End Sub
 
 Private Sub btnCancel_Click()
+    If btnCancel.Caption = "Next" Then
+        nextFormName = "EmailForm"
+        Unload Me
+        Exit Sub
+    End If
+
     Cancelled = True
     modProgressUI.cancelled = True
     btnCancel.Enabled = False
     LogLine "Cancel requested. Finishing current step"
+    nextFormName = "StartupForm"
+    Unload Me
 End Sub
 
 Private Sub bSettings_Click()
@@ -331,7 +364,7 @@ Private Sub UserForm_Initialize()
     HandleReflectionsConnection isConnected
 
     If isConnected Then
-        InitializeOAISSession lblOAIS, "", "", vbWhite, vbWhite
+        InitializeOAISSession lblOAIS, "", "", vbGreen, vbWhite
     Else
         UpdateOAISStatusIndicator
     End If
@@ -343,14 +376,37 @@ End Sub
 Private Sub UserForm_Terminate()
     On Error Resume Next
     modReflectionsMonitor.UnregisterReflectionsListener Me.Name
+    On Error GoTo 0
+
+    Dim targetForm As String
+    targetForm = nextFormName
+    nextFormName = ""
+
+    Select Case targetForm
+        Case "StartupForm"
+            On Error Resume Next
+            StartupForm.Show
+            On Error GoTo 0
+        Case "EmailForm"
+            On Error Resume Next
+            EmailForm.Show
+            On Error GoTo 0
+    End Select
 End Sub
 
 Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
     lblOAIS.Caption = ""
-    lblOAIS.ForeColor = vbWhite
     If isConnected Then
+        If lblOAIS.ForeColor <> vbGreen Then
+            lblOAIS.ForeColor = vbGreen
+        End If
+        If lblOAISCap.Caption <> "Connected to OAIS" Then
+            lblOAISCap.Caption = "Connected to OAIS"
+        End If
         lblOAIS.BackColor = vbGreen
     Else
+        lblOAIS.ForeColor = vbWhite
+        lblOAISCap.Caption = ""
         lblOAIS.BackColor = vbRed
     End If
 End Sub
