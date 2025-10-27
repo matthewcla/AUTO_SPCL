@@ -432,6 +432,9 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+    On Error GoTo EH
+
+    Me.Cursor = vbHourglass
 
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
@@ -450,6 +453,12 @@ Private Sub UserForm_Initialize()
 
     'A_Record_Review
 
+CleanExit:
+    Me.Cursor = vbDefault
+    Exit Sub
+EH:
+    Debug.Print "ProgressForm.Initialize error: "; Err.Number; Err.Description
+    Resume CleanExit
 End Sub
 
 Private Sub UserForm_Terminate()

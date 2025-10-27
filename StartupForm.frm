@@ -27,6 +27,8 @@ Private titleBarHidden As Boolean
 Private Sub UserForm_Initialize()
     On Error GoTo EH
 
+    Me.Cursor = vbHourglass
+
     titleBarHidden = False
 
     ' === 1. Connect OAIS and set indicators ===
@@ -50,9 +52,12 @@ Private Sub UserForm_Initialize()
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
+CleanExit:
+    Me.Cursor = vbDefault
     Exit Sub
 EH:
     Debug.Print "StartupForm.Initialize error: "; Err.Number; Err.Description
+    Resume CleanExit
 End Sub
 
 Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
