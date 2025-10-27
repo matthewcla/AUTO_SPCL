@@ -48,6 +48,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
 
     Paused = False
     Cancelled = False
+    modProgressUI.cancelled = False
     Me.btnPause.Caption = "Pause"
 
     startTick = Timer
@@ -139,6 +140,7 @@ End Sub
 
 Private Sub btnCancel_Click()
     Cancelled = True
+    modProgressUI.cancelled = True
     btnCancel.Enabled = False
     LogLine "Cancel requested. Finishing current step"
 End Sub

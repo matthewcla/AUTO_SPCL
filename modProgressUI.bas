@@ -9,6 +9,7 @@ Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As Strin
     On Error GoTo HandleError
 
     Set progressForm = New ProgressForm
+    cancelled = False
     progressForm.Show vbModeless
     progressForm.Init totalCount, title
     Exit Sub
@@ -39,11 +40,20 @@ Public Function Progress_WaitIfPaused() As Boolean
 End Function
 
 Public Function Progress_Cancelled() As Boolean
-    If Not progressForm Is Nothing Then
-        Progress_Cancelled = True
-    Else
-        Progress_Cancelled = False
+    If progressForm Is Nothing Then
+        Progress_Cancelled = cancelled
+        Exit Function
     End If
+
+    On Error Resume Next
+    Progress_Cancelled = progressForm.Cancelled
+    If Err.Number <> 0 Then
+        Err.Clear
+        Progress_Cancelled = cancelled
+    Else
+        cancelled = Progress_Cancelled
+    End If
+    On Error GoTo 0
 End Function
 
 Public Sub Progress_Close(Optional ByVal finalNote As String = "")
