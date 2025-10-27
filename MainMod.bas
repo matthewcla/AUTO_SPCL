@@ -550,7 +550,7 @@ Private Sub lookFITREP()
     outRow = 2
     oRow = 2 ' BASE_ROW external if you use it elsewhere; ensure consistent usage
 
-    eRow = wsID.Range("A" & Rows.Count).End(xlUp).row
+    eRow = wsID.Cells(wsID.Rows.Count, "A").End(xlUp).Row
 
     If Not Trim$(iCS.GetText(1, 2, 4)) = "OFT2" Then ChangeScreen "OFT2"
 
