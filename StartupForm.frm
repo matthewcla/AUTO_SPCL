@@ -138,27 +138,22 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bRadiate.MousePointer = fmMousePointerHand
     lblRadiate.ForeColor = vbRed
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bOAIS.MousePointer = fmMousePointerHand
     If bOAIS.BackColor <> vbGreen Then bOAIS.ForeColor = vbRed
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bNew.MousePointer = fmMousePointerHand
     lblNew.ForeColor = vbRed
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bastabone.MousePointer = fmMousePointerHand
     lblASTABone.ForeColor = vbRed
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bastabtwo.MousePointer = fmMousePointerHand
     lblASTABtwo.ForeColor = vbRed
 End Sub
 
