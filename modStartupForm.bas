@@ -23,8 +23,6 @@ Public g_SuspendStartupAutoShow As Boolean
 ' Tracks whether we already auto-showed once this session
 Public m_StartupShownOnce As Boolean
 
-Public startup As Object
-
 ' === Visibility control ===
 Public Sub SetWorkbookVisibility(ByVal wb As Workbook, ByVal makeVisible As Boolean)
     Dim i As Long

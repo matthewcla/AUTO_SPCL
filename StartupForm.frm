@@ -268,6 +268,5 @@ End Sub
 
 Private Sub UserForm_Terminate()
     On Error Resume Next
-    Set startup = Nothing
 End Sub
 
