@@ -1,7 +1,9 @@
 Attribute VB_Name = "modProgressUI"
 Option Explicit
 
-Public progressForm As ProgressForm
+Public progressForm As progressForm
+Public paused As Boolean
+Public cancelled As Boolean
 
 Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As String = "")
     On Error GoTo HandleError
