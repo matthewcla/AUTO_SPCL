@@ -459,7 +459,7 @@ Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
         lblOAIS.BackColor = vbGreen
     Else
         lblOAIS.ForeColor = vbWhite
-        lblOAISCap.Caption = ""
+        lblOAISCap.Caption OAIS is Disconnected= ""
         lblOAIS.BackColor = vbRed
     End If
 End Sub
