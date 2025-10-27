@@ -107,15 +107,26 @@ Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boole
     pt.X = rc.Left + 1
     pt.Y = rc.Bottom - 1
 
-    Dim lastVisibleChar As Long
-    lastVisibleChar = CLng(SendMessageByRef(hWndTB, EM_CHARFROMPOS, 0&, pt))
-    If lastVisibleChar < 0 Then
+    Dim charFromPos As Long
+    charFromPos = CLng(SendMessageByRef(hWndTB, EM_CHARFROMPOS, 0&, pt))
+    If charFromPos = -1 Then
         TextBoxIsScrolledToBottom = True
         Exit Function
     End If
 
     Dim lastVisibleLine As Long
-    lastVisibleLine = CLng(SendMessageLongPtr(hWndTB, EM_LINEFROMCHAR, lastVisibleChar, 0&))
+    Dim lastVisibleChar As Long
+    lastVisibleChar = charFromPos And &HFFFF&
+
+    lastVisibleLine = (charFromPos And &HFFFF0000) \ &H10000
+    If lastVisibleLine < 0 Then
+        lastVisibleLine = lastVisibleLine + &H10000
+    End If
+
+    ' Fallback for any edge cases where the high-order extraction fails
+    If lastVisibleLine < 0 Then
+        lastVisibleLine = CLng(SendMessageLongPtr(hWndTB, EM_LINEFROMCHAR, lastVisibleChar, 0&))
+    End If
 
     TextBoxIsScrolledToBottom = (lastVisibleLine >= totalLines - 1)
 End Function
