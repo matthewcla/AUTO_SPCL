@@ -5,11 +5,15 @@ Option Explicit
         ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
     Private Declare PtrSafe Function SendMessageByRef Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByRef lParam As Any) As LongPtr
+    Private Declare PtrSafe Function GetFocus Lib "user32" () As LongPtr
+    Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As LongPtr) As LongPtr
 #Else
     Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
     Private Declare Function SendMessageByRef Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
+    Private Declare Function GetFocus Lib "user32" () As Long
+    Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As Long) As Long
 #End If
 
 Private Type POINTAPI
@@ -85,13 +89,52 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     emaSecPerItem = 0#
 End Sub
 
+Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
+#If VBA7 Then
+    Dim previousFocus As LongPtr
+    Dim tbHandle As LongPtr
+#Else
+    Dim previousFocus As Long
+    Dim tbHandle As Long
+#End If
+
+    On Error Resume Next
+    tbHandle = CallByName(tb, "hwnd", VbGet)
+    If Err.Number = 0 And tbHandle <> 0 Then
+        On Error GoTo 0
+        GetTextBoxHwnd = tbHandle
+        Exit Function
+    End If
+    Err.Clear
+
+    previousFocus = GetFocus()
+
+    tb.SetFocus
+    On Error GoTo 0
+
+    tbHandle = GetFocus()
+
+    If previousFocus <> 0 Then
+        On Error Resume Next
+        SetFocusAPI previousFocus
+        On Error GoTo 0
+    End If
+
+    GetTextBoxHwnd = tbHandle
+End Function
+
 Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boolean
 #If VBA7 Then
     Dim hWndTB As LongPtr
 #Else
     Dim hWndTB As Long
 #End If
-    hWndTB = tb.hwnd
+    hWndTB = GetTextBoxHwnd(tb)
+
+    If hWndTB = 0 Then
+        TextBoxIsScrolledToBottom = True
+        Exit Function
+    End If
 
     Dim totalLines As Long
     totalLines = CLng(SendMessageLongPtr(hWndTB, EM_GETLINECOUNT, 0&, 0&))
