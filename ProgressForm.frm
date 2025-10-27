@@ -71,7 +71,6 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.lblElapsed.Caption = "0:00:00"
     Me.lblETR.Caption = "--:--:--"
     lblOAIS.Caption = ""
-    lblOAISCap.Caption = ""
 
     CenterUserFormOnActiveMonitor Me
     
@@ -95,6 +94,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     startTick = Timer
     lastUpdate = startTick
     emaSecPerItem = 0#
+
+    modReflectionsMonitor.PushCurrentStatus
 End Sub
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
