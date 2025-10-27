@@ -556,9 +556,6 @@ Private Sub lookFITREP()
 
     Application.ScreenUpdating = False
 
-    ' Seed with current ID
-    entText 4, 42, wsID.Cells(i + 1, 1).Value
-
     first = True
     Do
         nIssue = vbNullString
@@ -794,6 +791,7 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
 
 
 
