@@ -389,7 +389,7 @@ Private Sub btnPause_Click()
 End Sub
 
 Private Sub btnPause_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    btnPause.MousePointer = fmMousePointerHand
 End Sub
 
 Private Sub btnCancel_Click()
@@ -410,7 +410,7 @@ Private Sub btnCancel_Click()
 End Sub
 
 Private Sub btnCancel_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    btnCancel.MousePointer = fmMousePointerHand
 End Sub
 
 Private Sub bSettings_Click()
@@ -418,7 +418,7 @@ Private Sub bSettings_Click()
 End Sub
 
 Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bSettings.MousePointer = fmMousePointerHand
 End Sub
 
 
@@ -444,10 +444,12 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bOAIS.MousePointer = fmMousePointerHand
 End Sub
 
 Private Sub UserForm_Initialize()
+
+    Me.MousePointer = fmMousePointerHourGlass
 
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
@@ -466,10 +468,12 @@ Private Sub UserForm_Initialize()
 
     'A_Record_Review
 
+    Me.MousePointer = fmMousePointerDefault
+
 End Sub
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerDefault
+    ProgressForm.MousePointer = fmMousePointerDefault
 End Sub
 
 Private Sub UserForm_Terminate()

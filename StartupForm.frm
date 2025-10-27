@@ -29,6 +29,8 @@ Private Sub UserForm_Initialize()
 
     titleBarHidden = False
 
+    Me.MousePointer = fmMousePointerHourGlass
+
     ' === 1. Connect OAIS and set indicators ===
     Dim isConnected As Boolean
     isConnected = EnsureReflectionsConnectionAlive(True)
@@ -49,6 +51,8 @@ Private Sub UserForm_Initialize()
     End If
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
+
+    Me.MousePointer = fmMousePointerDefault
 
     Exit Sub
 EH:
@@ -124,7 +128,7 @@ End Sub
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerDefault
+    StartupForm.MousePointer = fmMousePointerDefault
     lblNew.ForeColor = vbWhite
     lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
@@ -134,32 +138,32 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bRadiate.MousePointer = fmMousePointerHand
     lblRadiate.ForeColor = vbRed
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bOAIS.MousePointer = fmMousePointerHand
     If bOAIS.BackColor <> vbGreen Then bOAIS.ForeColor = vbRed
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bNew.MousePointer = fmMousePointerHand
     lblNew.ForeColor = vbRed
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bastabone.MousePointer = fmMousePointerHand
     lblASTABone.ForeColor = vbRed
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bastabtwo.MousePointer = fmMousePointerHand
     lblASTABtwo.ForeColor = vbRed
 End Sub
 
 Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    Me.MousePointer = fmMousePointerHand
+    bSettings.MousePointer = fmMousePointerHand
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
