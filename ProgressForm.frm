@@ -433,13 +433,13 @@ Private Sub UserForm_Terminate()
 
     Select Case targetForm
         Case "StartupForm"
-            If modProgressUI.progressRunComplete Then
+            If modProgressUI.ProgressRunComplete Then
                 On Error Resume Next
                 StartupForm.Show
                 On Error GoTo 0
             End If
         Case "EmailForm"
-            If modProgressUI.progressRunComplete Then
+            If modProgressUI.ProgressRunComplete Then
                 On Error Resume Next
                 EmailForm.Show
                 On Error GoTo 0
