@@ -1,10 +1,13 @@
 Attribute VB_Name = "modOAIS"
+Option Explicit
 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 'Written By: LCDR Zach Brown
 'Update: 17 May 17 - Rewrote Change Screen To Accomodate starting on same screen, issues previously with a desync
 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 'Lowest Level Interaction with Reflection - This Replaces the Session. code
+Public iApp As Attachmate_Reflection_Objects_Framework.ApplicationObject
+Public iCT As Attachmate_Reflection_Objects_Emulation_IbmHosts.IbmTerminal
 Public iCS As Attachmate_Reflection_Objects_Emulation_IbmHosts.IbmScreen
 Public iFrame As Attachmate_Reflection_Objects.frame
 Const tOut As Integer = 15000
@@ -14,9 +17,6 @@ Sub ConnectToRunningOAIS()
 'Date: 23 Apr 17
 'Purpose: This subroutine establishes the connection between excel and the reflection session
 'This has not been tested with multiple reflection screens open
-Dim iApp As Attachmate_Reflection_Objects_Framework.ApplicationObject
-Dim iCT As Attachmate_Reflection_Objects_Emulation_IbmHosts.IbmTerminal
-    
     Set iApp = GetObject(, "Attachmate_Reflection_Objects_Framework.ApplicationObject")
     Set iFrame = iApp.GetObject("Frame")
     Set iCT = iFrame.SelectedView.Control
