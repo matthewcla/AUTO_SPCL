@@ -280,7 +280,12 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 
     Dim isComplete As Boolean
     isComplete = (totalCount > 0 And done >= totalCount)
-    If isComplete Then
+
+    If Cancelled Then
+        btnCancel.Caption = "Cancelling..."
+        btnCancel.Enabled = False
+        btnPause.Visible = False
+    ElseIf isComplete Then
         If btnCancel.Caption <> "Next" Then
             btnCancel.Caption = "Next"
         End If
@@ -328,9 +333,11 @@ Private Sub btnCancel_Click()
     Cancelled = True
     modProgressUI.cancelled = True
     btnCancel.Enabled = False
+    btnCancel.Caption = "Cancelling..."
+    btnPause.Visible = False
     LogLine "Cancel requested. Finishing current step"
     nextFormName = "StartupForm"
-    Unload Me
+    ' Keep the form visible until the worker loop finishes and closes it.
 End Sub
 
 Private Sub bSettings_Click()
@@ -391,13 +398,17 @@ Private Sub UserForm_Terminate()
 
     Select Case targetForm
         Case "StartupForm"
-            On Error Resume Next
-            StartupForm.Show
-            On Error GoTo 0
+            If modProgressUI.progressRunComplete Then
+                On Error Resume Next
+                StartupForm.Show
+                On Error GoTo 0
+            End If
         Case "EmailForm"
-            On Error Resume Next
-            EmailForm.Show
-            On Error GoTo 0
+            If modProgressUI.progressRunComplete Then
+                On Error Resume Next
+                EmailForm.Show
+                On Error GoTo 0
+            End If
     End Select
 End Sub
 
