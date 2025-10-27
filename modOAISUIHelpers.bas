@@ -41,15 +41,30 @@ Public Sub SetOAISStatus(ByVal statusControl As Object, ByVal isConnected As Boo
                          Optional ByVal disconnectedForeColor As Variant)
     If statusControl Is Nothing Then Exit Sub
 
+    Dim controlName As String
+    On Error Resume Next
+    controlName = UCase$(CStr(CallByName(statusControl, "Name", VbGet)))
+    On Error GoTo 0
+
+    Dim effectiveConnectedText As String
+    Dim effectiveDisconnectedText As String
+    effectiveConnectedText = connectedText
+    effectiveDisconnectedText = disconnectedText
+
+    If controlName = "LBLOAIS" Then
+        effectiveConnectedText = ""
+        effectiveDisconnectedText = ""
+    End If
+
     On Error Resume Next
     If isConnected Then
-        CallByName statusControl, "Caption", VbLet, connectedText
+        CallByName statusControl, "Caption", VbLet, effectiveConnectedText
         CallByName statusControl, "BackColor", VbLet, vbGreen
         If Not IsMissing(connectedForeColor) Then
             CallByName statusControl, "ForeColor", VbLet, connectedForeColor
         End If
     Else
-        CallByName statusControl, "Caption", VbLet, disconnectedText
+        CallByName statusControl, "Caption", VbLet, effectiveDisconnectedText
         CallByName statusControl, "BackColor", VbLet, vbRed
         If Not IsMissing(disconnectedForeColor) Then
             CallByName statusControl, "ForeColor", VbLet, disconnectedForeColor
