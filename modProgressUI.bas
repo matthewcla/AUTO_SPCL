@@ -38,7 +38,7 @@ End Function
 
 Public Function Progress_Cancelled() As Boolean
     If Not progressForm Is Nothing Then
-        Progress_Cancelled = progressForm.Cancelled
+        Progress_Cancelled = True
     Else
         Progress_Cancelled = False
     End If
