@@ -1,8 +1,33 @@
 '==== UserForm: StartupForm ====
 Option Explicit
 
+#If VBA7 Then
+    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
+    Private Declare PtrSafe Function GetWindowLong Lib "user32" Alias "GetWindowLongPtrA" ( _
+        ByVal hWnd As LongPtr, ByVal nIndex As Long) As LongPtr
+    Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
+        ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
+    Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
+#Else
+    Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+    Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" ( _
+        ByVal hWnd As Long, ByVal nIndex As Long) As Long
+    Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" ( _
+        ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
+    Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
+#End If
+
+Private Const GWL_STYLE As Long = -16
+Private Const WS_CAPTION As Long = &HC00000
+
+Private titleBarHidden As Boolean
+
 Private Sub UserForm_Initialize()
     On Error GoTo EH
+
+    titleBarHidden = False
 
     ' === 1. Connect OAIS and set indicators ===
     Dim isConnected As Boolean
@@ -41,6 +66,10 @@ End Sub
 
 
 Private Sub UserForm_Activate()
+    If Not titleBarHidden Then
+        HideTitleBar
+    End If
+
     Static hasRun As Boolean
     If hasRun Then Exit Sub
     hasRun = True
@@ -60,6 +89,36 @@ Private Sub RevealLabels(ByVal labels As Variant, ByVal stepSeconds As Double)
         On Error GoTo 0
         SafePause stepSeconds
     Next i
+End Sub
+
+Private Sub HideTitleBar()
+#If VBA7 Then
+    Dim hWnd As LongPtr
+    Dim currentStyle As LongPtr
+    Dim newStyle As LongPtr
+#Else
+    Dim hWnd As Long
+    Dim currentStyle As Long
+    Dim newStyle As Long
+#End If
+    Dim originalCaption As String
+    Dim tempCaption As String
+
+    originalCaption = Me.Caption
+    tempCaption = "startup-" & Hex$(ObjPtr(Me))
+    Me.Caption = tempCaption
+
+    hWnd = FindWindow("ThunderDFrame", tempCaption)
+    Me.Caption = originalCaption
+
+    If hWnd = 0 Then Exit Sub
+
+    currentStyle = GetWindowLong(hWnd, GWL_STYLE)
+    newStyle = currentStyle And (Not WS_CAPTION)
+    SetWindowLong hWnd, GWL_STYLE, newStyle
+    DrawMenuBar hWnd
+
+    titleBarHidden = True
 End Sub
 
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
