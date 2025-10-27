@@ -162,10 +162,6 @@ Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer,
     lblASTABtwo.ForeColor = vbRed
 End Sub
 
-Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    bSettings.MousePointer = fmMousePointerHand
-End Sub
-
 '--- Click handlers -----------------------------------------------------------
 
 Private Sub bOAIS_Click()
