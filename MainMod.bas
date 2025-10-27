@@ -550,7 +550,7 @@ Private Sub lookFITREP()
     Dim dF4 As Double, dT4 As Double
 
     ConnectToRunningOAIS
-    Set wsID = Worksheets("ID")
+    Set wsID = thisworkbook.Worksheets("ID")
     
     If Progress_Cancelled() Then Exit Sub
     
@@ -798,6 +798,7 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
 
 
 
