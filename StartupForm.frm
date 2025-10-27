@@ -1,12 +1,40 @@
 '==== UserForm: StartupForm ====
 Option Explicit
 
+#If VBA7 Then
+    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
+    Private Declare PtrSafe Function GetWindowLong Lib "user32" Alias "GetWindowLongPtrA" ( _
+        ByVal hWnd As LongPtr, ByVal nIndex As Long) As LongPtr
+    Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
+        ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
+    Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
+#Else
+    Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+    Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" ( _
+        ByVal hWnd As Long, ByVal nIndex As Long) As Long
+    Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" ( _
+        ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
+    Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
+#End If
+
+Private Const GWL_STYLE As Long = -16
+Private Const WS_CAPTION As Long = &HC00000
+
+Private titleBarHidden As Boolean
+
 Private Sub UserForm_Initialize()
     On Error GoTo EH
 
+    titleBarHidden = False
+
+    Me.MousePointer = fmMousePointerHourGlass
+
     ' === 1. Connect OAIS and set indicators ===
-    ConnectToRunningOAIS
-    SetOAISStatus bOAIS, Not (iCS Is Nothing)
+    Dim isConnected As Boolean
+    isConnected = EnsureReflectionsConnectionAlive(True)
+    SetOAISStatus bOAIS, isConnected
 
     ' === 2. Load board info safely ===
     lblBoardType.Caption = CStr(SafeCell("ID", "H4")) & " Board"
@@ -22,13 +50,30 @@ Private Sub UserForm_Initialize()
         InitializeOAISSession bOAIS
     End If
 
+    modReflectionsMonitor.RegisterReflectionsListener Me.Name
+
+    Me.MousePointer = fmMousePointerDefault
+
     Exit Sub
 EH:
     Debug.Print "StartupForm.Initialize error: "; Err.Number; Err.Description
 End Sub
 
+Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
+    SetOAISStatus bOAIS, isConnected
+End Sub
+
+Private Sub UserForm_Terminate()
+    On Error Resume Next
+    modReflectionsMonitor.UnregisterReflectionsListener Me.Name
+End Sub
+
 
 Private Sub UserForm_Activate()
+    If Not titleBarHidden Then
+        HideTitleBar
+    End If
+
     Static hasRun As Boolean
     If hasRun Then Exit Sub
     hasRun = True
@@ -50,20 +95,46 @@ Private Sub RevealLabels(ByVal labels As Variant, ByVal stepSeconds As Double)
     Next i
 End Sub
 
+Private Sub HideTitleBar()
+#If VBA7 Then
+    Dim hWnd As LongPtr
+    Dim currentStyle As LongPtr
+    Dim newStyle As LongPtr
+#Else
+    Dim hWnd As Long
+    Dim currentStyle As Long
+    Dim newStyle As Long
+#End If
+    Dim originalCaption As String
+    Dim tempCaption As String
+
+    originalCaption = Me.Caption
+    tempCaption = "startup-" & Hex$(ObjPtr(Me))
+    Me.Caption = tempCaption
+
+    hWnd = FindWindow("ThunderDFrame", tempCaption)
+    Me.Caption = originalCaption
+
+    If hWnd = 0 Then Exit Sub
+
+    currentStyle = GetWindowLong(hWnd, GWL_STYLE)
+    newStyle = currentStyle And (Not WS_CAPTION)
+    SetWindowLong hWnd, GWL_STYLE, newStyle
+    DrawMenuBar hWnd
+
+    titleBarHidden = True
+End Sub
+
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    StartupForm.MousePointer = fmMousePointerDefault
     lblNew.ForeColor = vbWhite
-    lblSettings.ForeColor = vbBlack
     lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
 
     lblASTABone.ForeColor = vbWhite
     lblASTABtwo.ForeColor = vbWhite
-End Sub
-
-Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblSettings.ForeColor = vbWhite
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -110,20 +181,42 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub bRadiate_Click()
+    Dim hasError As Boolean
+    Dim errNumber As Long
+    Dim errDescription As String
+
+    On Error GoTo RadiateError
+
     ConnectToRunningOAIS
-    
+
     SetOAISStatus bOAIS, Not (iCS Is Nothing)
-    
+
     ClearTableColumnsCD ("RED_Board")
-    
+
     KeepAlive_Suspend
-    
+
     HideAndReleaseStartupForm
-    
+
     A_Record_Review
 
+CleanExit:
+    On Error Resume Next
+    KeepAlive_Resume
+    On Error GoTo 0
+
+    If hasError Then
+        MsgBox "Radiate encountered an error (" & errNumber & "): " & errDescription, vbExclamation, "Radiate"
+    End If
+
     ' Progress UI is managed within A_Record_Review; no separate show call is needed here.
-         
+    Exit Sub
+
+RadiateError:
+    hasError = True
+    errNumber = Err.Number
+    errDescription = Err.Description
+    Resume CleanExit
+
 End Sub
 
 Private Sub ClearTableColumnsCD(ByVal TableName As String)
@@ -261,12 +354,5 @@ Private Sub SafePause(ByVal seconds As Double)
     Do While Timer - t < seconds
         DoEvents
     Loop
-End Sub
-
-
-' Polls for substring on the Reflection screen text with retries.
-
-Private Sub UserForm_Terminate()
-    On Error Resume Next
 End Sub
 

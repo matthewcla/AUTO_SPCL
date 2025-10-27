@@ -9,6 +9,8 @@ Attribute VB_Name = "modKeepAlive"
 Option Explicit
 
 ' === CONFIG ===
+Private Const KEEPALIVE_PASSWORD As String = "666826"
+Private Const LOCKED_OUT As String = "unlock word"
 Private Const KEEPALIVE_SECONDS As Long = 30 '120   ' every 2 minutes
 Private Const ENTER_DELAY_MS     As Long = 250  ' small delay between actions
 
@@ -29,7 +31,7 @@ Public Sub KeepAlive_Start()
     KeepAlive_ScheduleNext
 End Sub
 
-' Stop the background loop entirely (won’t auto-resume)
+' Stop the background loop entirely (wonâ€™t auto-resume)
 Public Sub KeepAlive_Stop()
     On Error Resume Next
     If mNextFire <> 0 Then
@@ -57,7 +59,10 @@ End Sub
 ' Convenience wrapper to run any procedure "as priority"
 ' Example: RunPriority "DoBigSync" or RunPriority("DoThingWithArgs", arg1, arg2)
 Public Sub RunPriority(ByVal procName As String, ParamArray args() As Variant)
-    On Error GoTo CleanExit
+    Dim capturedErrNumber As Long
+    Dim capturedErrDescription As String
+
+    On Error GoTo HandleError
     KeepAlive_Suspend
     Select Case UBound(args)
         Case -1: Application.Run procName
@@ -70,8 +75,17 @@ Public Sub RunPriority(ByVal procName As String, ParamArray args() As Variant)
             ' Add more cases if you need >5 args
             Application.Run procName, args(0), args(1), args(2), args(3), args(4)
     End Select
-CleanExit:
     KeepAlive_Resume
+    Exit Sub
+
+HandleError:
+    capturedErrNumber = Err.Number
+    capturedErrDescription = Err.Description
+    KeepAlive_Resume
+    If capturedErrNumber <> 0 Then
+        Err.Clear
+        Err.Raise capturedErrNumber, , capturedErrDescription
+    End If
 End Sub
 
 ' ========= Internals =========
@@ -110,6 +124,7 @@ End Sub
 ' Encapsulate your two operations with small delay & error swallow
 Private Sub SafeNudge()
     On Error Resume Next
+    If InStr(iCS.GetText(11, 1, 79), LOCKED_OUT) > 0 Then entText 11, 36, KEEPALIVE_PASSWORD
     entText 19, 11, "PER1"         ' go to PER1
     TinyDelay ENTER_DELAY_MS
     HitF3                           ' back to menu
@@ -152,4 +167,5 @@ End Sub
 '
 ' 4) Stop entirely (e.g., when closing):
 '       KeepAlive_Stop
+
 

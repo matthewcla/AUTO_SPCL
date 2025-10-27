@@ -128,7 +128,7 @@ NoWork:
         progressClosed = True
     Else
         Progress_Update processed, total, "Review complete."
-        Progress_Close "Review complete."
+        Progress_Close "Review complete.", True
         progressClosed = True
     End If
 
@@ -597,8 +597,8 @@ Private Sub lookFITREP()
             End If
             first = False
 
-            If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF1 - dT2) & " days):": nIssue = vT2 & " to " & vF1: writeRB
-            If dF2 - dT3 > 30 And dT3 > 0 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF2 - dT3) & " days):": nIssue = vT3 & " to " & vF2: writeRB
+            If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF1 - dT2) & " days)": nIssue = vT2 & " to " & vF1: writeRB
+            If dF2 - dT3 > 30 And dT3 > 0 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF2 - dT3) & " days)": nIssue = vT3 & " to " & vF2: writeRB
 
         Else
             vF4 = vF3: vT4 = vT3
@@ -614,9 +614,9 @@ Private Sub lookFITREP()
             dF3 = ParseYYYYMMDD(CStr(vF3)): dT3 = ParseYYYYMMDD(CStr(vT3))
             dF4 = ParseYYYYMMDD(CStr(vF4)): dT4 = ParseYYYYMMDD(CStr(vT4))
 
-            If dF4 - dT1 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF4 - dT1) & " days):": nIssue = vT1 & " to " & vF4: writeRB
-            If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF1 - dT2) & " days):": nIssue = vT2 & " to " & vF1: writeRB
-            If dF2 - dT3 > 30 And dT3 > 0 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF2 - dT3) & " days):": nIssue = vT3 & " to " & vF2: writeRB
+            If dF4 - dT1 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF4 - dT1) & " days)": nIssue = vT1 & " to " & vF4: writeRB
+            If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF1 - dT2) & " days)": nIssue = vT2 & " to " & vF1: writeRB
+            If dF2 - dT3 > 30 And dT3 > 0 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF2 - dT3) & " days)": nIssue = vT3 & " to " & vF2: writeRB
         End If
 
         wsSB.Cells(i + 1, 28).Value = IIf(gap, "Y", "N")

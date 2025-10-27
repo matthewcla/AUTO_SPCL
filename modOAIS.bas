@@ -24,6 +24,53 @@ Sub ConnectToRunningOAIS()
 
 End Sub
 
+Public Function EnsureReflectionsConnectionAlive(Optional ByVal attemptReconnect As Boolean = True) As Boolean
+    If ReflectionObjectsHealthy() Then
+        EnsureReflectionsConnectionAlive = True
+        Exit Function
+    End If
+
+    If Not attemptReconnect Then Exit Function
+
+    If TryReconnectToReflections() Then
+        EnsureReflectionsConnectionAlive = True
+    End If
+End Function
+
+Private Function ReflectionObjectsHealthy() As Boolean
+    On Error GoTo NotHealthy
+    If iCS Is Nothing Then GoTo NotHealthy
+    Dim dummy As String
+    dummy = iCS.GetText(1, 1, 1)
+    ReflectionObjectsHealthy = True
+    Exit Function
+NotHealthy:
+    ReflectionObjectsHealthy = False
+    ClearReflectionsObjects
+End Function
+
+Private Function TryReconnectToReflections() As Boolean
+    On Error GoTo Failed
+    ClearReflectionsObjects
+    ConnectToRunningOAIS
+    If ReflectionObjectsHealthy() Then
+        TryReconnectToReflections = True
+    End If
+    Exit Function
+Failed:
+    ClearReflectionsObjects
+    TryReconnectToReflections = False
+End Function
+
+Private Sub ClearReflectionsObjects()
+    On Error Resume Next
+    Set iCS = Nothing
+    Set iCT = Nothing
+    Set iFrame = Nothing
+    Set iApp = Nothing
+    On Error GoTo 0
+End Sub
+
 Sub FlightStuds432N()
     DSEL "432N"
 End Sub
