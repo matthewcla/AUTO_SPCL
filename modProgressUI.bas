@@ -87,6 +87,10 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
         mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
     End If
 
+    If cancelled Then
+        mProgressRunComplete = True
+    End If
+
     If Not progressForm Is Nothing Then
         On Error Resume Next
         If Len(finalNote) > 0 Then
