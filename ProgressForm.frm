@@ -1,5 +1,34 @@
 Option Explicit
 
+#If VBA7 Then
+    Private Declare PtrSafe Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
+    Private Declare PtrSafe Function SendMessageByRef Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByRef lParam As Any) As LongPtr
+#Else
+    Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+    Private Declare Function SendMessageByRef Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
+#End If
+
+Private Type POINTAPI
+    X As Long
+    Y As Long
+End Type
+
+Private Type RECT
+    Left As Long
+    Top As Long
+    Right As Long
+    Bottom As Long
+End Type
+
+Private Const EM_GETLINECOUNT As Long = &HBA
+Private Const EM_LINEFROMCHAR As Long = &HC9
+Private Const EM_CHARFROMPOS As Long = &HD7
+Private Const EM_GETRECT As Long = &HB2
+
 '==== Private state ====
 Private startTick As Double
 Private lastUpdate As Double
@@ -56,21 +85,85 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     emaSecPerItem = 0#
 End Sub
 
+Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boolean
+#If VBA7 Then
+    Dim hWndTB As LongPtr
+#Else
+    Dim hWndTB As Long
+#End If
+    hWndTB = tb.hwnd
+
+    Dim totalLines As Long
+    totalLines = CLng(SendMessageLongPtr(hWndTB, EM_GETLINECOUNT, 0&, 0&))
+    If totalLines <= 1 Then
+        TextBoxIsScrolledToBottom = True
+        Exit Function
+    End If
+
+    Dim rc As RECT
+    Call SendMessageByRef(hWndTB, EM_GETRECT, 0&, rc)
+
+    Dim pt As POINTAPI
+    pt.X = rc.Left + 1
+    pt.Y = rc.Bottom - 1
+
+    Dim lastVisibleChar As Long
+    lastVisibleChar = CLng(SendMessageByRef(hWndTB, EM_CHARFROMPOS, 0&, pt))
+    If lastVisibleChar < 0 Then
+        TextBoxIsScrolledToBottom = True
+        Exit Function
+    End If
+
+    Dim lastVisibleLine As Long
+    lastVisibleLine = CLng(SendMessageLongPtr(hWndTB, EM_LINEFROMCHAR, lastVisibleChar, 0&))
+
+    TextBoxIsScrolledToBottom = (lastVisibleLine >= totalLines - 1)
+End Function
+
+Private Sub RestoreSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selLength As Long)
+    On Error Resume Next
+    tb.SelStart = selStart
+    tb.SelLength = selLength
+    On Error GoTo 0
+End Sub
+
+Private Sub ScrollTextBoxToBottom(ByVal tb As MSForms.TextBox)
+    On Error Resume Next
+    tb.SelStart = Len(tb.Text)
+    tb.SelLength = 0
+    On Error GoTo 0
+End Sub
+
+Private Sub AppendLogEntry(ByVal target As MSForms.TextBox, ByVal newLine As String)
+    Dim keepAtBottom As Boolean
+    keepAtBottom = TextBoxIsScrolledToBottom(target)
+
+    Dim originalSelStart As Long
+    Dim originalSelLength As Long
+    On Error Resume Next
+    originalSelStart = target.SelStart
+    originalSelLength = target.SelLength
+    On Error GoTo 0
+
+    If Len(target.Text) > 0 Then
+        target.Text = target.Text & vbCrLf & newLine
+    Else
+        target.Text = newLine
+    End If
+
+    If keepAtBottom Then
+        ScrollTextBoxToBottom target
+    Else
+        RestoreSelection target, originalSelStart, originalSelLength
+    End If
+End Sub
+
 ' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
     Dim newLine As String
     newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
 
-    With Me.txtLog
-        If Len(.Text) > 0 Then
-            .Text = .Text & vbCrLf & newLine  ' Append the line
-        Else
-            .Text = newLine  ' Start with the first line
-        End If
-        .SelStart = Len(.Text)
-        .SelLength = 0
-    End With
-    DoEvents
+    AppendLogEntry Me.txtLog, newLine
 End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
