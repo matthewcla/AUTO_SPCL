@@ -58,6 +58,8 @@ Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
+Private currentTotalCount As Long
+Private currentCompletedCount As Long
 Private titleBarHidden As Boolean
 
 Public Paused As Boolean
@@ -114,6 +116,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     startTick = Timer
     lastUpdate = startTick
     emaSecPerItem = 0#
+    currentTotalCount = totalCount
+    currentCompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
 End Sub
@@ -334,6 +338,9 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     Dim isComplete As Boolean
     isComplete = (totalCount > 0 And done >= totalCount)
 
+    currentCompletedCount = done
+    currentTotalCount = totalCount
+
     If Cancelled Then
         btnCancel.Caption = "Cancelling..."
         btnCancel.Enabled = False
@@ -356,6 +363,18 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 
     DoEvents
 End Sub
+
+Public Property Get ProgressComplete() As Boolean
+    ProgressComplete = (currentTotalCount > 0 And currentCompletedCount >= currentTotalCount)
+End Property
+
+Public Property Get CompletedCount() As Long
+    CompletedCount = currentCompletedCount
+End Property
+
+Public Property Get TotalCount() As Long
+    TotalCount = currentTotalCount
+End Property
 
 ' Blocks while paused; returns False if cancelled while waiting
 Public Function WaitIfPaused() As Boolean
@@ -451,13 +470,13 @@ Private Sub UserForm_Terminate()
 
     Select Case targetForm
         Case "StartupForm"
-            If modProgressUI.ProgressRunComplete Then
+            If modProgressUI.ProgressRunComplete() Then
                 On Error Resume Next
                 StartupForm.Show
                 On Error GoTo 0
             End If
         Case "EmailForm"
-            If modProgressUI.ProgressRunComplete Then
+            If modProgressUI.ProgressRunComplete() Then
                 On Error Resume Next
                 EmailForm.Show
                 On Error GoTo 0

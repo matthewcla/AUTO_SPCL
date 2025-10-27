@@ -6,21 +6,21 @@ Public paused As Boolean
 Public cancelled As Boolean
 
 Private mProgressRunComplete As Boolean
+Private mTotalCount As Long
+Private mCompletedCount As Long
 
-Public Property Get ProgressRunComplete() As Boolean
+Public Function ProgressRunComplete() As Boolean
     ProgressRunComplete = mProgressRunComplete
-End Property
-
-Public Property Let ProgressRunComplete(ByVal value As Boolean)
-    mProgressRunComplete = value
-End Property
+End Function
 
 Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As String = "")
     On Error GoTo HandleError
 
     Set progressForm = New ProgressForm
     cancelled = False
-    ProgressRunComplete = False
+    mTotalCount = totalCount
+    mCompletedCount = 0
+    mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
     progressForm.Show vbModeless
     progressForm.Init totalCount, title
     Exit Sub
@@ -40,6 +40,10 @@ Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optiona
     If Not progressForm Is Nothing Then
         progressForm.UpdateProgress done, totalCount, status
     End If
+
+    mCompletedCount = done
+    mTotalCount = totalCount
+    mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
 End Sub
 
 Public Function Progress_WaitIfPaused() As Boolean
@@ -68,7 +72,20 @@ Public Function Progress_Cancelled() As Boolean
 End Function
 
 Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
-    ProgressRunComplete = True
+
+    If Not progressForm Is Nothing Then
+        On Error Resume Next
+        mCompletedCount = progressForm.CompletedCount
+        mTotalCount = progressForm.TotalCount
+        mProgressRunComplete = progressForm.ProgressComplete
+        If Err.Number <> 0 Then
+            Err.Clear
+            mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
+        End If
+        On Error GoTo 0
+    Else
+        mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
+    End If
 
     If Not progressForm Is Nothing Then
         On Error Resume Next
