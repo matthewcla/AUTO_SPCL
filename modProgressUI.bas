@@ -56,14 +56,16 @@ Public Function Progress_Cancelled() As Boolean
     On Error GoTo 0
 End Function
 
-Public Sub Progress_Close(Optional ByVal finalNote As String = "")
+Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
     If Not progressForm Is Nothing Then
         On Error Resume Next
         If Len(finalNote) > 0 Then
             progressForm.LogLine finalNote
         End If
-        Unload progressForm
-        Set progressForm = Nothing
+        If Not keepOpen Then
+            Unload progressForm
+            Set progressForm = Nothing
+        End If
         On Error GoTo 0
     End If
 End Sub
