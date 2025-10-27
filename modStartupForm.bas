@@ -23,8 +23,6 @@ Public g_SuspendStartupAutoShow As Boolean
 ' Tracks whether we already auto-showed once this session
 Public m_StartupShownOnce As Boolean
 
-Public startup As Object
-
 ' === Visibility control ===
 Public Sub SetWorkbookVisibility(ByVal wb As Workbook, ByVal makeVisible As Boolean)
     Dim i As Long
@@ -59,9 +57,18 @@ Public Function IsWorkbookVisible(ByVal wb As Workbook) As Boolean
 End Function
 
 ' === StartupForm single-instance helpers ===
-Public Sub ShowStartupFormOnce()
+Public Sub HandleSplashComplete()
+    If m_StartupShownOnce Then Exit Sub
+
+    m_StartupShownOnce = True
+    ShowStartupFormOnce True
+End Sub
+
+Public Sub ShowStartupFormOnce(Optional ByVal forceShow As Boolean = False)
     Dim uf As Object
-    If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
+    If Not forceShow Then
+        If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
+    End If
 
     ' If already up, just bring to front
     If StartupFormLoaded() Then

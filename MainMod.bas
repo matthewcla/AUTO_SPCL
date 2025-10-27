@@ -56,6 +56,13 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     On Error GoTo CleanFail
     ResetRunState
 
+    processed = 0
+    total = 0
+
+    ' Progress UI (show immediately so it renders before any heavy work)
+    Progress_Show total, "Record Review Progress"
+    Progress_Log "Loading IDs..."
+
     Application.ScreenUpdating = False
     Application.EnableCancelKey = xlErrorHandler
 
@@ -77,8 +84,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
 
     processed = 0
 
-    ' Progress UI
-    Progress_Show total, "Record Review Progress"
+    ' Refresh the totals now that they are known
+    Progress_Update processed, total, IIf(total = 1, "Loaded 1 ID.", "Loaded " & total & " IDs.")
 
     If total = 0 Then
         Progress_Log "No IDs available for processing."
@@ -543,21 +550,18 @@ Private Sub lookFITREP()
     Dim dF4 As Double, dT4 As Double
 
     ConnectToRunningOAIS
-    Set wsID = Worksheets("ID")
+    Set wsID = thisworkbook.Worksheets("ID")
     
     If Progress_Cancelled() Then Exit Sub
     
     outRow = 2
     oRow = 2 ' BASE_ROW external if you use it elsewhere; ensure consistent usage
 
-    eRow = wsID.Range("A" & Rows.Count).End(xlUp).row
+    eRow = wsID.Cells(wsID.Rows.Count, "A").End(xlUp).Row
 
     If Not Trim$(iCS.GetText(1, 2, 4)) = "OFT2" Then ChangeScreen "OFT2"
 
     Application.ScreenUpdating = False
-
-    ' Seed with current ID
-    entText 4, 42, wsID.Cells(i + 1, 1).Value
 
     first = True
     Do
@@ -713,15 +717,20 @@ Private Sub writeRB()
     End If
 
     ' If first issue, seed col 1/2 and start line; else append with newline
+    Dim issueLine As String
+    issueLine = "_" & IssueCAT & ": " & nIssue
+
     cT = CountUnderscores(CStr(wsRB.Cells(rw, 3).Value))
     If cT = 0 Then
         wsRB.Cells(rw, 1).Value = nm
         wsRB.Cells(rw, 2).Value = wsSB.Cells(i + 1, 2).Value
-        wsRB.Cells(rw, 3).Value = "_" & IssueCAT & ": " & nIssue
+        wsRB.Cells(rw, 3).Value = issueLine
     Else
         issues = CStr(wsRB.Cells(rw, 3).Value)
-        wsRB.Cells(rw, 3).Value = issues & vbNewLine & "_" & IssueCAT & ": " & nIssue
+        wsRB.Cells(rw, 3).Value = issues & vbNewLine & issueLine
     End If
+
+    Progress_Log nm & ": " & issueLine
 End Sub
 
 Private Function CountUnderscores(inputText As String) As Long
@@ -789,6 +798,8 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
+
 
 
 

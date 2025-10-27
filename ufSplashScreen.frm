@@ -13,10 +13,12 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+Option Explicit
 '--- Global Variables ---
 Dim progress As Integer
 Dim progressText(5) As String
 Dim totalProgressBarWidth As Long
+Dim originalSubTitleForeColor As Long
 
 Dim OAIS As Boolean
 
@@ -51,6 +53,7 @@ Private Sub UserForm_Initialize()
     End If
     ' *** FIX 2: Store the final width of the progress bar (set in the designer) ***
     totalProgressBarWidth = lblProgressBar.Width
+    originalSubTitleForeColor = lblSubTitle.ForeColor
     
     ' Set initial progress
     progress = 0
@@ -61,24 +64,32 @@ Private Sub OAISConnect()
 
     On Error GoTo EH
 
-    Set iApp = GetObject(, "Attachmate_Reflection_Objects_Framework.ApplicationObject")
-    Set iFrame = iApp.GetObject("Frame")
-    Set iCT = iFrame.SelectedView.Control
-    Set iCS = iCT.screen
+    modOAIS.ConnectToRunningOAIS
+
     OAIS = True
+    Exit Sub
+
 EH:
     OAIS = False
-    Exit Sub
 End Sub
 Private Sub UserForm_Activate()
     Dim hWnd As LongPtr
     Dim currentStyle As LongPtr
     Dim newStyle As LongPtr
+    Dim originalCaption As String
+    Dim tempCaption As String
+
+    ' Temporarily swap the caption so FindWindow returns this form even if
+    ' another window shares the display caption (caption swap required).
+    originalCaption = Me.Caption
+    tempCaption = "ufsplash-" & Hex$(ObjPtr(Me))
+    Me.Caption = tempCaption
 
     ' 1. Find the UserForm's window handle (hWnd)
-    ' Note: This finds the form based on its *current* caption.
-    hWnd = FindWindow("ThunderDFrame", Me.Caption)
-    
+    ' Note: This finds the form based on its *temporary* caption.
+    hWnd = FindWindow("ThunderDFrame", tempCaption)
+    Me.Caption = originalCaption
+
     If hWnd = 0 Then Exit Sub ' Exit if window not found
 
     ' 2. Get the current style of the window
@@ -144,11 +155,14 @@ Private Sub StartProgress()
     ' -----------------------
     
     ' Give a moment to see the "100%" before closing
-    Sleep 500
-    
-    ' Close the splash screen and show the main form or dashboard
-    ' MsgBox "AUTO_SPCL is now ready!" ' You can add this back if you want
-    ' Me.Hide
-    ' Uncomment the line below to show the main form after the splash screen:
-    ' MainForm.Show
+    Sleep 1000
+
+    modStartupForm.HandleSplashComplete
+    ResetSplashUiState
+    Unload Me
+End Sub
+
+Private Sub ResetSplashUiState()
+    ' Reset any UI state that may have been changed during the splash sequence
+    lblSubTitle.ForeColor = originalSubTitleForeColor
 End Sub

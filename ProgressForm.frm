@@ -7,6 +7,10 @@ Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 
+Private Sub Class_Initialize()
+    Me.txtLog.ControlSource = ""
+End Sub
+
 Public Paused As Boolean
 Public Cancelled As Boolean
 
@@ -38,11 +42,13 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     maxBarWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
-    Me.txtLog.Value = vbNullString
+    Me.txtLog.ControlSource = ""
+    Me.txtLog.Value = ""
     Me.txtLog.SelStart = 0
 
     Paused = False
     Cancelled = False
+    modProgressUI.cancelled = False
     Me.btnPause.Caption = "Pause"
 
     startTick = Timer
@@ -52,14 +58,17 @@ End Sub
 
 ' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
+    Dim newLine As String
+    newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
+
     With Me.txtLog
         If Len(.Text) > 0 Then
-            .SelStart = Len(.Text)  ' Move to the end of the text
-            .SelText = vbCrLf & Format$(Now, "hh:nn:ss") & "  " & lineText  ' Append the line
+            .Text = .Text & vbCrLf & newLine  ' Append the line
         Else
-            .Text = Format$(Now, "hh:nn:ss") & "  " & lineText  ' Start with the first line
+            .Text = newLine  ' Start with the first line
         End If
-        .SelStart = Len(.Text)  ' Scroll to the end
+        .SelStart = Len(.Text)
+        .SelLength = 0
     End With
     DoEvents
 End Sub
@@ -131,6 +140,7 @@ End Sub
 
 Private Sub btnCancel_Click()
     Cancelled = True
+    modProgressUI.cancelled = True
     btnCancel.Enabled = False
     LogLine "Cancel requested. Finishing current step"
 End Sub
@@ -162,6 +172,8 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+
+    Me.txtLog.ControlSource = ""
 
     InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
 
