@@ -181,20 +181,42 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub bRadiate_Click()
+    Dim hasError As Boolean
+    Dim errNumber As Long
+    Dim errDescription As String
+
+    On Error GoTo RadiateError
+
     ConnectToRunningOAIS
-    
+
     SetOAISStatus bOAIS, Not (iCS Is Nothing)
-    
+
     ClearTableColumnsCD ("RED_Board")
-    
+
     KeepAlive_Suspend
-    
+
     HideAndReleaseStartupForm
-    
+
     A_Record_Review
 
+CleanExit:
+    On Error Resume Next
+    KeepAlive_Resume
+    On Error GoTo 0
+
+    If hasError Then
+        MsgBox "Radiate encountered an error (" & errNumber & "): " & errDescription, vbExclamation, "Radiate"
+    End If
+
     ' Progress UI is managed within A_Record_Review; no separate show call is needed here.
-         
+    Exit Sub
+
+RadiateError:
+    hasError = True
+    errNumber = Err.Number
+    errDescription = Err.Description
+    Resume CleanExit
+
 End Sub
 
 Private Sub ClearTableColumnsCD(ByVal TableName As String)
