@@ -463,7 +463,20 @@ Private Sub UserForm_Terminate()
 
     Select Case targetForm
         Case "StartupForm"
-            If modProgressUI.ProgressRunComplete() Then
+            Dim allowStartup As Boolean
+            allowStartup = modProgressUI.ProgressRunComplete()
+
+            ' Allow navigation back to StartupForm when cancellation paths requested it
+            If Not allowStartup Then
+                allowStartup = (StrComp(targetForm, "StartupForm", vbTextCompare) = 0)
+            End If
+
+            ' Or when the module has flagged a user cancel
+            If Not allowStartup Then
+                allowStartup = modProgressUI.cancelled
+            End If
+
+            If allowStartup Then
                 On Error Resume Next
                 StartupForm.Show
                 On Error GoTo 0
