@@ -66,16 +66,11 @@ End Sub
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     lblNew.ForeColor = vbWhite
-    lblSettings.ForeColor = vbBlack
     lblRadiate.ForeColor = vbWhite
     bOAIS.ForeColor = vbBlack
 
     lblASTABone.ForeColor = vbWhite
     lblASTABtwo.ForeColor = vbWhite
-End Sub
-
-Private Sub bSettings_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblSettings.ForeColor = vbWhite
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
