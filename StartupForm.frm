@@ -339,10 +339,3 @@ Private Sub SafePause(ByVal seconds As Double)
     Loop
 End Sub
 
-
-' Polls for substring on the Reflection screen text with retries.
-
-Private Sub UserForm_Terminate()
-    On Error Resume Next
-End Sub
-
