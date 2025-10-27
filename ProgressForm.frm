@@ -7,6 +7,10 @@ Private emaSecPerItem As Double
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 
+Private Sub Class_Initialize()
+    Me.txtLog.ControlSource = ""
+End Sub
+
 Public Paused As Boolean
 Public Cancelled As Boolean
 
@@ -38,8 +42,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     maxBarWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
-    Me.txtLog.ControlSource = vbNullString
-    Me.txtLog.Value = vbNullString
+    Me.txtLog.ControlSource = ""
+    Me.txtLog.Value = ""
     Me.txtLog.SelStart = 0
 
     Paused = False
@@ -167,7 +171,7 @@ End Sub
 
 Private Sub UserForm_Initialize()
 
-    Me.txtLog.ControlSource = vbNullString
+    Me.txtLog.ControlSource = ""
 
     InitializeOAISSession lblOAIS, , , vbWhite, vbWhite
 
