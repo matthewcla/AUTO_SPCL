@@ -1,5 +1,7 @@
 Option Explicit
 
+#Const DEBUG_PAUSE_WAIT = False
+
 #If VBA7 Then
     Private Declare PtrSafe Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
@@ -14,6 +16,7 @@ Option Explicit
     Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
         ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
     Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
+    Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
 #Else
     Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
@@ -28,6 +31,7 @@ Option Explicit
     Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" ( _
         ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
     Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
+    Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 #End If
 
 Private Type POINTAPI
@@ -371,9 +375,29 @@ End Property
 
 ' Blocks while paused; returns False if cancelled while waiting
 Public Function WaitIfPaused() As Boolean
+    Const SLICE_MS As Long = 25
+#If DEBUG_PAUSE_WAIT Then
+    Dim waitStart As Double
+    Dim lastLogTick As Double
+    waitStart = Timer
+    lastLogTick = waitStart
+#End If
+
     Do While Paused And Not Cancelled
         DoEvents
-        Application.Wait Now + TimeValue("0:00:00") ' yield without sleeping too long
+        Sleep SLICE_MS
+#If DEBUG_PAUSE_WAIT Then
+        Dim nowTick As Double
+        nowTick = Timer
+        If nowTick < lastLogTick Then
+            lastLogTick = nowTick
+            waitStart = nowTick
+        End If
+        If nowTick - lastLogTick >= 1# Then
+            Debug.Print "WaitIfPaused running for", Format$(nowTick - waitStart, "0.0"), "seconds"
+            lastLogTick = nowTick
+        End If
+#End If
     Loop
     WaitIfPaused = Not Cancelled
 End Function
