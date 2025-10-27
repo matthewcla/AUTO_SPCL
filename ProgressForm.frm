@@ -203,18 +203,24 @@ Private Sub AppendLogEntry(ByVal target As MSForms.TextBox, ByVal newLine As Str
 
     Dim originalSelStart As Long
     Dim originalSelLength As Long
+    Dim originalLength As Long
     On Error Resume Next
     originalSelStart = target.SelStart
     originalSelLength = target.SelLength
     On Error GoTo 0
 
-    If Len(target.Text) > 0 Then
+    originalLength = Len(target.Text)
+
+    If originalLength > 0 Then
         target.Text = target.Text & vbCrLf & newLine
     Else
         target.Text = newLine
     End If
 
-    If keepAtBottom Then
+    Dim shouldStayAtBottom As Boolean
+    shouldStayAtBottom = keepAtBottom Or (originalSelStart + originalSelLength >= originalLength)
+
+    If shouldStayAtBottom Then
         ScrollTextBoxToBottom target
     Else
         RestoreSelection target, originalSelStart, originalSelLength
