@@ -214,138 +214,13 @@ Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
     GetTextBoxHwnd = tbHandle
 End Function
 
-Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boolean
-#If VBA7 Then
-    Dim hWndTB As LongPtr
-#Else
-    Dim hWndTB As Long
-#End If
-    hWndTB = GetTextBoxHwnd(tb)
-
-    If hWndTB = 0 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim totalLines As Long
-    totalLines = CLng(SendMessageLongPtr(hWndTB, EM_GETLINECOUNT, 0&, 0&))
-    If totalLines <= 1 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim rc As RECT
-    Call SendMessageByRef(hWndTB, EM_GETRECT, 0&, rc)
-
-    Dim pt As POINTAPI
-    pt.X = rc.Left + 1
-    pt.Y = rc.Bottom - 1
-
-    Dim charFromPos As Long
-    charFromPos = CLng(SendMessageByRef(hWndTB, EM_CHARFROMPOS, 0&, pt))
-    If charFromPos = -1 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim lastVisibleLine As Long
-    Dim lastVisibleChar As Long
-    lastVisibleChar = charFromPos And &HFFFF&
-
-    lastVisibleLine = (charFromPos And &HFFFF0000) \ &H10000
-    If lastVisibleLine < 0 Then
-        lastVisibleLine = lastVisibleLine + &H10000
-    End If
-
-    ' Fallback for any edge cases where the high-order extraction fails
-    If lastVisibleLine < 0 Then
-        lastVisibleLine = CLng(SendMessageLongPtr(hWndTB, EM_LINEFROMCHAR, lastVisibleChar, 0&))
-    End If
-
-    TextBoxIsScrolledToBottom = (lastVisibleLine >= totalLines - 1)
-End Function
-
-Private Function ApplyTextBoxSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selEnd As Long, Optional ByVal scrollCaret As Boolean = False) As Boolean
-#If VBA7 Then
-    Dim hWndTB As LongPtr
-#Else
-    Dim hWndTB As Long
-#End If
-
-    hWndTB = GetTextBoxHwnd(tb)
-
-    If hWndTB = 0 Then
-        Exit Function
-    End If
-
-    Call SendMessageLongPtr(hWndTB, EM_SETSEL, selStart, selEnd)
-
-    If scrollCaret Then
-        Call SendMessageLongPtr(hWndTB, EM_SCROLLCARET, 0&, 0&)
-    End If
-
-    ApplyTextBoxSelection = True
-End Function
-
-Private Sub RestoreSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selLength As Long)
-    If ApplyTextBoxSelection(tb, selStart, selStart + selLength) Then
-        Exit Sub
-    End If
+Private Sub AppendIssueLine(ByVal target As MSForms.TextBox, ByVal lineText As String)
+    target.Text = target.Text & lineText & vbCrLf
 
     On Error Resume Next
-    tb.SelStart = selStart
-    tb.SelLength = selLength
+    target.SelStart = Len(target.Text)
+    target.SelLength = 0
     On Error GoTo 0
-End Sub
-
-Private Sub ScrollTextBoxToBottom(ByVal tb As MSForms.TextBox)
-    Dim textLen As Long
-    textLen = Len(tb.Text)
-
-    If ApplyTextBoxSelection(tb, textLen, textLen, True) Then
-        Exit Sub
-    End If
-
-    On Error Resume Next
-    tb.SelStart = textLen
-    tb.SelLength = 0
-    On Error GoTo 0
-End Sub
-
-Private Sub AppendLogEntry(ByVal target As MSForms.TextBox, ByVal newLine As String)
-    Dim keepAtBottom As Boolean
-    keepAtBottom = TextBoxIsScrolledToBottom(target)
-
-    Dim originalSelStart As Long
-    Dim originalSelLength As Long
-    Dim originalLength As Long
-    On Error Resume Next
-    originalSelStart = target.SelStart
-    originalSelLength = target.SelLength
-    On Error GoTo 0
-
-    originalLength = Len(target.Text)
-
-    Dim prefix As String
-    If originalLength > 0 Then
-        prefix = vbCrLf
-        If Right$(target.Text, 2) = vbCrLf Then
-            prefix = ""
-        End If
-    Else
-        prefix = ""
-    End If
-
-    target.Text = target.Text & prefix & newLine & vbCrLf
-
-    Dim shouldStayAtBottom As Boolean
-    shouldStayAtBottom = keepAtBottom Or (originalSelStart + originalSelLength >= originalLength)
-
-    If shouldStayAtBottom Then
-        ScrollTextBoxToBottom target
-    Else
-        RestoreSelection target, originalSelStart, originalSelLength
-    End If
 End Sub
 
 ' Append a time-stamped line to the log
@@ -353,7 +228,7 @@ Public Sub LogLine(ByVal lineText As String)
     Dim newLine As String
     newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
 
-    AppendLogEntry Me.txtLog, newLine
+    AppendIssueLine Me.txtLog, newLine
 End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
