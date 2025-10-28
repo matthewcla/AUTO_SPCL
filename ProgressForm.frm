@@ -155,6 +155,7 @@ End Sub
 Friend Sub TimerTick()
     Dim nowT As Double
     nowT = Timer
+    If nowT < lastUpdate Then nowT = nowT + 86400#
 
     Dim elapsed As Double
     elapsed = nowT - startTick
@@ -165,12 +166,13 @@ Friend Sub TimerTick()
     remainingCount = Application.Max(TotalCount - CompletedCount, 0)
 
     Dim remain As Double
-    If remainingCount <= 0 Then
+    If remainingCount <= 0 Or emaSecPerItem <= 0 Then
         remain = 0
-    ElseIf emaSecPerItem > 0 Then
-        remain = remainingCount * emaSecPerItem
     Else
-        remain = 0
+        Dim elapsedSinceUpdate As Double
+        elapsedSinceUpdate = nowT - lastUpdate
+        If elapsedSinceUpdate < 0 Then elapsedSinceUpdate = elapsedSinceUpdate + 86400#
+        remain = Application.Max(remainingCount * emaSecPerItem - elapsedSinceUpdate, 0)
     End If
 
     lblETR.Caption = HMS(remain)
