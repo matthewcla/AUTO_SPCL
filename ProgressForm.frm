@@ -59,6 +59,7 @@ Private Const WS_CAPTION As Long = &HC00000
 Private startTick As Double
 Private lastUpdate As Double
 Private emaSecPerItem As Double
+Private nextTick As Date
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
@@ -74,6 +75,7 @@ Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
     nextFormName = ""
     titleBarHidden = False
+    nextTick = 0
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -124,7 +126,56 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     TotalCount = totalCount
     CompletedCount = 0
 
+    ScheduleNextTick
+
     modReflectionsMonitor.PushCurrentStatus
+End Sub
+
+Private Sub ScheduleNextTick()
+    CancelScheduledTick
+    nextTick = Now + TimeSerial(0, 0, 1)
+    On Error Resume Next
+    Application.OnTime nextTick, "modProgressUI.ProgressForm_TimerTick", , True
+    On Error GoTo 0
+End Sub
+
+Private Sub CancelScheduledTick()
+    On Error Resume Next
+    If nextTick <> 0 Then
+        Application.OnTime nextTick, "modProgressUI.ProgressForm_TimerTick", , False
+    End If
+    nextTick = 0
+    On Error GoTo 0
+End Sub
+
+Friend Sub ShutdownTimer()
+    CancelScheduledTick
+End Sub
+
+Friend Sub TimerTick()
+    Dim nowT As Double
+    nowT = Timer
+
+    Dim elapsed As Double
+    elapsed = nowT - startTick
+    If elapsed < 0 Then elapsed = elapsed + 86400#
+    lblElapsed.Caption = HMS(elapsed)
+
+    Dim remainingCount As Double
+    remainingCount = Application.Max(TotalCount - CompletedCount, 0)
+
+    Dim remain As Double
+    If remainingCount <= 0 Then
+        remain = 0
+    ElseIf emaSecPerItem > 0 Then
+        remain = remainingCount * emaSecPerItem
+    Else
+        remain = 0
+    End If
+
+    lblETR.Caption = HMS(remain)
+
+    ScheduleNextTick
 End Sub
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
@@ -498,6 +549,8 @@ Private Sub UserForm_Terminate()
     Dim errDescription As String
 
     On Error GoTo CleanFail
+
+    CancelScheduledTick
 
     SetCursorWait
 
