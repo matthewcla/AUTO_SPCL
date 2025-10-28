@@ -36,6 +36,14 @@ Public Sub Progress_Log(ByVal msg As String)
     End If
 End Sub
 
+Public Sub ProgressForm_TimerTick()
+    On Error Resume Next
+    If Not progressForm Is Nothing Then
+        progressForm.TimerTick
+    End If
+    On Error GoTo 0
+End Sub
+
 Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
     If Not progressForm Is Nothing Then
         progressForm.UpdateProgress done, totalCount, status
@@ -97,6 +105,7 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
             progressForm.LogLine finalNote
         End If
         If Not keepOpen Then
+            progressForm.ShutdownTimer
             Unload progressForm
             Set progressForm = Nothing
         End If
