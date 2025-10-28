@@ -44,6 +44,16 @@ Public Sub ProgressForm_TimerTick()
     On Error GoTo 0
 End Sub
 
+#If VBA7 Then
+Public Sub ProgressForm_TimerProc(ByVal hwnd As LongPtr, ByVal uMsg As Long, ByVal idEvent As LongPtr, ByVal dwTime As Long)
+#Else
+Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal idEvent As Long, ByVal dwTime As Long)
+#End If
+    On Error Resume Next
+    ProgressForm_TimerTick
+    On Error GoTo 0
+End Sub
+
 Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
     If Not progressForm Is Nothing Then
         progressForm.UpdateProgress done, totalCount, status
