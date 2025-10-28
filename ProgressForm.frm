@@ -17,6 +17,14 @@ Option Explicit
         ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
     Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
+    Private Declare PtrSafe Function SetTimer Lib "user32" ( _
+        ByVal hWnd As LongPtr, _
+        ByVal nIDEvent As LongPtr, _
+        ByVal uElapse As Long, _
+        ByVal lpTimerFunc As LongPtr) As LongPtr
+    Private Declare PtrSafe Function KillTimer Lib "user32" ( _
+        ByVal hWnd As LongPtr, _
+        ByVal uIDEvent As LongPtr) As Long
 #Else
     Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
@@ -32,6 +40,14 @@ Option Explicit
         ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
     Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
     Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+    Private Declare Function SetTimer Lib "user32" ( _
+        ByVal hWnd As Long, _
+        ByVal nIDEvent As Long, _
+        ByVal uElapse As Long, _
+        ByVal lpTimerFunc As Long) As Long
+    Private Declare Function KillTimer Lib "user32" ( _
+        ByVal hWnd As Long, _
+        ByVal uIDEvent As Long) As Long
 #End If
 
 Private Type POINTAPI
@@ -59,11 +75,17 @@ Private Const WS_CAPTION As Long = &HC00000
 Private startTick As Double
 Private lastUpdate As Double
 Private emaSecPerItem As Double
-Private nextTick As Date
 Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
 Private titleBarHidden As Boolean
+
+#If VBA7 Then
+    Private timerId As LongPtr
+#Else
+    Private timerId As Long
+#End If
+Private timerBusy As Boolean
 
 Public TotalCount As Long
 Public CompletedCount As Long
@@ -75,7 +97,8 @@ Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
     nextFormName = ""
     titleBarHidden = False
-    nextTick = 0
+    timerId = 0
+    timerBusy = False
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -133,19 +156,28 @@ End Sub
 
 Private Sub ScheduleNextTick()
     CancelScheduledTick
-    nextTick = Now + TimeSerial(0, 0, 1)
-    On Error Resume Next
-    Application.OnTime nextTick, "modProgressUI.ProgressForm_TimerTick", , True
-    On Error GoTo 0
+
+#If VBA7 Then
+    timerId = SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
+#Else
+    timerId = SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
+#End If
+
+    If timerId = 0 Then
+        Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
+    End If
 End Sub
 
 Private Sub CancelScheduledTick()
-    On Error Resume Next
-    If nextTick <> 0 Then
-        Application.OnTime nextTick, "modProgressUI.ProgressForm_TimerTick", , False
-    End If
-    nextTick = 0
-    On Error GoTo 0
+    If timerId = 0 Then Exit Sub
+
+#If VBA7 Then
+    Call KillTimer(0, timerId)
+#Else
+    Call KillTimer(0, timerId)
+#End If
+
+    timerId = 0
 End Sub
 
 Friend Sub ShutdownTimer()
@@ -153,6 +185,15 @@ Friend Sub ShutdownTimer()
 End Sub
 
 Friend Sub TimerTick()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    If timerBusy Then Exit Sub
+    timerBusy = True
+
+    On Error GoTo HandleError
+
     Dim nowT As Double
     nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400#
@@ -177,7 +218,19 @@ Friend Sub TimerTick()
 
     lblETR.Caption = HMS(remain)
 
-    ScheduleNextTick
+    timerBusy = False
+    Exit Sub
+
+HandleError:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
+    timerBusy = False
+    If errNumber <> 0 Then
+        Err.Clear
+        Err.Raise errNumber, errSource, errDescription
+    End If
 End Sub
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
