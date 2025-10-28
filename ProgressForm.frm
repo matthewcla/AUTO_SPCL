@@ -324,11 +324,17 @@ Private Sub AppendLogEntry(ByVal target As MSForms.TextBox, ByVal newLine As Str
 
     originalLength = Len(target.Text)
 
+    Dim prefix As String
     If originalLength > 0 Then
-        target.Text = target.Text & vbCrLf & newLine
+        prefix = vbCrLf
+        If Right$(target.Text, 2) = vbCrLf Then
+            prefix = ""
+        End If
     Else
-        target.Text = newLine
+        prefix = ""
     End If
+
+    target.Text = target.Text & prefix & newLine & vbCrLf
 
     Dim shouldStayAtBottom As Boolean
     shouldStayAtBottom = keepAtBottom Or (originalSelStart + originalSelLength >= originalLength)
