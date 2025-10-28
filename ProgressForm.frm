@@ -451,8 +451,13 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
 
-    Me.MousePointer = fmMousePointerHourGlass
+    On Error GoTo CleanFail
+
+    SetCursorWait
 
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
@@ -471,8 +476,16 @@ Private Sub UserForm_Initialize()
 
     'A_Record_Review
 
-    Me.MousePointer = fmMousePointerDefault
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
 
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -480,9 +493,17 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 End Sub
 
 Private Sub UserForm_Terminate()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     On Error Resume Next
     modReflectionsMonitor.UnregisterReflectionsListener Me.Name
-    On Error GoTo 0
+    On Error GoTo CleanFail
 
     Dim targetForm As String
     targetForm = nextFormName
@@ -506,15 +527,26 @@ Private Sub UserForm_Terminate()
             If allowStartup Then
                 On Error Resume Next
                 StartupForm.Show
-                On Error GoTo 0
+                On Error GoTo CleanFail
             End If
         Case "EmailForm"
             If modProgressUI.ProgressRunComplete() Then
                 On Error Resume Next
                 EmailForm.Show
-                On Error GoTo 0
+                On Error GoTo CleanFail
             End If
     End Select
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
@@ -539,11 +571,30 @@ Private Sub UpdateOAISStatusIndicator()
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     ' X button behaves like Cancel to avoid orphaned background work
     If CloseMode = vbFormControlMenu Then
         Cancel = True
         btnCancel_Click
     End If
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 
