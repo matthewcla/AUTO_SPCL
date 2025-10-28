@@ -30,6 +30,7 @@ Public BoardType As String      ' kept for compatibility if used elsewhere
 Private issues As String
 Private nIssue As String
 Private IssueCAT As String
+Private currentIssues As Collection
 
 Private MasLook As String
 Private BacLook As String
@@ -92,6 +93,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         GoTo NoWork
     End If
 
+    Set currentIssues = Nothing
+
     ' Main review loop (module-level i is intentional so workers can use it)
     For i = iLo To iHi
         If Not Progress_WaitIfPaused() Then Exit For
@@ -100,6 +103,7 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         ' Process each record...
         id = Trim$(CStr(arrayID(i, 1)))
         nm = Trim$(CStr(arrayID(i, 2)))
+        Set currentIssues = New Collection
         Progress_Log "Starting: " & IIf(Len(nm) > 0, nm, id) & "  [" & id & "]"
 
         '=== Pipeline ===
@@ -116,9 +120,12 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         '================
     
         processed = processed + 1
-        Progress_Update processed, total, "Finished: " & IIf(Len(nm) > 0, nm, id)
+        Progress_Update processed, total, BuildFinishedStatus(IIf(Len(nm) > 0, nm, id))
+        Set currentIssues = Nothing
         DoEvents
     Next i
+
+    Set currentIssues = Nothing
 
 NoWork:
     runWasCancelled = Progress_Cancelled()
@@ -730,8 +737,44 @@ Private Sub writeRB()
         wsRB.Cells(rw, 3).Value = issues & vbNewLine & issueLine
     End If
 
-    Progress_Log nm & ": " & issueLine
+    If Not currentIssues Is Nothing Then
+        currentIssues.Add issueLine
+    End If
 End Sub
+
+Private Function BuildFinishedStatus(ByVal displayName As String) As String
+    Dim statusText As String
+    Dim issueSummary As String
+
+    statusText = "Finished: " & displayName
+
+    issueSummary = BuildIssueSummary(displayName)
+    If Len(issueSummary) > 0 Then
+        statusText = statusText & "  --  " & issueSummary
+    End If
+
+    BuildFinishedStatus = statusText
+End Function
+
+Private Function BuildIssueSummary(ByVal displayName As String) As String
+    Dim summary As String
+    Dim idx As Long
+    Dim issueText As String
+
+    If currentIssues Is Nothing Then Exit Function
+    If currentIssues.Count = 0 Then Exit Function
+
+    For idx = 1 To currentIssues.Count
+        issueText = CStr(currentIssues(idx))
+        If Len(summary) = 0 Then
+            summary = displayName & ": " & issueText
+        Else
+            summary = summary & "; " & issueText
+        End If
+    Next idx
+
+    BuildIssueSummary = summary
+End Function
 
 Private Function CountUnderscores(inputText As String) As Long
     ' Returns the number of "_" characters in the given string.
