@@ -141,8 +141,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     pausedSeconds = 0#
     startTick = Timer
     lastUpdate = startTick
-    TotalCount = totalCount
-    CompletedCount = 0
+    Me.TotalCount = totalCount
+    Me.CompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
     modProgressUI.Progress_StartTimer
@@ -190,16 +190,16 @@ Friend Sub UpdateElapsedAndEta(ByVal nowT As Double, Optional ByVal currentTime 
     lblElapsed.Caption = HMS(elapsed)
 
     Dim pctComplete As Double
-    If TotalCount <= 0 Then
+    If Me.TotalCount <= 0 Then
         pctComplete = 0#
     Else
-        pctComplete = CompletedCount / TotalCount
+        pctComplete = CompletedCount / Me.TotalCount
         pctComplete = Application.Max(Application.Min(pctComplete, 1#), 0#)
     End If
 
     Dim remain As Double
     Dim etrText As String
-    If TotalCount <= 0 Or pctComplete <= 0# Then
+    If Me.TotalCount <= 0 Or pctComplete <= 0# Then
         etrText = "--:--:--"
     ElseIf pctComplete >= 1# Then
         etrText = "00:00:00"
@@ -324,8 +324,8 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     Dim isComplete As Boolean
     isComplete = (totalCount > 0 And done >= totalCount)
 
-    CompletedCount = done
-    TotalCount = totalCount
+    Me.CompletedCount = done
+    Me.TotalCount = totalCount
 
     RefreshTimingDisplays currentTime
 
@@ -353,7 +353,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 End Sub
 
 Public Property Get ProgressComplete() As Boolean
-    ProgressComplete = (TotalCount > 0 And CompletedCount >= TotalCount)
+    ProgressComplete = (Me.TotalCount > 0 And Me.CompletedCount >= Me.TotalCount)
 End Property
 
 ' Blocks while paused; returns False if cancelled while waiting
