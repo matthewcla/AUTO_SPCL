@@ -453,6 +453,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    CancelScheduledTick
     Resume CleanExit
 End Sub
 
