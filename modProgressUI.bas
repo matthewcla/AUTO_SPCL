@@ -68,6 +68,14 @@ Public Sub Progress_Log(ByVal msg As String)
     End If
 End Sub
 
+Public Sub ProgressForm_TimerTick()
+    On Error Resume Next
+    If Not progressForm Is Nothing Then
+        progressForm.Tick_OneSecond
+    End If
+    On Error GoTo 0
+End Sub
+
 #If VBA7 Then
 Public Sub ProgressForm_TimerProc(ByVal hwnd As LongPtr, ByVal uMsg As Long, ByVal idEvent As LongPtr, ByVal dwTime As Long)
 #Else

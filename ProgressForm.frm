@@ -133,19 +133,13 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     TotalCount = totalCount
     CompletedCount = 0
 
-    ScheduleNextTick
-
     modReflectionsMonitor.PushCurrentStatus
 End Sub
 
 Private Sub ScheduleNextTick()
     CancelScheduledTick
 
-#If VBA7 Then
-    timerId = SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
-#Else
-    timerId = SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
-#End If
+    timerId = modProgressUI.SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
 
     If timerId = 0 Then
         Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
@@ -155,11 +149,7 @@ End Sub
 Private Sub CancelScheduledTick()
     If timerId = 0 Then Exit Sub
 
-#If VBA7 Then
-    Call KillTimer(0, timerId)
-#Else
-    Call KillTimer(0, timerId)
-#End If
+    Call modProgressUI.KillTimer(0, timerId)
 
     timerId = 0
 End Sub
@@ -168,7 +158,8 @@ Friend Sub ShutdownTimer()
     CancelScheduledTick
 End Sub
 
-Friend Sub TimerTick()
+Public Sub Tick_OneSecond()
+    ' Lightweight 1 Hz timer hook: only touch elapsed/ETA labels (<10ms).
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -182,6 +173,24 @@ Friend Sub TimerTick()
     nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400#
 
+    RefreshTimingDisplays nowT
+
+    timerBusy = False
+    Exit Sub
+
+HandleError:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
+    timerBusy = False
+    If errNumber <> 0 Then
+        Err.Clear
+        Err.Raise errNumber, errSource, errDescription
+    End If
+End Sub
+
+Private Sub RefreshTimingDisplays(ByVal nowT As Double)
     Dim elapsed As Double
     elapsed = nowT - startTick
     If elapsed < 0 Then elapsed = elapsed + 86400#
@@ -201,20 +210,6 @@ Friend Sub TimerTick()
     End If
 
     lblETR.Caption = HMS(remain)
-
-    timerBusy = False
-    Exit Sub
-
-HandleError:
-    errNumber = Err.Number
-    errSource = Err.Source
-    errDescription = Err.Description
-
-    timerBusy = False
-    If errNumber <> 0 Then
-        Err.Clear
-        Err.Raise errNumber, errSource, errDescription
-    End If
 End Sub
 
 Public Sub Tick_OneSecond()
@@ -437,6 +432,8 @@ Private Sub UserForm_Initialize()
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
 
+    ScheduleNextTick
+
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
     Dim isConnected As Boolean
@@ -460,6 +457,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    CancelScheduledTick
     Resume CleanExit
 End Sub
 
