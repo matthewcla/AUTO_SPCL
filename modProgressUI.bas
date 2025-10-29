@@ -1,6 +1,26 @@
 Attribute VB_Name = "modProgressUI"
 Option Explicit
 
+#If VBA7 Then
+Public Declare PtrSafe Function SetTimer Lib "user32" ( _
+    ByVal hWnd As LongPtr, _
+    ByVal nIDEvent As LongPtr, _
+    ByVal uElapse As Long, _
+    ByVal lpTimerFunc As LongPtr) As LongPtr
+Public Declare PtrSafe Function KillTimer Lib "user32" ( _
+    ByVal hWnd As LongPtr, _
+    ByVal uIDEvent As LongPtr) As Long
+#Else
+Public Declare Function SetTimer Lib "user32" ( _
+    ByVal hWnd As Long, _
+    ByVal nIDEvent As Long, _
+    ByVal uElapse As Long, _
+    ByVal lpTimerFunc As Long) As Long
+Public Declare Function KillTimer Lib "user32" ( _
+    ByVal hWnd As Long, _
+    ByVal uIDEvent As Long) As Long
+#End If
+
 Public progressForm As progressForm
 Public paused As Boolean
 Public cancelled As Boolean
@@ -39,7 +59,7 @@ End Sub
 Public Sub ProgressForm_TimerTick()
     On Error Resume Next
     If Not progressForm Is Nothing Then
-        progressForm.TimerTick
+        progressForm.Tick_OneSecond
     End If
     On Error GoTo 0
 End Sub
