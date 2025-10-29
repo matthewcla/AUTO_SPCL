@@ -402,8 +402,10 @@ Private Sub btnPause_Click()
     Dim resumeTick As Double
 
     If Paused Then
+        modProgressUI.LogRecordReviewPaused
         modProgressUI.Progress_StopTimer
     Else
+        modProgressUI.LogRecordReviewResume
         resumeTick = Timer
         Dim adjustedTick As Double
         adjustedTick = resumeTick
@@ -425,6 +427,7 @@ Private Sub btnCancel_Click()
     modProgressUI.cancelled = True
     modProgressUI.Progress_StopTimer
     modProgressUI.LogRecordReviewStatus "Cancellation Triggered"
+    modProgressUI.LogRecordReviewCancelled
     btnCancel.Enabled = False
     btnCancel.Caption = "Cancelling..."
     btnPause.Visible = False
