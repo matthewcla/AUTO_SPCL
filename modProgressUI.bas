@@ -5,26 +5,6 @@ Option Explicit
 Public Const PROGRESS_LOG_STARTED As String = "Record Review Started"
 Public Const PROGRESS_LOG_CONCLUDED As String = "Record Review Concluded"
 
-#If VBA7 Then
-Public Declare PtrSafe Function SetTimer Lib "user32" ( _
-    ByVal hWnd As LongPtr, _
-    ByVal nIDEvent As LongPtr, _
-    ByVal uElapse As Long, _
-    ByVal lpTimerFunc As LongPtr) As LongPtr
-Public Declare PtrSafe Function KillTimer Lib "user32" ( _
-    ByVal hWnd As LongPtr, _
-    ByVal uIDEvent As LongPtr) As Long
-#Else
-Public Declare Function SetTimer Lib "user32" ( _
-    ByVal hWnd As Long, _
-    ByVal nIDEvent As Long, _
-    ByVal uElapse As Long, _
-    ByVal lpTimerFunc As Long) As Long
-Public Declare Function KillTimer Lib "user32" ( _
-    ByVal hWnd As Long, _
-    ByVal uIDEvent As Long) As Long
-#End If
-
 Public progressForm As progressForm
 Public paused As Boolean
 Public cancelled As Boolean
@@ -33,6 +13,10 @@ Private mProgressRunComplete As Boolean
 Private mTotalCount As Long
 Private mCompletedCount As Long
 Private mInTick As Boolean
+Private Const PROGRESS_TIMER_INTERVAL As Double = 1# / (24# * 60# * 60#)
+Private mTimerEnabled As Boolean
+Private mTimerScheduled As Boolean
+Private mNextTick As Date
 
 Public Function IsFormLoaded(ByVal formName As String) As Boolean
     Dim frm As Object
@@ -52,6 +36,7 @@ End Function
 Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As String = "")
     On Error GoTo HandleError
 
+    Progress_ResetTimerState
     Set progressForm = New ProgressForm
     cancelled = False
     mTotalCount = totalCount
@@ -72,20 +57,39 @@ Public Sub Progress_Log(ByVal msg As String)
     End If
 End Sub
 
-Public Sub ProgressForm_TimerTick()
-    On Error Resume Next
-    If Not progressForm Is Nothing Then
-        progressForm.Tick_OneSecond
-    End If
-    On Error GoTo 0
+Public Sub Progress_StartTimer()
+    Progress_StopTimer
+    mTimerEnabled = True
+    Progress_ScheduleNextTick
 End Sub
 
-#If VBA7 Then
-Public Sub ProgressForm_TimerProc(ByVal hwnd As LongPtr, ByVal uMsg As Long, ByVal idEvent As LongPtr, ByVal dwTime As Long)
-#Else
-Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal idEvent As Long, ByVal dwTime As Long)
-#End If
-    If mInTick Then Exit Sub
+Public Sub Progress_StopTimer()
+    mTimerEnabled = False
+
+    If mTimerScheduled Then
+        On Error Resume Next
+        Application.OnTime EarliestTime:=mNextTick, Procedure:="modProgressUI.Progress_TimerTick", Schedule:=False
+        On Error GoTo 0
+    End If
+
+    mTimerScheduled = False
+    mNextTick = 0
+End Sub
+
+Public Sub Progress_ResetTimerState()
+    Progress_StopTimer
+    mInTick = False
+End Sub
+
+Public Sub Progress_TimerTick()
+    mTimerScheduled = False
+    mNextTick = 0
+
+    If Not mTimerEnabled Then Exit Sub
+    If mInTick Then
+        Progress_ScheduleNextTick
+        Exit Sub
+    End If
 
     mInTick = True
     On Error GoTo CleanExit
@@ -97,6 +101,30 @@ Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal 
 
 CleanExit:
     mInTick = False
+    If mTimerEnabled Then
+        Progress_ScheduleNextTick
+    End If
+End Sub
+
+Private Sub Progress_ScheduleNextTick(Optional ByVal referenceTime As Date)
+    If Not mTimerEnabled Then Exit Sub
+
+    If referenceTime = 0 Then
+        referenceTime = Now
+    End If
+
+    mNextTick = referenceTime + PROGRESS_TIMER_INTERVAL
+
+    On Error GoTo FailedSchedule
+    Application.OnTime EarliestTime:=mNextTick, Procedure:="modProgressUI.Progress_TimerTick", Schedule:=True
+    mTimerScheduled = True
+    Exit Sub
+
+FailedSchedule:
+    mTimerScheduled = False
+    mTimerEnabled = False
+    mNextTick = 0
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
 Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
@@ -136,6 +164,10 @@ End Function
 
 Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
 
+    If progressForm Is Nothing Then
+        Progress_StopTimer
+    End If
+
     If Not progressForm Is Nothing Then
         On Error Resume Next
         mCompletedCount = progressForm.CompletedCount
@@ -163,6 +195,7 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
             progressForm.ShutdownTimer
             Unload progressForm
             Set progressForm = Nothing
+            Progress_ResetTimerState
         End If
         On Error GoTo 0
     End If

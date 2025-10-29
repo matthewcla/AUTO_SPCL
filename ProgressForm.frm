@@ -64,13 +64,6 @@ Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
 Private titleBarHidden As Boolean
 
-#If VBA7 Then
-    Private timerId As LongPtr
-#Else
-    Private timerId As Long
-#End If
-Private timerBusy As Boolean
-
 Public TotalCount As Long
 Public CompletedCount As Long
 
@@ -81,8 +74,6 @@ Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
     nextFormName = ""
     titleBarHidden = False
-    timerId = 0
-    timerBusy = False
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -134,28 +125,11 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     CompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
-End Sub
-
-Private Sub ScheduleNextTick()
-    CancelScheduledTick
-
-    timerId = modProgressUI.SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
-
-    If timerId = 0 Then
-        Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
-    End If
-End Sub
-
-Private Sub CancelScheduledTick()
-    If timerId = 0 Then Exit Sub
-
-    Call modProgressUI.KillTimer(0, timerId)
-
-    timerId = 0
+    modProgressUI.Progress_StartTimer
 End Sub
 
 Friend Sub ShutdownTimer()
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
 End Sub
 
 Public Sub Tick_OneSecond()
@@ -164,18 +138,14 @@ Public Sub Tick_OneSecond()
     Dim errSource As String
     Dim errDescription As String
 
-    If timerBusy Then Exit Sub
-    timerBusy = True
-
     On Error GoTo HandleError
 
     Dim nowT As Double
     nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400#
 
-    RefreshTimingDisplays nowT
+    UpdateElapsedAndEta nowT
 
-    timerBusy = False
     Exit Sub
 
 HandleError:
@@ -183,14 +153,13 @@ HandleError:
     errSource = Err.Source
     errDescription = Err.Description
 
-    timerBusy = False
     If errNumber <> 0 Then
         Err.Clear
         Err.Raise errNumber, errSource, errDescription
     End If
 End Sub
 
-Private Sub RefreshTimingDisplays(ByVal nowT As Double)
+Friend Sub UpdateElapsedAndEta(ByVal nowT As Double)
     Dim elapsed As Double
     elapsed = nowT - startTick
     If elapsed < 0 Then elapsed = elapsed + 86400#
@@ -298,18 +267,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     lblPercentage.Caption = Format$(pct, "0%")
     lblProcessedBarFill.Width = maxBarWidth * pct
 
-    ' Time
-    Dim elapsed As Double: elapsed = nowT - startTick
-    If elapsed < 0 Then elapsed = elapsed + 86400#
-    lblElapsed.Caption = HMS(elapsed)
-
-    Dim remain As Double
-    If totalCount > 0 Then
-        remain = (totalCount - done) * IIf(emaSecPerItem > 0, emaSecPerItem, 0)
-    Else
-        remain = 0
-    End If
-    lblETR.Caption = HMS(remain)
+    UpdateElapsedAndEta nowT
 
     ' Optional status line no longer written to the log
 
@@ -378,6 +336,17 @@ End Function
 Private Sub btnPause_Click()
     Paused = Not Paused
     btnPause.Caption = IIf(Paused, "Resume", "Pause")
+
+    Dim resumeTick As Double
+
+    If Paused Then
+        modProgressUI.Progress_StopTimer
+    Else
+        resumeTick = Timer
+        If resumeTick < startTick Then resumeTick = resumeTick + 86400#
+        lastUpdate = resumeTick
+        modProgressUI.Progress_StartTimer
+    End If
 End Sub
 
 Private Sub btnCancel_Click()
@@ -426,10 +395,10 @@ Private Sub UserForm_Initialize()
 
     SetCursorWait
 
+    modProgressUI.Progress_ResetTimerState
+
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
-
-    ScheduleNextTick
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
@@ -443,6 +412,8 @@ Private Sub UserForm_Initialize()
         UpdateOAISStatusIndicator
     End If
 
+    modProgressUI.Progress_StartTimer
+
     'A_Record_Review
 
 CleanExit:
@@ -454,7 +425,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
     Resume CleanExit
 End Sub
 
@@ -469,7 +440,7 @@ Private Sub UserForm_Terminate()
 
     On Error GoTo CleanFail
 
-    CancelScheduledTick
+    modProgressUI.Progress_ResetTimerState
 
     SetCursorWait
 
@@ -518,6 +489,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    modProgressUI.Progress_ResetTimerState
     Resume CleanExit
 End Sub
 
