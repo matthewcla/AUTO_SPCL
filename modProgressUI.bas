@@ -79,8 +79,9 @@ Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal 
     On Error GoTo CleanExit
 
     If Not IsFormLoaded("ProgressForm") Then GoTo CleanExit
+    If progressForm Is Nothing Then GoTo CleanExit
 
-    ProgressForm.Tick_OneSecond
+    progressForm.Tick_OneSecond
 
 CleanExit:
     mInTick = False
