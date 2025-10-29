@@ -177,6 +177,20 @@ Public Sub ProgressForm_TimerTick()
     mNextTick = 0
 End Sub
 
+Public Sub Progress_Pulse()
+    If progressForm Is Nothing Then Exit Sub
+    If Not IsFormLoaded("ProgressForm") Then Exit Sub
+    If mInTick Then Exit Sub
+
+    mInTick = True
+    On Error GoTo CleanExit
+
+    progressForm.Tick_OneSecond
+
+CleanExit:
+    mInTick = False
+End Sub
+
 Public Sub Progress_StartTimer()
     mTimerEnabled = True
     mInTick = False
