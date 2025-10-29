@@ -292,10 +292,6 @@ End Sub
 Public Sub LogLine(ByVal lineText As String)
     Static lastLoggedLine As String
 
-    If lineText = PROGRESS_LOG_STARTED Or lineText = PROGRESS_LOG_CONCLUDED Then
-        Exit Sub
-    End If
-
     If LenB(lineText) = 0 Then
         Exit Sub
     End If
