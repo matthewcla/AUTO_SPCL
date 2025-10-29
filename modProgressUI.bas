@@ -64,17 +64,35 @@ End Sub
 Public Sub LogRecordReviewStart(ByVal recordName As String, ByVal recordSSN As String)
     CurrentRecordName = Trim$(recordName)
     CurrentRecordSSN = Trim$(recordSSN)
-    Progress_Log FormatRecordReviewMessage("Record Review Started", CurrentRecordName, CurrentRecordSSN)
+    Progress_Log FormatRecordReviewMessage("Start", CurrentRecordName, CurrentRecordSSN)
+End Sub
+
+Public Sub LogRecordReviewResume()
+    If LenB(CurrentRecordName) = 0 And LenB(CurrentRecordSSN) = 0 Then Exit Sub
+    Progress_Log FormatRecordReviewMessage("Start", CurrentRecordName, CurrentRecordSSN, "Resumed")
+End Sub
+
+Public Sub LogRecordReviewPaused()
+    If LenB(CurrentRecordName) = 0 And LenB(CurrentRecordSSN) = 0 Then Exit Sub
+    Progress_Log FormatRecordReviewMessage("End", CurrentRecordName, CurrentRecordSSN, "Paused")
+End Sub
+
+Public Sub LogRecordReviewCancelled()
+    If LenB(CurrentRecordName) = 0 And LenB(CurrentRecordSSN) = 0 Then Exit Sub
+    Progress_Log FormatRecordReviewMessage("End", CurrentRecordName, CurrentRecordSSN, "Cancelled")
+    CurrentRecordName = vbNullString
+    CurrentRecordSSN = vbNullString
 End Sub
 
 Public Sub LogRecordReviewCompleted()
-    Progress_Log FormatRecordReviewMessage("Record Review Completed", CurrentRecordName, CurrentRecordSSN)
+    If LenB(CurrentRecordName) = 0 And LenB(CurrentRecordSSN) = 0 Then Exit Sub
+    Progress_Log FormatRecordReviewMessage("End", CurrentRecordName, CurrentRecordSSN, "Completed")
     CurrentRecordName = vbNullString
     CurrentRecordSSN = vbNullString
 End Sub
 
 Public Sub LogRecordReviewStatus(ByVal statusText As String)
-    Progress_Log FormatRecordReviewMessage("Record Review Status", CurrentRecordName, CurrentRecordSSN, statusText)
+    Progress_Log FormatRecordReviewMessage("Status", CurrentRecordName, CurrentRecordSSN, statusText)
 End Sub
 
 Private Function FormatRecordReviewMessage( _
@@ -83,7 +101,9 @@ Private Function FormatRecordReviewMessage( _
     ByVal recordSSN As String, _
     Optional ByVal statusText As String = "") As String
 
-    Dim messageText As String
+    Dim timestamp As String
+    Dim formattedAction As String
+    Dim suffix As String
 
     recordName = Trim$(recordName)
     recordSSN = Trim$(recordSSN)
@@ -96,13 +116,30 @@ Private Function FormatRecordReviewMessage( _
         recordSSN = "<unknown>"
     End If
 
-    messageText = actionText & " for " & recordName & " (SSN: " & recordSSN & ")"
-    If Len(statusText) > 0 Then
-        messageText = messageText & " - " & statusText
-    End If
-    messageText = messageText & " at " & Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    timestamp = Format$(Now, "hh:nn:ss")
 
-    FormatRecordReviewMessage = messageText
+    Select Case LCase$(actionText)
+        Case "start"
+            formattedAction = "Start"
+        Case "end"
+            formattedAction = "End"
+        Case "status"
+            formattedAction = "Status"
+        Case Else
+            formattedAction = actionText
+    End Select
+
+    If Len(statusText) > 0 Then
+        If LCase$(formattedAction) = "status" Then
+            suffix = " - " & statusText
+        Else
+            suffix = " (" & statusText & ")"
+        End If
+    Else
+        suffix = ""
+    End If
+
+    FormatRecordReviewMessage = "[Time: " & timestamp & "] Record Review " & formattedAction & suffix & ": " & recordName & " | SSN: " & recordSSN
 End Function
 
 Public Sub Progress_TimerTick()
