@@ -159,8 +159,8 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
         If Len(finalNote) > 0 Then
             progressForm.LogLine finalNote
         End If
+        progressForm.ShutdownTimer
         If Not keepOpen Then
-            progressForm.ShutdownTimer
             Unload progressForm
             Set progressForm = Nothing
         End If

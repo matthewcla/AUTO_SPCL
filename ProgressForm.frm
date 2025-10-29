@@ -56,13 +56,13 @@ Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
 
 '==== Private state ====
-Private startTick As Double
-Private lastUpdate As Double
-Private emaSecPerItem As Double
-Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
 Private titleBarHidden As Boolean
+
+Private sessionStart As Date
+Private pauseStarted As Date
+Private pausedSeconds As Double
 
 #If VBA7 Then
     Private timerId As LongPtr
@@ -83,6 +83,11 @@ Private Sub Class_Initialize()
     titleBarHidden = False
     timerId = 0
     timerBusy = False
+    Paused = False
+    Cancelled = False
+    sessionStart = Now
+    pauseStarted = 0
+    pausedSeconds = 0#
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -95,7 +100,7 @@ Private Function HMS(ByVal secs As Double) As String
     h = CLng(secs \ 3600)
     m = CLng((secs - h * 3600) \ 60)
     s = CLng(secs - h * 3600 - m * 60)
-    HMS = h & ":" & Format$(m, "00") & ":" & Format$(s, "00")
+    HMS = Format$(h, "00") & ":" & Format$(m, "00") & ":" & Format$(s, "00")
 End Function
 
 ' Call once, right after showing modeless
@@ -104,7 +109,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.lblProcessed.Caption = "0"
     Me.lblRemaining.Caption = CStr(totalCount)
     Me.lblPercentage.Caption = "0%"
-    Me.lblElapsed.Caption = "0:00:00"
+    Me.lblElapsed.Caption = "00:00:00"
     Me.lblETR.Caption = "--:--:--"
     lblOAIS.Caption = ""
 
@@ -127,9 +132,9 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.btnCancel.Enabled = True
     nextFormName = ""
 
-    startTick = Timer
-    lastUpdate = startTick
-    emaSecPerItem = 0#
+    sessionStart = Now
+    pauseStarted = 0
+    pausedSeconds = 0#
     TotalCount = totalCount
     CompletedCount = 0
 
@@ -169,11 +174,9 @@ Public Sub Tick_OneSecond()
 
     On Error GoTo HandleError
 
-    Dim nowT As Double
-    nowT = Timer
-    If nowT < lastUpdate Then nowT = nowT + 86400#
-
-    RefreshTimingDisplays nowT
+    If Not Paused Then
+        RefreshTimingDisplays
+    End If
 
     timerBusy = False
     Exit Sub
@@ -190,27 +193,64 @@ HandleError:
     End If
 End Sub
 
-Private Sub RefreshTimingDisplays(ByVal nowT As Double)
-    Dim elapsed As Double
-    elapsed = nowT - startTick
-    If elapsed < 0 Then elapsed = elapsed + 86400#
-    lblElapsed.Caption = HMS(elapsed)
-
-    Dim remainingCount As Double
-    remainingCount = Application.Max(TotalCount - CompletedCount, 0)
-
-    Dim remain As Double
-    If remainingCount <= 0 Or emaSecPerItem <= 0 Then
-        remain = 0
+Private Sub RefreshTimingDisplays(Optional ByVal currentTime As Date = 0)
+    Dim baseTime As Date
+    If currentTime = 0 Then
+        baseTime = Now
     Else
-        Dim elapsedSinceUpdate As Double
-        elapsedSinceUpdate = nowT - lastUpdate
-        If elapsedSinceUpdate < 0 Then elapsedSinceUpdate = elapsedSinceUpdate + 86400#
-        remain = Application.Max(remainingCount * emaSecPerItem - elapsedSinceUpdate, 0)
+        baseTime = currentTime
     End If
 
-    lblETR.Caption = HMS(remain)
+    Dim elapsed As Double
+    elapsed = ActiveElapsedSeconds(baseTime)
+    lblElapsed.Caption = HMS(elapsed)
+
+    Dim pctComplete As Double
+    If TotalCount <= 0 Then
+        pctComplete = 0#
+    Else
+        pctComplete = CompletedCount / TotalCount
+        pctComplete = Application.Max(Application.Min(pctComplete, 1#), 0#)
+    End If
+
+    Dim remain As Double
+    Dim etrText As String
+    If TotalCount <= 0 Or pctComplete <= 0# Then
+        etrText = "--:--:--"
+    ElseIf pctComplete >= 1# Then
+        etrText = "00:00:00"
+    Else
+        remain = elapsed * (1# - pctComplete) / pctComplete
+        If remain < 0# Then remain = 0#
+        etrText = HMS(remain)
+    End If
+
+    lblETR.Caption = etrText
 End Sub
+
+Private Function ActiveElapsedSeconds(Optional ByVal currentTime As Date = 0) As Double
+    Dim baseTime As Date
+    If currentTime = 0 Then
+        baseTime = Now
+    Else
+        baseTime = currentTime
+    End If
+
+    Dim elapsedSeconds As Double
+    elapsedSeconds = (baseTime - sessionStart) * 86400#
+    If elapsedSeconds < 0# Then elapsedSeconds = 0#
+
+    Dim totalPaused As Double
+    totalPaused = pausedSeconds
+    If Paused And pauseStarted <> 0 Then
+        totalPaused = totalPaused + (baseTime - pauseStarted) * 86400#
+    End If
+
+    elapsedSeconds = elapsedSeconds - totalPaused
+    If elapsedSeconds < 0# Then elapsedSeconds = 0#
+
+    ActiveElapsedSeconds = elapsedSeconds
+End Function
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
 #If VBA7 Then
@@ -273,20 +313,8 @@ End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
 Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
-    Dim nowT As Double: nowT = Timer
-    If nowT < lastUpdate Then nowT = nowT + 86400# ' handle midnight rollover
-
-    ' Update EMA of seconds per item for smoother ETA
-    If done > 0 Then
-        Dim secPerItem As Double
-        secPerItem = (nowT - startTick) / done
-        If emaSecPerItem = 0 Then
-            emaSecPerItem = secPerItem
-        Else
-            emaSecPerItem = (1 - SMOOTH) * emaSecPerItem + SMOOTH * secPerItem
-        End If
-    End If
-    lastUpdate = nowT
+    Dim currentTime As Date
+    currentTime = Now
 
     ' Numbers
     lblProcessed.Caption = CStr(done)
@@ -298,19 +326,6 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     lblPercentage.Caption = Format$(pct, "0%")
     lblProcessedBarFill.Width = maxBarWidth * pct
 
-    ' Time
-    Dim elapsed As Double: elapsed = nowT - startTick
-    If elapsed < 0 Then elapsed = elapsed + 86400#
-    lblElapsed.Caption = HMS(elapsed)
-
-    Dim remain As Double
-    If totalCount > 0 Then
-        remain = (totalCount - done) * IIf(emaSecPerItem > 0, emaSecPerItem, 0)
-    Else
-        remain = 0
-    End If
-    lblETR.Caption = HMS(remain)
-
     ' Optional status line no longer written to the log
 
     Dim isComplete As Boolean
@@ -318,6 +333,8 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 
     CompletedCount = done
     TotalCount = totalCount
+
+    RefreshTimingDisplays currentTime
 
     If Cancelled Then
         btnCancel.Caption = "Cancelling..."
@@ -372,12 +389,31 @@ Public Function WaitIfPaused() As Boolean
         End If
 #End If
     Loop
+    If pauseStarted <> 0 Then
+        pausedSeconds = pausedSeconds + (Now - pauseStarted) * 86400#
+        pauseStarted = 0
+    End If
+    If Not Cancelled Then
+        RefreshTimingDisplays
+    End If
     WaitIfPaused = Not Cancelled
 End Function
 
 Private Sub btnPause_Click()
-    Paused = Not Paused
-    btnPause.Caption = IIf(Paused, "Resume", "Pause")
+    If Paused Then
+        If pauseStarted <> 0 Then
+            pausedSeconds = pausedSeconds + (Now - pauseStarted) * 86400#
+        End If
+        pauseStarted = 0
+        Paused = False
+        btnPause.Caption = "Pause"
+        RefreshTimingDisplays
+    Else
+        Paused = True
+        pauseStarted = Now
+        btnPause.Caption = "Resume"
+        RefreshTimingDisplays
+    End If
 End Sub
 
 Private Sub btnCancel_Click()
