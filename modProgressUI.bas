@@ -1,6 +1,10 @@
 Attribute VB_Name = "modProgressUI"
 Option Explicit
 
+' Public constants used to control progress logging
+Public Const PROGRESS_LOG_STARTED As String = "Record Review Started"
+Public Const PROGRESS_LOG_CONCLUDED As String = "Record Review Concluded"
+
 #If VBA7 Then
 Public Declare PtrSafe Function SetTimer Lib "user32" ( _
     ByVal hWnd As LongPtr, _

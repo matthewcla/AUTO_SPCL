@@ -261,6 +261,14 @@ End Sub
 
 ' Append a time-stamped line to the log
 Public Sub LogLine(ByVal lineText As String)
+    If lineText <> PROGRESS_LOG_STARTED And lineText <> PROGRESS_LOG_CONCLUDED Then
+        Exit Sub
+    End If
+
+    If InStr(1, Me.txtLog.Text, lineText, vbTextCompare) > 0 Then
+        Exit Sub
+    End If
+
     Dim newLine As String
     newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
 
@@ -307,8 +315,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     End If
     lblETR.Caption = HMS(remain)
 
-    ' Optional status line to log
-    If Len(status) > 0 Then LogLine (status)
+    ' Optional status line no longer written to the log
 
     Dim isComplete As Boolean
     isComplete = (totalCount > 0 And done >= totalCount)
@@ -375,11 +382,6 @@ End Function
 Private Sub btnPause_Click()
     Paused = Not Paused
     btnPause.Caption = IIf(Paused, "Resume", "Pause")
-    If Paused Then
-        LogLine "Paused by user."
-    Else
-        LogLine "Resumed."
-    End If
 End Sub
 
 Private Sub btnCancel_Click()
@@ -394,7 +396,6 @@ Private Sub btnCancel_Click()
     btnCancel.Enabled = False
     btnCancel.Caption = "Cancelling..."
     btnPause.Visible = False
-    LogLine "Cancel requested. Finishing current step"
     nextFormName = "StartupForm"
     ' Keep the form visible until the worker loop finishes and closes it.
 End Sub
