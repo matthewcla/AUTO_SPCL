@@ -139,28 +139,11 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     CompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
-End Sub
-
-Private Sub ScheduleNextTick()
-    CancelScheduledTick
-
-    timerId = modProgressUI.SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
-
-    If timerId = 0 Then
-        Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
-    End If
-End Sub
-
-Private Sub CancelScheduledTick()
-    If timerId = 0 Then Exit Sub
-
-    Call modProgressUI.KillTimer(0, timerId)
-
-    timerId = 0
+    modProgressUI.Progress_StartTimer
 End Sub
 
 Friend Sub ShutdownTimer()
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
 End Sub
 
 Public Sub Tick_OneSecond()
@@ -169,16 +152,14 @@ Public Sub Tick_OneSecond()
     Dim errSource As String
     Dim errDescription As String
 
-    If timerBusy Then Exit Sub
-    timerBusy = True
-
     On Error GoTo HandleError
 
-    If Not Paused Then
-        RefreshTimingDisplays
-    End If
+    Dim nowT As Double
+    nowT = Timer
+    If nowT < lastUpdate Then nowT = nowT + 86400#
 
-    timerBusy = False
+    UpdateElapsedAndEta nowT
+
     Exit Sub
 
 HandleError:
@@ -186,21 +167,13 @@ HandleError:
     errSource = Err.Source
     errDescription = Err.Description
 
-    timerBusy = False
     If errNumber <> 0 Then
         Err.Clear
         Err.Raise errNumber, errSource, errDescription
     End If
 End Sub
 
-Private Sub RefreshTimingDisplays(Optional ByVal currentTime As Date = 0)
-    Dim baseTime As Date
-    If currentTime = 0 Then
-        baseTime = Now
-    Else
-        baseTime = currentTime
-    End If
-
+Friend Sub UpdateElapsedAndEta(ByVal nowT As Double)
     Dim elapsed As Double
     elapsed = ActiveElapsedSeconds(baseTime)
     lblElapsed.Caption = HMS(elapsed)
@@ -326,6 +299,8 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     lblPercentage.Caption = Format$(pct, "0%")
     lblProcessedBarFill.Width = maxBarWidth * pct
 
+    UpdateElapsedAndEta nowT
+
     ' Optional status line no longer written to the log
 
     Dim isComplete As Boolean
@@ -403,18 +378,18 @@ Public Function WaitIfPaused() As Boolean
 End Function
 
 Private Sub btnPause_Click()
+    Paused = Not Paused
+    btnPause.Caption = IIf(Paused, "Resume", "Pause")
+
+    Dim resumeTick As Double
+
     If Paused Then
-        If pauseStarted <> 0 Then
-            pausedSeconds = pausedSeconds + (Now - pauseStarted) * 86400#
-        End If
-        pauseStarted = 0
-        Paused = False
-        btnPause.Caption = "Pause"
-        RefreshTimingDisplays
+        modProgressUI.Progress_StopTimer
     Else
-        Paused = True
-        btnPause.Caption = "Resume"
-        RefreshTimingDisplays
+        resumeTick = Timer
+        If resumeTick < startTick Then resumeTick = resumeTick + 86400#
+        lastUpdate = resumeTick
+        modProgressUI.Progress_StartTimer
     End If
 End Sub
 
@@ -464,10 +439,10 @@ Private Sub UserForm_Initialize()
 
     SetCursorWait
 
+    modProgressUI.Progress_ResetTimerState
+
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
-
-    ScheduleNextTick
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
@@ -481,6 +456,8 @@ Private Sub UserForm_Initialize()
         UpdateOAISStatusIndicator
     End If
 
+    modProgressUI.Progress_StartTimer
+
     'A_Record_Review
 
 CleanExit:
@@ -492,7 +469,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
     Resume CleanExit
 End Sub
 
@@ -507,7 +484,7 @@ Private Sub UserForm_Terminate()
 
     On Error GoTo CleanFail
 
-    CancelScheduledTick
+    modProgressUI.Progress_ResetTimerState
 
     SetCursorWait
 
@@ -556,6 +533,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    modProgressUI.Progress_ResetTimerState
     Resume CleanExit
 End Sub
 
