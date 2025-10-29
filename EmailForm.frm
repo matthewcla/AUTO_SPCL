@@ -46,7 +46,23 @@ Private Sub UserForm_Initialize()
 
     SetCursorWait
 
+    Dim templateKey As String
+
     titleBarHidden = False
+
+    On Error Resume Next
+    templateKey = Trim$(Me.cboTemplate.Value)
+    On Error GoTo CleanFail
+
+    If LenB(templateKey) = 0 Then
+        templateKey = Trim$(Me.txtTEMP.Value)
+    End If
+
+    If LenB(templateKey) > 0 Then
+        LoadEmailTemplateData templateKey, _
+                              Me.txtTO, Me.txtCC, Me.txtAT, _
+                              Me.txtSubj, Me.txtBody, Me.txtSignature
+    End If
 
 CleanExit:
     SetCursorDefault
