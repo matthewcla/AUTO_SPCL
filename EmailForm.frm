@@ -38,7 +38,47 @@ Private Const WS_CAPTION As Long = &HC00000
 Private titleBarHidden As Boolean
 
 Private Sub UserForm_Initialize()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     titleBarHidden = False
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Private Sub UserForm_Activate()

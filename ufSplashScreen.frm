@@ -34,9 +34,16 @@ Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
 
 Private Sub UserForm_Initialize()
-    
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     CenterUserFormOnActiveMonitor Me
-    
+
     ' Initialize the progress array (messages at different stages)
     progressText(0) = "Initializing CORE systems..."
     progressText(1) = "Loading AI Protocols..."
@@ -54,10 +61,42 @@ Private Sub UserForm_Initialize()
     ' *** FIX 2: Store the final width of the progress bar (set in the designer) ***
     totalProgressBarWidth = lblProgressBar.Width
     originalSubTitleForeColor = lblSubTitle.ForeColor
-    
+
     ' Set initial progress
     progress = 0
     lblProgressBar.Width = 0 ' Reset progress bar
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Private Sub OAISConnect()

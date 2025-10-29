@@ -25,11 +25,11 @@ Private Const WS_CAPTION As Long = &HC00000
 Private titleBarHidden As Boolean
 
 Private Sub UserForm_Initialize()
-    On Error GoTo EH
+    On Error GoTo CleanFail
+
+    SetCursorWait
 
     titleBarHidden = False
-
-    Me.MousePointer = fmMousePointerHourGlass
 
     ' === 1. Connect OAIS and set indicators ===
     Dim isConnected As Boolean
@@ -43,7 +43,7 @@ Private Sub UserForm_Initialize()
     ' === 3. Center form on the active monitor ===
     On Error Resume Next
     CenterUserFormOnActiveMonitor Me
-    On Error GoTo EH
+    On Error GoTo CleanFail
 
     ' === 4. Run OAIS reflection logic (background setup) ===
     If Not iCS Is Nothing Then
@@ -52,11 +52,13 @@ Private Sub UserForm_Initialize()
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
-    Me.MousePointer = fmMousePointerDefault
-
+CleanExit:
+    SetCursorDefault
     Exit Sub
-EH:
+
+CleanFail:
     Debug.Print "StartupForm.Initialize error: "; Err.Number; Err.Description
+    Resume CleanExit
 End Sub
 
 Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
@@ -64,8 +66,28 @@ Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
 End Sub
 
 Private Sub UserForm_Terminate()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     On Error Resume Next
     modReflectionsMonitor.UnregisterReflectionsListener Me.Name
+    On Error GoTo CleanFail
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 

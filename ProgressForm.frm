@@ -64,6 +64,13 @@ Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
 Private titleBarHidden As Boolean
 
+#If VBA7 Then
+    Private timerId As LongPtr
+#Else
+    Private timerId As Long
+#End If
+Private timerBusy As Boolean
+
 Public TotalCount As Long
 Public CompletedCount As Long
 
@@ -74,6 +81,8 @@ Private Sub Class_Initialize()
     Me.txtLog.ControlSource = ""
     nextFormName = ""
     titleBarHidden = False
+    timerId = 0
+    timerBusy = False
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -127,6 +136,86 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     modReflectionsMonitor.PushCurrentStatus
 End Sub
 
+Private Sub ScheduleNextTick()
+    CancelScheduledTick
+
+    timerId = modProgressUI.SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
+
+    If timerId = 0 Then
+        Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
+    End If
+End Sub
+
+Private Sub CancelScheduledTick()
+    If timerId = 0 Then Exit Sub
+
+    Call modProgressUI.KillTimer(0, timerId)
+
+    timerId = 0
+End Sub
+
+Friend Sub ShutdownTimer()
+    CancelScheduledTick
+End Sub
+
+Public Sub Tick_OneSecond()
+    ' Lightweight 1 Hz timer hook: only touch elapsed/ETA labels (<10ms).
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    If timerBusy Then Exit Sub
+    timerBusy = True
+
+    On Error GoTo HandleError
+
+    Dim nowT As Double
+    nowT = Timer
+    If nowT < lastUpdate Then nowT = nowT + 86400#
+
+    RefreshTimingDisplays nowT
+
+    timerBusy = False
+    Exit Sub
+
+HandleError:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
+    timerBusy = False
+    If errNumber <> 0 Then
+        Err.Clear
+        Err.Raise errNumber, errSource, errDescription
+    End If
+End Sub
+
+Private Sub RefreshTimingDisplays(ByVal nowT As Double)
+    Dim elapsed As Double
+    elapsed = nowT - startTick
+    If elapsed < 0 Then elapsed = elapsed + 86400#
+    lblElapsed.Caption = HMS(elapsed)
+
+    Dim remainingCount As Double
+    remainingCount = Application.Max(TotalCount - CompletedCount, 0)
+
+    Dim remain As Double
+    If remainingCount <= 0 Or emaSecPerItem <= 0 Then
+        remain = 0
+    Else
+        Dim elapsedSinceUpdate As Double
+        elapsedSinceUpdate = nowT - lastUpdate
+        If elapsedSinceUpdate < 0 Then elapsedSinceUpdate = elapsedSinceUpdate + 86400#
+        remain = Application.Max(remainingCount * emaSecPerItem - elapsedSinceUpdate, 0)
+    End If
+
+    lblETR.Caption = HMS(remain)
+End Sub
+
+Public Sub Tick_OneSecond()
+    TimerTick
+End Sub
+
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
 #If VBA7 Then
     Dim previousFocus As LongPtr
@@ -161,132 +250,13 @@ Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
     GetTextBoxHwnd = tbHandle
 End Function
 
-Private Function TextBoxIsScrolledToBottom(ByVal tb As MSForms.TextBox) As Boolean
-#If VBA7 Then
-    Dim hWndTB As LongPtr
-#Else
-    Dim hWndTB As Long
-#End If
-    hWndTB = GetTextBoxHwnd(tb)
-
-    If hWndTB = 0 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim totalLines As Long
-    totalLines = CLng(SendMessageLongPtr(hWndTB, EM_GETLINECOUNT, 0&, 0&))
-    If totalLines <= 1 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim rc As RECT
-    Call SendMessageByRef(hWndTB, EM_GETRECT, 0&, rc)
-
-    Dim pt As POINTAPI
-    pt.X = rc.Left + 1
-    pt.Y = rc.Bottom - 1
-
-    Dim charFromPos As Long
-    charFromPos = CLng(SendMessageByRef(hWndTB, EM_CHARFROMPOS, 0&, pt))
-    If charFromPos = -1 Then
-        TextBoxIsScrolledToBottom = True
-        Exit Function
-    End If
-
-    Dim lastVisibleLine As Long
-    Dim lastVisibleChar As Long
-    lastVisibleChar = charFromPos And &HFFFF&
-
-    lastVisibleLine = (charFromPos And &HFFFF0000) \ &H10000
-    If lastVisibleLine < 0 Then
-        lastVisibleLine = lastVisibleLine + &H10000
-    End If
-
-    ' Fallback for any edge cases where the high-order extraction fails
-    If lastVisibleLine < 0 Then
-        lastVisibleLine = CLng(SendMessageLongPtr(hWndTB, EM_LINEFROMCHAR, lastVisibleChar, 0&))
-    End If
-
-    TextBoxIsScrolledToBottom = (lastVisibleLine >= totalLines - 1)
-End Function
-
-Private Function ApplyTextBoxSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selEnd As Long, Optional ByVal scrollCaret As Boolean = False) As Boolean
-#If VBA7 Then
-    Dim hWndTB As LongPtr
-#Else
-    Dim hWndTB As Long
-#End If
-
-    hWndTB = GetTextBoxHwnd(tb)
-
-    If hWndTB = 0 Then
-        Exit Function
-    End If
-
-    Call SendMessageLongPtr(hWndTB, EM_SETSEL, selStart, selEnd)
-
-    If scrollCaret Then
-        Call SendMessageLongPtr(hWndTB, EM_SCROLLCARET, 0&, 0&)
-    End If
-
-    ApplyTextBoxSelection = True
-End Function
-
-Private Sub RestoreSelection(ByVal tb As MSForms.TextBox, ByVal selStart As Long, ByVal selLength As Long)
-    If ApplyTextBoxSelection(tb, selStart, selStart + selLength) Then
-        Exit Sub
-    End If
+Private Sub AppendIssueLine(ByVal target As MSForms.TextBox, ByVal lineText As String)
+    target.Text = target.Text & lineText & vbCrLf
 
     On Error Resume Next
-    tb.SelStart = selStart
-    tb.SelLength = selLength
+    target.SelStart = Len(target.Text)
+    target.SelLength = 0
     On Error GoTo 0
-End Sub
-
-Private Sub ScrollTextBoxToBottom(ByVal tb As MSForms.TextBox)
-    Dim textLen As Long
-    textLen = Len(tb.Text)
-
-    If ApplyTextBoxSelection(tb, textLen, textLen, True) Then
-        Exit Sub
-    End If
-
-    On Error Resume Next
-    tb.SelStart = textLen
-    tb.SelLength = 0
-    On Error GoTo 0
-End Sub
-
-Private Sub AppendLogEntry(ByVal target As MSForms.TextBox, ByVal newLine As String)
-    Dim keepAtBottom As Boolean
-    keepAtBottom = TextBoxIsScrolledToBottom(target)
-
-    Dim originalSelStart As Long
-    Dim originalSelLength As Long
-    Dim originalLength As Long
-    On Error Resume Next
-    originalSelStart = target.SelStart
-    originalSelLength = target.SelLength
-    On Error GoTo 0
-
-    originalLength = Len(target.Text)
-
-    If originalLength > 0 Then
-        target.Text = target.Text & vbCrLf & newLine
-    Else
-        target.Text = newLine
-    End If
-
-    Dim shouldStayAtBottom As Boolean
-    shouldStayAtBottom = keepAtBottom Or (originalSelStart + originalSelLength >= originalLength)
-
-    If shouldStayAtBottom Then
-        ScrollTextBoxToBottom target
-    Else
-        RestoreSelection target, originalSelStart, originalSelLength
-    End If
 End Sub
 
 ' Append a time-stamped line to the log
@@ -294,7 +264,7 @@ Public Sub LogLine(ByVal lineText As String)
     Dim newLine As String
     newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
 
-    AppendLogEntry Me.txtLog, newLine
+    AppendIssueLine Me.txtLog, newLine
 End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
@@ -451,11 +421,18 @@ Private Sub bOAIS_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
 
-    Me.MousePointer = fmMousePointerHourGlass
+    On Error GoTo CleanFail
+
+    SetCursorWait
 
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
+
+    ScheduleNextTick
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
@@ -471,8 +448,17 @@ Private Sub UserForm_Initialize()
 
     'A_Record_Review
 
-    Me.MousePointer = fmMousePointerDefault
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
 
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    CancelScheduledTick
+    Resume CleanExit
 End Sub
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -480,9 +466,19 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 End Sub
 
 Private Sub UserForm_Terminate()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    CancelScheduledTick
+
+    SetCursorWait
+
     On Error Resume Next
     modReflectionsMonitor.UnregisterReflectionsListener Me.Name
-    On Error GoTo 0
+    On Error GoTo CleanFail
 
     Dim targetForm As String
     targetForm = nextFormName
@@ -506,15 +502,26 @@ Private Sub UserForm_Terminate()
             If allowStartup Then
                 On Error Resume Next
                 StartupForm.Show
-                On Error GoTo 0
+                On Error GoTo CleanFail
             End If
         Case "EmailForm"
             If modProgressUI.ProgressRunComplete() Then
                 On Error Resume Next
                 EmailForm.Show
-                On Error GoTo 0
+                On Error GoTo CleanFail
             End If
     End Select
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
@@ -539,11 +546,30 @@ Private Sub UpdateOAISStatusIndicator()
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
     ' X button behaves like Cancel to avoid orphaned background work
     If CloseMode = vbFormControlMenu Then
         Cancel = True
         btnCancel_Click
     End If
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 
