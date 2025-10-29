@@ -41,6 +41,7 @@ Private wsRB As Worksheet           ' "Eligibles RED Board"
 
 Private i As Long                   ' current candidate index (module-scoped on purpose)
 Private vo5FY As Integer            ' promotion FY derived in lookINFO
+Private lastProgressPulse As Double ' Tracks when we last yielded for UI responsiveness
 
 '========================================================================================
 ' ENTRY POINT
@@ -63,6 +64,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     ' Progress UI (show immediately so it renders before any heavy work)
     Progress_Show total, "Record Review Progress"
     Progress_Log PROGRESS_LOG_STARTED
+
+    lastProgressPulse = Timer
 
     Application.ScreenUpdating = False
     Application.EnableCancelKey = xlErrorHandler
@@ -186,6 +189,27 @@ Private Sub SetID()
     arrayID = ws.Range("A2:B" & eRow).Value
 End Sub
 
+Private Sub PulseIfNeeded(Optional ByVal force As Boolean = False)
+    Dim nowT As Double
+
+    nowT = Timer
+
+    If lastProgressPulse = 0# Then
+        lastProgressPulse = nowT
+    End If
+
+    ' Handle Timer reset at midnight.
+    If nowT < lastProgressPulse Then
+        lastProgressPulse = nowT
+    End If
+
+    If force Or nowT - lastProgressPulse >= 1# Then
+        modProgressUI.Progress_Pulse
+        DoEvents
+        lastProgressPulse = nowT
+    End If
+End Sub
+
 '========================================================================================
 ' WORKER: INFO (PER1/PER2)
 '========================================================================================
@@ -213,6 +237,7 @@ Private Sub lookINFO()
     If Progress_Cancelled() Then Exit Sub
     
     ChangeScreen "PER1"
+    PulseIfNeeded
 
     ' Write SSN to PER1
     entText 4, 41, id
@@ -290,6 +315,7 @@ Private Sub lookINFO()
     ThisWorkbook.Worksheets("ID").Cells(i + 1, 4).Value = oNSIPS
 
     HitF8
+    PulseIfNeeded
 
     hNFAAS = LCase$(Format$(Trim$(iCS.GetText(17, 13, 60)), "@"))
     ThisWorkbook.Worksheets("ID").Cells(i + 1, 5).Value = hNFAAS
@@ -299,12 +325,14 @@ Private Sub lookINFO()
 
     ' O-5 PROMOTION FY from PER2
     ChangeScreen "PER2"
+    PulseIfNeeded
     dT = vbNullString
     For j = 7 To 11
         If Format$(Trim$(iCS.GetText(j, 4, 3)), "@") = "CDR" Then
             dT = Format$(Trim$(iCS.GetText(j, 12, 6)), "@") ' YYMMDD (we only care about YYMM)
             Exit For
         End If
+        PulseIfNeeded
     Next j
 
     If Len(dT) >= 4 Then
@@ -339,6 +367,7 @@ Private Sub lookINFO()
     Else
         lk = "SEQ"
     End If
+    PulseIfNeeded
 
     If lk = vbNullString Then
         ' Fall back by year-from-promo-FY relative to current year (two-digit logic)
@@ -346,6 +375,7 @@ Private Sub lookINFO()
         If CInt(vo5FY) + 5 = Val(Right$(CStr(Year(Date)), 2)) - 1 Then lk = "2L"
         If CInt(vo5FY) + 5 = Val(Right$(CStr(Year(Date)), 2)) - 2 Then lk = "3L"
     End If
+    PulseIfNeeded
     wsSB.Cells(i + 1, 2).Value = lk
 End Sub
 
@@ -358,7 +388,10 @@ Private Sub lookMASTER()
     
     If Progress_Cancelled() Then Exit Sub
     
-    If Not (Format$(Trim$(iCS.GetText(1, 2, 4)), "@") = "ACED") Then ChangeScreen "ACED"
+    If Not (Format$(Trim$(iCS.GetText(1, 2, 4)), "@") = "ACED") Then
+        ChangeScreen "ACED"
+        PulseIfNeeded
+    End If
 
     For j = 12 To 15
         If Trim$(iCS.GetText(j, 30, 1)) = "8" Then
@@ -366,6 +399,7 @@ Private Sub lookMASTER()
             wsSB.Cells(i + 1, 15).Value = MasLook
             Exit Sub
         End If
+        PulseIfNeeded
     Next j
 
     wsSB.Cells(i + 1, 15).Value = "N"
@@ -383,7 +417,10 @@ Private Sub lookBACHELOR()
     
     If Progress_Cancelled() Then Exit Sub
     
-    If Not (Format$(Trim$(iCS.GetText(1, 2, 4)), "@") = "ACED") Then ChangeScreen "ACED"
+    If Not (Format$(Trim$(iCS.GetText(1, 2, 4)), "@") = "ACED") Then
+        ChangeScreen "ACED"
+        PulseIfNeeded
+    End If
 
     For j = 12 To 15
         If Trim$(iCS.GetText(j, 30, 1)) = "6" Then
@@ -391,6 +428,7 @@ Private Sub lookBACHELOR()
             wsSB.Cells(i + 1, 14).Value = BacLook
             Exit Sub
         End If
+        PulseIfNeeded
     Next j
 
     wsSB.Cells(i + 1, 14).Value = "N"
@@ -421,11 +459,15 @@ Private Sub lookAQD()
     
     If Progress_Cancelled() Then Exit Sub
 
-    If Not Trim$(iCS.GetText(1, 2, 4)) = "PRQS" Then ChangeScreen "PRQS"
+    If Not Trim$(iCS.GetText(1, 2, 4)) = "PRQS" Then
+        ChangeScreen "PRQS"
+        PulseIfNeeded
+    End If
 
     ReDim rowCache(11 To 19)
     For r = 11 To 19
         rowCache(r) = Format$(Trim$(iCS.GetText(r, 1, 80)), "@")
+        PulseIfNeeded
     Next r
 
     codesWTI = Array(" KW1 ", " KW2 ", " KW3 ", " KW4 ", " KWC ")
@@ -481,7 +523,9 @@ Private Sub lookAQD()
         End If
 
         If WTI And JI And JII And JT And PCC And PCA And CQ And SWCLA And TAO And EOOW Then Exit For
+        PulseIfNeeded
     Next r
+    PulseIfNeeded
 
     ' Write Y/N results and log deficiencies
     wsSB.Cells(i + 1, 16).Value = IIf(WTI, "Y", "N")
@@ -570,12 +614,16 @@ Private Sub lookFITREP()
 
     eRow = wsID.Cells(wsID.Rows.Count, "A").End(xlUp).Row
 
-    If Not Trim$(iCS.GetText(1, 2, 4)) = "OFT2" Then ChangeScreen "OFT2"
+    If Not Trim$(iCS.GetText(1, 2, 4)) = "OFT2" Then
+        ChangeScreen "OFT2"
+        PulseIfNeeded
+    End If
 
     Application.ScreenUpdating = False
 
     first = True
     Do
+        PulseIfNeeded
         nIssue = vbNullString
         IssueCAT = vbNullString
         gap = False
@@ -591,6 +639,7 @@ Private Sub lookFITREP()
             dF1 = ParseYYYYMMDD(CStr(vF1)): dT1 = ParseYYYYMMDD(CStr(vT1))
             dF2 = ParseYYYYMMDD(CStr(vF2)): dT2 = ParseYYYYMMDD(CStr(vT2))
             dF3 = ParseYYYYMMDD(CStr(vF3)): dT3 = ParseYYYYMMDD(CStr(vT3))
+            PulseIfNeeded
 
             ' OCT FITREP (example rule): mark col 27 "Y" if most recent To-date is in Oct of current year
             If dT1 > 0 Then
@@ -610,6 +659,7 @@ Private Sub lookFITREP()
 
             If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF1 - dT2) & " days)": nIssue = vT2 & " to " & vF1: writeRB
             If dF2 - dT3 > 30 And dT3 > 0 Then gap = True: IssueCAT = "FITREP Gap > 30 days: (" & CInt(dF2 - dT3) & " days)": nIssue = vT3 & " to " & vF2: writeRB
+            PulseIfNeeded
 
         Else
             vF4 = vF3: vT4 = vT3
@@ -624,6 +674,7 @@ Private Sub lookFITREP()
             dF2 = ParseYYYYMMDD(CStr(vF2)): dT2 = ParseYYYYMMDD(CStr(vT2))
             dF3 = ParseYYYYMMDD(CStr(vF3)): dT3 = ParseYYYYMMDD(CStr(vT3))
             dF4 = ParseYYYYMMDD(CStr(vF4)): dT4 = ParseYYYYMMDD(CStr(vT4))
+            PulseIfNeeded
 
             If dF4 - dT1 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF4 - dT1) & " days)": nIssue = vT1 & " to " & vF4: writeRB
             If dF1 - dT2 > 30 Then gap = True: IssueCAT = "FITREP Gap > 30 days (" & CInt(dF1 - dT2) & " days)": nIssue = vT2 & " to " & vF1: writeRB
@@ -631,6 +682,7 @@ Private Sub lookFITREP()
         End If
 
         wsSB.Cells(i + 1, 28).Value = IIf(gap, "Y", "N")
+        PulseIfNeeded
 
         ' Look for "8=FORWard" in footer line 23 to advance pages
         Dim checkStr As String
@@ -638,7 +690,7 @@ Private Sub lookFITREP()
         If InStr(1, checkStr, "8=FORWard", vbTextCompare) = 0 Then Exit Do
 
         HitF8
-        DoEvents
+        PulseIfNeeded True
     Loop
 
     Application.ScreenUpdating = True
