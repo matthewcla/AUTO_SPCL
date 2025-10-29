@@ -406,6 +406,7 @@ Private Sub btnCancel_Click()
 
     Cancelled = True
     modProgressUI.cancelled = True
+    modProgressUI.Progress_StopTimer
     modProgressUI.LogRecordReviewStatus "Cancellation Triggered"
     btnCancel.Enabled = False
     btnCancel.Caption = "Cancelling..."
