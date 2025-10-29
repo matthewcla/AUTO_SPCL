@@ -374,6 +374,9 @@ Public Function WaitIfPaused() As Boolean
 #End If
 
     Do While Paused And Not Cancelled
+        If pauseStarted = 0 Then
+            pauseStarted = Now
+        End If
         DoEvents
         Sleep SLICE_MS
 #If DEBUG_PAUSE_WAIT Then
@@ -410,7 +413,6 @@ Private Sub btnPause_Click()
         RefreshTimingDisplays
     Else
         Paused = True
-        pauseStarted = Now
         btnPause.Caption = "Resume"
         RefreshTimingDisplays
     End If
