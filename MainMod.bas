@@ -107,14 +107,19 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         '=== Pipeline ===
         If Progress_Cancelled() Then Exit For
         lookINFO
+        modProgressUI.Progress_Pulse
         If Progress_Cancelled() Then Exit For
         lookMASTER
+        modProgressUI.Progress_Pulse
         If Progress_Cancelled() Then Exit For
         lookBACHELOR
+        modProgressUI.Progress_Pulse
         If Progress_Cancelled() Then Exit For
         lookAQD
+        modProgressUI.Progress_Pulse
         If Progress_Cancelled() Then Exit For
         lookFITREP
+        modProgressUI.Progress_Pulse
         '================
 
         processed = processed + 1
@@ -122,6 +127,7 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         modProgressUI.LogRecordReviewCompleted
         Set currentIssues = Nothing
         DoEvents
+        modProgressUI.Progress_Pulse
     Next i
 
     Set currentIssues = Nothing
