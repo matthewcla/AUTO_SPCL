@@ -1,6 +1,26 @@
 Attribute VB_Name = "modProgressUI"
 Option Explicit
 
+#If VBA7 Then
+Public Declare PtrSafe Function SetTimer Lib "user32" ( _
+    ByVal hWnd As LongPtr, _
+    ByVal nIDEvent As LongPtr, _
+    ByVal uElapse As Long, _
+    ByVal lpTimerFunc As LongPtr) As LongPtr
+Public Declare PtrSafe Function KillTimer Lib "user32" ( _
+    ByVal hWnd As LongPtr, _
+    ByVal uIDEvent As LongPtr) As Long
+#Else
+Public Declare Function SetTimer Lib "user32" ( _
+    ByVal hWnd As Long, _
+    ByVal nIDEvent As Long, _
+    ByVal uElapse As Long, _
+    ByVal lpTimerFunc As Long) As Long
+Public Declare Function KillTimer Lib "user32" ( _
+    ByVal hWnd As Long, _
+    ByVal uIDEvent As Long) As Long
+#End If
+
 Public progressForm As progressForm
 Public paused As Boolean
 Public cancelled As Boolean
@@ -8,6 +28,18 @@ Public cancelled As Boolean
 Private mProgressRunComplete As Boolean
 Private mTotalCount As Long
 Private mCompletedCount As Long
+Private mInTick As Boolean
+
+Public Function IsFormLoaded(ByVal formName As String) As Boolean
+    Dim frm As Object
+
+    For Each frm In VBA.UserForms
+        If StrComp(frm.Name, formName, vbTextCompare) = 0 Then
+            IsFormLoaded = True
+            Exit Function
+        End If
+    Next frm
+End Function
 
 Public Function ProgressRunComplete() As Boolean
     ProgressRunComplete = mProgressRunComplete
@@ -36,22 +68,22 @@ Public Sub Progress_Log(ByVal msg As String)
     End If
 End Sub
 
-Public Sub ProgressForm_TimerTick()
-    On Error Resume Next
-    If Not progressForm Is Nothing Then
-        progressForm.TimerTick
-    End If
-    On Error GoTo 0
-End Sub
-
 #If VBA7 Then
 Public Sub ProgressForm_TimerProc(ByVal hwnd As LongPtr, ByVal uMsg As Long, ByVal idEvent As LongPtr, ByVal dwTime As Long)
 #Else
 Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal idEvent As Long, ByVal dwTime As Long)
 #End If
-    On Error Resume Next
-    ProgressForm_TimerTick
-    On Error GoTo 0
+    If mInTick Then Exit Sub
+
+    mInTick = True
+    On Error GoTo CleanExit
+
+    If Not IsFormLoaded("ProgressForm") Then GoTo CleanExit
+
+    ProgressForm.Tick_OneSecond
+
+CleanExit:
+    mInTick = False
 End Sub
 
 Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")

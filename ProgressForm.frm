@@ -17,14 +17,6 @@ Option Explicit
         ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
     Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
-    Private Declare PtrSafe Function SetTimer Lib "user32" ( _
-        ByVal hWnd As LongPtr, _
-        ByVal nIDEvent As LongPtr, _
-        ByVal uElapse As Long, _
-        ByVal lpTimerFunc As LongPtr) As LongPtr
-    Private Declare PtrSafe Function KillTimer Lib "user32" ( _
-        ByVal hWnd As LongPtr, _
-        ByVal uIDEvent As LongPtr) As Long
 #Else
     Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
@@ -40,14 +32,6 @@ Option Explicit
         ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
     Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
     Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
-    Private Declare Function SetTimer Lib "user32" ( _
-        ByVal hWnd As Long, _
-        ByVal nIDEvent As Long, _
-        ByVal uElapse As Long, _
-        ByVal lpTimerFunc As Long) As Long
-    Private Declare Function KillTimer Lib "user32" ( _
-        ByVal hWnd As Long, _
-        ByVal uIDEvent As Long) As Long
 #End If
 
 Private Type POINTAPI
@@ -231,6 +215,10 @@ HandleError:
         Err.Clear
         Err.Raise errNumber, errSource, errDescription
     End If
+End Sub
+
+Public Sub Tick_OneSecond()
+    TimerTick
 End Sub
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
