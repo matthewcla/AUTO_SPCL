@@ -28,6 +28,18 @@ Public cancelled As Boolean
 Private mProgressRunComplete As Boolean
 Private mTotalCount As Long
 Private mCompletedCount As Long
+Private mInTick As Boolean
+
+Public Function IsFormLoaded(ByVal formName As String) As Boolean
+    Dim frm As Object
+
+    For Each frm In VBA.UserForms
+        If StrComp(frm.Name, formName, vbTextCompare) = 0 Then
+            IsFormLoaded = True
+            Exit Function
+        End If
+    Next frm
+End Function
 
 Public Function ProgressRunComplete() As Boolean
     ProgressRunComplete = mProgressRunComplete
@@ -69,9 +81,18 @@ Public Sub ProgressForm_TimerProc(ByVal hwnd As LongPtr, ByVal uMsg As Long, ByV
 #Else
 Public Sub ProgressForm_TimerProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal idEvent As Long, ByVal dwTime As Long)
 #End If
-    On Error Resume Next
-    ProgressForm_TimerTick
-    On Error GoTo 0
+    If mInTick Then Exit Sub
+
+    mInTick = True
+    On Error GoTo CleanExit
+
+    If Not IsFormLoaded("ProgressForm") Then GoTo CleanExit
+    If progressForm Is Nothing Then GoTo CleanExit
+
+    progressForm.Tick_OneSecond
+
+CleanExit:
+    mInTick = False
 End Sub
 
 Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")

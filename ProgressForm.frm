@@ -212,6 +212,10 @@ Private Sub RefreshTimingDisplays(ByVal nowT As Double)
     lblETR.Caption = HMS(remain)
 End Sub
 
+Public Sub Tick_OneSecond()
+    TimerTick
+End Sub
+
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
 #If VBA7 Then
     Dim previousFocus As LongPtr
