@@ -105,21 +105,6 @@ Private Function FormatRecordReviewMessage( _
     FormatRecordReviewMessage = messageText
 End Function
 
-Public Sub ProgressForm_TimerTick()
-    On Error Resume Next
-    If Not progressForm Is Nothing Then
-        progressForm.Tick_OneSecond
-    End If
-
-    mTimerScheduled = False
-    mNextTick = 0
-End Sub
-
-Public Sub Progress_ResetTimerState()
-    Progress_StopTimer
-    mInTick = False
-End Sub
-
 Public Sub Progress_TimerTick()
     mTimerScheduled = False
     mNextTick = 0
@@ -143,6 +128,49 @@ CleanExit:
     If mTimerEnabled Then
         Progress_ScheduleNextTick
     End If
+End Sub
+
+Public Sub ProgressForm_TimerTick()
+    On Error Resume Next
+    If Not progressForm Is Nothing Then
+        progressForm.Tick_OneSecond
+    End If
+
+    mTimerScheduled = False
+    mNextTick = 0
+End Sub
+
+Public Sub Progress_StartTimer()
+    mTimerEnabled = True
+    mInTick = False
+
+    If Not mTimerScheduled Then
+        Progress_ScheduleNextTick
+    End If
+End Sub
+
+Public Sub Progress_StopTimer()
+    Dim scheduledTick As Date
+
+    If mTimerScheduled Then
+        scheduledTick = mNextTick
+        If scheduledTick = 0 Then
+            scheduledTick = Now
+        End If
+        On Error Resume Next
+        Application.OnTime EarliestTime:=scheduledTick, Procedure:="modProgressUI.Progress_TimerTick", Schedule:=False
+        If Err.Number <> 0 Then Err.Clear
+        On Error GoTo 0
+    End If
+
+    mTimerEnabled = False
+    mTimerScheduled = False
+    mNextTick = 0
+    mInTick = False
+End Sub
+
+Public Sub Progress_ResetTimerState()
+    Progress_StopTimer
 End Sub
 
 Private Sub Progress_ScheduleNextTick(Optional ByVal referenceTime As Date)
@@ -202,10 +230,7 @@ Public Function Progress_Cancelled() As Boolean
 End Function
 
 Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
-
-    If progressForm Is Nothing Then
-        Progress_StopTimer
-    End If
+    Progress_StopTimer
 
     If Not progressForm Is Nothing Then
         On Error Resume Next
