@@ -28,6 +28,8 @@ Public Declare Function KillTimer Lib "user32" ( _
 Public progressForm As progressForm
 Public paused As Boolean
 Public cancelled As Boolean
+Public CurrentRecordName As String
+Public CurrentRecordSSN As String
 
 Private mProgressRunComplete As Boolean
 Private mTotalCount As Long
@@ -54,6 +56,8 @@ Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As Strin
 
     Set progressForm = New ProgressForm
     cancelled = False
+    CurrentRecordName = vbNullString
+    CurrentRecordSSN = vbNullString
     mTotalCount = totalCount
     mCompletedCount = 0
     mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
@@ -71,6 +75,50 @@ Public Sub Progress_Log(ByVal msg As String)
         progressForm.LogLine msg
     End If
 End Sub
+
+Public Sub LogRecordReviewStart(ByVal recordName As String, ByVal recordSSN As String)
+    CurrentRecordName = Trim$(recordName)
+    CurrentRecordSSN = Trim$(recordSSN)
+    Progress_Log FormatRecordReviewMessage("Record Review Started", CurrentRecordName, CurrentRecordSSN)
+End Sub
+
+Public Sub LogRecordReviewCompleted()
+    Progress_Log FormatRecordReviewMessage("Record Review Completed", CurrentRecordName, CurrentRecordSSN)
+    CurrentRecordName = vbNullString
+    CurrentRecordSSN = vbNullString
+End Sub
+
+Public Sub LogRecordReviewStatus(ByVal statusText As String)
+    Progress_Log FormatRecordReviewMessage("Record Review Status", CurrentRecordName, CurrentRecordSSN, statusText)
+End Sub
+
+Private Function FormatRecordReviewMessage( _
+    ByVal actionText As String, _
+    ByVal recordName As String, _
+    ByVal recordSSN As String, _
+    Optional ByVal statusText As String = "") As String
+
+    Dim messageText As String
+
+    recordName = Trim$(recordName)
+    recordSSN = Trim$(recordSSN)
+
+    If Len(recordName) = 0 Then
+        recordName = "<unknown>"
+    End If
+
+    If Len(recordSSN) = 0 Then
+        recordSSN = "<unknown>"
+    End If
+
+    messageText = actionText & " for " & recordName & " (SSN: " & recordSSN & ")"
+    If Len(statusText) > 0 Then
+        messageText = messageText & " - " & statusText
+    End If
+    messageText = messageText & " at " & Format$(Now, "yyyy-mm-dd hh:nn:ss")
+
+    FormatRecordReviewMessage = messageText
+End Function
 
 Public Sub ProgressForm_TimerTick()
     On Error Resume Next
@@ -166,4 +214,7 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
         End If
         On Error GoTo 0
     End If
+
+    CurrentRecordName = vbNullString
+    CurrentRecordSSN = vbNullString
 End Sub

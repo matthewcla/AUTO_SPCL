@@ -255,20 +255,24 @@ Private Sub AppendIssueLine(ByVal target As MSForms.TextBox, ByVal lineText As S
     On Error GoTo 0
 End Sub
 
-' Append a time-stamped line to the log
+' Append a log line, optionally deduplicating identical consecutive entries.
 Public Sub LogLine(ByVal lineText As String)
-    If lineText <> PROGRESS_LOG_STARTED And lineText <> PROGRESS_LOG_CONCLUDED Then
+    Static lastLoggedLine As String
+
+    If lineText = PROGRESS_LOG_STARTED Or lineText = PROGRESS_LOG_CONCLUDED Then
         Exit Sub
     End If
 
-    If InStr(1, Me.txtLog.Text, lineText, vbTextCompare) > 0 Then
+    If LenB(lineText) = 0 Then
         Exit Sub
     End If
 
-    Dim newLine As String
-    newLine = Format$(Now, "hh:nn:ss") & "  " & CStr(lineText)
+    If lineText = lastLoggedLine Then
+        Exit Sub
+    End If
 
-    AppendIssueLine Me.txtLog, newLine
+    AppendIssueLine Me.txtLog, CStr(lineText)
+    lastLoggedLine = lineText
 End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
@@ -378,6 +382,9 @@ End Function
 Private Sub btnPause_Click()
     Paused = Not Paused
     btnPause.Caption = IIf(Paused, "Resume", "Pause")
+    If Paused Then
+        modProgressUI.LogRecordReviewStatus "Paused"
+    End If
 End Sub
 
 Private Sub btnCancel_Click()
@@ -389,6 +396,7 @@ Private Sub btnCancel_Click()
 
     Cancelled = True
     modProgressUI.cancelled = True
+    modProgressUI.LogRecordReviewStatus "Cancellation Triggered"
     btnCancel.Enabled = False
     btnCancel.Caption = "Cancelling..."
     btnPause.Visible = False

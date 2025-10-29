@@ -102,6 +102,7 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         ' Process each record...
         id = Trim$(CStr(arrayID(i, 1)))
         nm = Trim$(CStr(arrayID(i, 2)))
+        modProgressUI.LogRecordReviewStart nm, id
         Set currentIssues = New Collection
         '=== Pipeline ===
         If Progress_Cancelled() Then Exit For
@@ -115,9 +116,10 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         If Progress_Cancelled() Then Exit For
         lookFITREP
         '================
-    
+
         processed = processed + 1
         Progress_Update processed, total
+        modProgressUI.LogRecordReviewCompleted
         Set currentIssues = Nothing
         DoEvents
     Next i
