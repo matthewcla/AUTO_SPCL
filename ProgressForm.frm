@@ -63,6 +63,8 @@ Private titleBarHidden As Boolean
 Private sessionStart As Date
 Private pauseStarted As Date
 Private pausedSeconds As Double
+Private startTick As Double
+Private lastUpdate As Double
 
 #If VBA7 Then
     Private timerId As LongPtr
@@ -88,6 +90,8 @@ Private Sub Class_Initialize()
     sessionStart = Now
     pauseStarted = 0
     pausedSeconds = 0#
+    startTick = 0#
+    lastUpdate = 0#
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -135,6 +139,8 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     sessionStart = Now
     pauseStarted = 0
     pausedSeconds = 0#
+    startTick = Timer
+    lastUpdate = startTick
     TotalCount = totalCount
     CompletedCount = 0
 
@@ -159,6 +165,7 @@ Public Sub Tick_OneSecond()
     If nowT < lastUpdate Then nowT = nowT + 86400#
 
     UpdateElapsedAndEta nowT
+    lastUpdate = nowT
 
     Exit Sub
 
@@ -173,9 +180,13 @@ HandleError:
     End If
 End Sub
 
-Friend Sub UpdateElapsedAndEta(ByVal nowT As Double)
+Friend Sub UpdateElapsedAndEta(ByVal nowT As Double, Optional ByVal currentTime As Date = 0)
     Dim elapsed As Double
-    elapsed = ActiveElapsedSeconds(baseTime)
+    If currentTime = 0 Then
+        elapsed = ActiveElapsedSeconds()
+    Else
+        elapsed = ActiveElapsedSeconds(currentTime)
+    End If
     lblElapsed.Caption = HMS(elapsed)
 
     Dim pctComplete As Double
@@ -199,6 +210,15 @@ Friend Sub UpdateElapsedAndEta(ByVal nowT As Double)
     End If
 
     lblETR.Caption = etrText
+End Sub
+
+Private Sub RefreshTimingDisplays(Optional ByVal currentTime As Date = 0)
+    Dim tickNow As Double
+    tickNow = Timer
+    If tickNow < lastUpdate Then tickNow = tickNow + 86400#
+
+    UpdateElapsedAndEta tickNow, currentTime
+    lastUpdate = tickNow
 End Sub
 
 Private Function ActiveElapsedSeconds(Optional ByVal currentTime As Date = 0) As Double
@@ -303,8 +323,6 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     lblPercentage.Caption = Format$(pct, "0%")
     lblProcessedBarFill.Width = maxBarWidth * pct
 
-    UpdateElapsedAndEta nowT
-
     ' Optional status line no longer written to the log
 
     Dim isComplete As Boolean
@@ -391,8 +409,11 @@ Private Sub btnPause_Click()
         modProgressUI.Progress_StopTimer
     Else
         resumeTick = Timer
-        If resumeTick < startTick Then resumeTick = resumeTick + 86400#
-        lastUpdate = resumeTick
+        Dim adjustedTick As Double
+        adjustedTick = resumeTick
+        If adjustedTick < startTick Then adjustedTick = adjustedTick + 86400#
+        startTick = resumeTick
+        lastUpdate = adjustedTick
         modProgressUI.Progress_StartTimer
     End If
 End Sub
@@ -461,6 +482,8 @@ Private Sub UserForm_Initialize()
         UpdateOAISStatusIndicator
     End If
 
+    startTick = Timer
+    lastUpdate = startTick
     modProgressUI.Progress_StartTimer
 
     'A_Record_Review
