@@ -62,7 +62,7 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
 
     ' Progress UI (show immediately so it renders before any heavy work)
     Progress_Show total, "Record Review Progress"
-    Progress_Log "Loading IDs..."
+    Progress_Log PROGRESS_LOG_STARTED
 
     Application.ScreenUpdating = False
     Application.EnableCancelKey = xlErrorHandler
@@ -86,10 +86,9 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     processed = 0
 
     ' Refresh the totals now that they are known
-    Progress_Update processed, total, IIf(total = 1, "Loaded 1 ID.", "Loaded " & total & " IDs.")
+    Progress_Update processed, total
 
     If total = 0 Then
-        Progress_Log "No IDs available for processing."
         GoTo NoWork
     End If
 
@@ -104,8 +103,6 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         id = Trim$(CStr(arrayID(i, 1)))
         nm = Trim$(CStr(arrayID(i, 2)))
         Set currentIssues = New Collection
-        Progress_Log "Starting: " & IIf(Len(nm) > 0, nm, id) & "  [" & id & "]"
-
         '=== Pipeline ===
         If Progress_Cancelled() Then Exit For
         lookINFO
@@ -120,7 +117,7 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
         '================
     
         processed = processed + 1
-        Progress_Update processed, total, BuildFinishedStatus(IIf(Len(nm) > 0, nm, id))
+        Progress_Update processed, total
         Set currentIssues = Nothing
         DoEvents
     Next i
@@ -131,11 +128,11 @@ NoWork:
     runWasCancelled = Progress_Cancelled()
 
     If runWasCancelled Then
-        Progress_Close "Cancelled by user."
+        Progress_Close PROGRESS_LOG_CONCLUDED
         progressClosed = True
     Else
-        Progress_Update processed, total, "Review complete."
-        Progress_Close "Review complete.", True
+        Progress_Update processed, total
+        Progress_Close PROGRESS_LOG_CONCLUDED, True
         progressClosed = True
     End If
 
@@ -147,7 +144,7 @@ CleanOK:
     LastRunTotal = total
     If Not progressClosed Then
         runWasCancelled = Progress_Cancelled()
-        Progress_Close "Terminated due to error."
+        Progress_Close PROGRESS_LOG_CONCLUDED
         progressClosed = True
     End If
 
@@ -156,7 +153,6 @@ CleanOK:
     Exit Sub
 
 CleanFail:
-    Progress_Log "ERROR: " & Err.Number & " - " & Err.Description
     Resume CleanOK
 End Sub
 
