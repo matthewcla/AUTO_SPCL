@@ -56,13 +56,13 @@ Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
 
 '==== Private state ====
-Private startTick As Double
-Private lastUpdate As Double
-Private emaSecPerItem As Double
-Private Const SMOOTH As Double = 0.2   ' Exponential smoothing factor for ETA
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
 Private titleBarHidden As Boolean
+
+Private sessionStart As Date
+Private pauseStarted As Date
+Private pausedSeconds As Double
 
 #If VBA7 Then
     Private timerId As LongPtr
@@ -83,6 +83,11 @@ Private Sub Class_Initialize()
     titleBarHidden = False
     timerId = 0
     timerBusy = False
+    Paused = False
+    Cancelled = False
+    sessionStart = Now
+    pauseStarted = 0
+    pausedSeconds = 0#
 End Sub
 
 ' Utility: format seconds as h:mm:ss
@@ -95,7 +100,7 @@ Private Function HMS(ByVal secs As Double) As String
     h = CLng(secs \ 3600)
     m = CLng((secs - h * 3600) \ 60)
     s = CLng(secs - h * 3600 - m * 60)
-    HMS = h & ":" & Format$(m, "00") & ":" & Format$(s, "00")
+    HMS = Format$(h, "00") & ":" & Format$(m, "00") & ":" & Format$(s, "00")
 End Function
 
 ' Call once, right after showing modeless
@@ -104,7 +109,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.lblProcessed.Caption = "0"
     Me.lblRemaining.Caption = CStr(totalCount)
     Me.lblPercentage.Caption = "0%"
-    Me.lblElapsed.Caption = "0:00:00"
+    Me.lblElapsed.Caption = "00:00:00"
     Me.lblETR.Caption = "--:--:--"
     lblOAIS.Caption = ""
 
@@ -127,35 +132,18 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.btnCancel.Enabled = True
     nextFormName = ""
 
-    startTick = Timer
-    lastUpdate = startTick
-    emaSecPerItem = 0#
+    sessionStart = Now
+    pauseStarted = 0
+    pausedSeconds = 0#
     TotalCount = totalCount
     CompletedCount = 0
 
     modReflectionsMonitor.PushCurrentStatus
-End Sub
-
-Private Sub ScheduleNextTick()
-    CancelScheduledTick
-
-    timerId = modProgressUI.SetTimer(0, 0, 1000&, AddressOf modProgressUI.ProgressForm_TimerProc)
-
-    If timerId = 0 Then
-        Err.Raise vbObjectError + 513, "ProgressForm.ScheduleNextTick", "Failed to create progress timer."
-    End If
-End Sub
-
-Private Sub CancelScheduledTick()
-    If timerId = 0 Then Exit Sub
-
-    Call modProgressUI.KillTimer(0, timerId)
-
-    timerId = 0
+    modProgressUI.Progress_StartTimer
 End Sub
 
 Friend Sub ShutdownTimer()
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
 End Sub
 
 Public Sub Tick_OneSecond()
@@ -164,18 +152,14 @@ Public Sub Tick_OneSecond()
     Dim errSource As String
     Dim errDescription As String
 
-    If timerBusy Then Exit Sub
-    timerBusy = True
-
     On Error GoTo HandleError
 
     Dim nowT As Double
     nowT = Timer
     If nowT < lastUpdate Then nowT = nowT + 86400#
 
-    RefreshTimingDisplays nowT
+    UpdateElapsedAndEta nowT
 
-    timerBusy = False
     Exit Sub
 
 HandleError:
@@ -183,34 +167,63 @@ HandleError:
     errSource = Err.Source
     errDescription = Err.Description
 
-    timerBusy = False
     If errNumber <> 0 Then
         Err.Clear
         Err.Raise errNumber, errSource, errDescription
     End If
 End Sub
 
-Private Sub RefreshTimingDisplays(ByVal nowT As Double)
+Friend Sub UpdateElapsedAndEta(ByVal nowT As Double)
     Dim elapsed As Double
-    elapsed = nowT - startTick
-    If elapsed < 0 Then elapsed = elapsed + 86400#
+    elapsed = ActiveElapsedSeconds(baseTime)
     lblElapsed.Caption = HMS(elapsed)
 
-    Dim remainingCount As Double
-    remainingCount = Application.Max(TotalCount - CompletedCount, 0)
-
-    Dim remain As Double
-    If remainingCount <= 0 Or emaSecPerItem <= 0 Then
-        remain = 0
+    Dim pctComplete As Double
+    If TotalCount <= 0 Then
+        pctComplete = 0#
     Else
-        Dim elapsedSinceUpdate As Double
-        elapsedSinceUpdate = nowT - lastUpdate
-        If elapsedSinceUpdate < 0 Then elapsedSinceUpdate = elapsedSinceUpdate + 86400#
-        remain = Application.Max(remainingCount * emaSecPerItem - elapsedSinceUpdate, 0)
+        pctComplete = CompletedCount / TotalCount
+        pctComplete = Application.Max(Application.Min(pctComplete, 1#), 0#)
     End If
 
-    lblETR.Caption = HMS(remain)
+    Dim remain As Double
+    Dim etrText As String
+    If TotalCount <= 0 Or pctComplete <= 0# Then
+        etrText = "--:--:--"
+    ElseIf pctComplete >= 1# Then
+        etrText = "00:00:00"
+    Else
+        remain = elapsed * (1# - pctComplete) / pctComplete
+        If remain < 0# Then remain = 0#
+        etrText = HMS(remain)
+    End If
+
+    lblETR.Caption = etrText
 End Sub
+
+Private Function ActiveElapsedSeconds(Optional ByVal currentTime As Date = 0) As Double
+    Dim baseTime As Date
+    If currentTime = 0 Then
+        baseTime = Now
+    Else
+        baseTime = currentTime
+    End If
+
+    Dim elapsedSeconds As Double
+    elapsedSeconds = (baseTime - sessionStart) * 86400#
+    If elapsedSeconds < 0# Then elapsedSeconds = 0#
+
+    Dim totalPaused As Double
+    totalPaused = pausedSeconds
+    If Paused And pauseStarted <> 0 Then
+        totalPaused = totalPaused + (baseTime - pauseStarted) * 86400#
+    End If
+
+    elapsedSeconds = elapsedSeconds - totalPaused
+    If elapsedSeconds < 0# Then elapsedSeconds = 0#
+
+    ActiveElapsedSeconds = elapsedSeconds
+End Function
 
 Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
 #If VBA7 Then
@@ -277,20 +290,8 @@ End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
 Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
-    Dim nowT As Double: nowT = Timer
-    If nowT < lastUpdate Then nowT = nowT + 86400# ' handle midnight rollover
-
-    ' Update EMA of seconds per item for smoother ETA
-    If done > 0 Then
-        Dim secPerItem As Double
-        secPerItem = (nowT - startTick) / done
-        If emaSecPerItem = 0 Then
-            emaSecPerItem = secPerItem
-        Else
-            emaSecPerItem = (1 - SMOOTH) * emaSecPerItem + SMOOTH * secPerItem
-        End If
-    End If
-    lastUpdate = nowT
+    Dim currentTime As Date
+    currentTime = Now
 
     ' Numbers
     lblProcessed.Caption = CStr(done)
@@ -302,18 +303,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
     lblPercentage.Caption = Format$(pct, "0%")
     lblProcessedBarFill.Width = maxBarWidth * pct
 
-    ' Time
-    Dim elapsed As Double: elapsed = nowT - startTick
-    If elapsed < 0 Then elapsed = elapsed + 86400#
-    lblElapsed.Caption = HMS(elapsed)
-
-    Dim remain As Double
-    If totalCount > 0 Then
-        remain = (totalCount - done) * IIf(emaSecPerItem > 0, emaSecPerItem, 0)
-    Else
-        remain = 0
-    End If
-    lblETR.Caption = HMS(remain)
+    UpdateElapsedAndEta nowT
 
     ' Optional status line no longer written to the log
 
@@ -322,6 +312,8 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 
     CompletedCount = done
     TotalCount = totalCount
+
+    RefreshTimingDisplays currentTime
 
     If Cancelled Then
         btnCancel.Caption = "Cancelling..."
@@ -361,6 +353,9 @@ Public Function WaitIfPaused() As Boolean
 #End If
 
     Do While Paused And Not Cancelled
+        If pauseStarted = 0 Then
+            pauseStarted = Now
+        End If
         DoEvents
         Sleep SLICE_MS
 #If DEBUG_PAUSE_WAIT Then
@@ -376,14 +371,29 @@ Public Function WaitIfPaused() As Boolean
         End If
 #End If
     Loop
+    If pauseStarted <> 0 Then
+        pausedSeconds = pausedSeconds + (Now - pauseStarted) * 86400#
+        pauseStarted = 0
+    End If
+    If Not Cancelled Then
+        RefreshTimingDisplays
+    End If
     WaitIfPaused = Not Cancelled
 End Function
 
 Private Sub btnPause_Click()
     Paused = Not Paused
     btnPause.Caption = IIf(Paused, "Resume", "Pause")
+
+    Dim resumeTick As Double
+
     If Paused Then
-        modProgressUI.LogRecordReviewStatus "Paused"
+        modProgressUI.Progress_StopTimer
+    Else
+        resumeTick = Timer
+        If resumeTick < startTick Then resumeTick = resumeTick + 86400#
+        lastUpdate = resumeTick
+        modProgressUI.Progress_StartTimer
     End If
 End Sub
 
@@ -434,10 +444,10 @@ Private Sub UserForm_Initialize()
 
     SetCursorWait
 
+    modProgressUI.Progress_ResetTimerState
+
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
-
-    ScheduleNextTick
 
     modReflectionsMonitor.RegisterReflectionsListener Me.Name
 
@@ -451,6 +461,8 @@ Private Sub UserForm_Initialize()
         UpdateOAISStatusIndicator
     End If
 
+    modProgressUI.Progress_StartTimer
+
     'A_Record_Review
 
 CleanExit:
@@ -462,7 +474,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    CancelScheduledTick
+    modProgressUI.Progress_StopTimer
     Resume CleanExit
 End Sub
 
@@ -477,7 +489,7 @@ Private Sub UserForm_Terminate()
 
     On Error GoTo CleanFail
 
-    CancelScheduledTick
+    modProgressUI.Progress_ResetTimerState
 
     SetCursorWait
 
@@ -526,6 +538,7 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    modProgressUI.Progress_ResetTimerState
     Resume CleanExit
 End Sub
 
