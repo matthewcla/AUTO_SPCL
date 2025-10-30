@@ -82,7 +82,7 @@ Private Sub UserForm_Initialize()
 
     If LenB(templateKey) > 0 Then
         LoadEmailTemplateData templateKey, _
-                              Me.txtTO, Me.txtCC, Me.txtAT, _
+                              Me.txtTO, Me.txtCC, Me.lstAT, _
                               Me.txtSubj, Me.txtBody, Me.txtSignature
     End If
 
@@ -794,6 +794,38 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Function GetListBoxEntries(ByVal listControl As MSForms.ListBox) As Collection
+    Dim entries As Collection
+    Dim idx As Long
+
+    Set entries = New Collection
+    If listControl Is Nothing Then
+        Set GetListBoxEntries = entries
+        Exit Function
+    End If
+
+    For idx = 0 To listControl.ListCount - 1
+        entries.Add CStr(listControl.List(idx))
+    Next idx
+
+    Set GetListBoxEntries = entries
+End Function
+
+Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
+                                      ByVal entries As Collection)
+    Dim entry As Variant
+
+    If listControl Is Nothing Then Exit Sub
+
+    listControl.Clear
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        listControl.AddItem CStr(entry)
+    Next entry
+End Sub
+
 Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Dim entries As Collection
     Dim entry As Variant
@@ -807,7 +839,7 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
     Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
 
-    Set entries = GetTemplateAttachmentEntries(Me.txtAT.value)
+    Set entries = GetListBoxEntries(Me.lstAT)
     If entries Is Nothing Then Exit Sub
 
     For Each entry In entries
@@ -1084,7 +1116,7 @@ Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
     Set combined = BuildCombinedAttachmentEntries()
 
     resultText = JoinTemplateAttachmentEntries(combined)
-    Me.txtAT.value = resultText
+    LoadListBoxFromCollection Me.lstAT, combined
 
     ApplyAttachmentUpdates = resultText
 End Function
@@ -1096,7 +1128,6 @@ Private Sub bADD_Click()
     Dim templateKey As String
     Dim waitApplied As Boolean
     Dim addedCount As Long
-    Dim updatedText As String
 
     On Error GoTo CleanFail
 
@@ -1144,8 +1175,7 @@ Private Sub bADD_Click()
     SetCursorWait
     waitApplied = True
 
-    updatedText = ApplyAttachmentUpdates(templateKey)
-    Me.txtAT.value = updatedText
+    Call ApplyAttachmentUpdates(templateKey)
 
 CleanExit:
     If waitApplied Then SetCursorDefault
@@ -1166,7 +1196,6 @@ Private Sub bSUB_Click()
     Dim templateKey As String
     Dim waitApplied As Boolean
     Dim removedCount As Long
-    Dim updatedText As String
     Dim userPaths As Collection
     Dim initialFileName As String
     Dim normalizedKey As String
@@ -1238,8 +1267,7 @@ NextSelection:
     SetCursorWait
     waitApplied = True
 
-    updatedText = ApplyAttachmentUpdates(templateKey)
-    Me.txtAT.value = updatedText
+    Call ApplyAttachmentUpdates(templateKey)
 
     If ignoredCount > 0 Then
         MsgBox "Some selected files were ignored because they belong to the template and cannot be removed.", _
