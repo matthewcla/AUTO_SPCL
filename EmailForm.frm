@@ -904,6 +904,40 @@ Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
     AddUserAttachmentFromPath = True
 End Function
 
+Private Function BuildUserAttachmentPaths() As Collection
+    Dim paths As Collection
+    Dim entry As Variant
+    Dim trimmedEntry As String
+    Dim separatorPos As Long
+    Dim filePath As String
+
+    If mUserAttachmentEntries Is Nothing Then Exit Function
+    If mUserAttachmentEntries.Count = 0 Then Exit Function
+
+    For Each entry In mUserAttachmentEntries
+        trimmedEntry = Trim$(CStr(entry))
+        If LenB(trimmedEntry) = 0 Then GoTo NextEntry
+
+        separatorPos = InStr(trimmedEntry, "|")
+        If separatorPos > 0 Then
+            filePath = Trim$(Mid$(trimmedEntry, separatorPos + 1))
+        Else
+            filePath = trimmedEntry
+        End If
+
+        If LenB(filePath) = 0 Then GoTo NextEntry
+
+        If paths Is Nothing Then
+            Set paths = New Collection
+        End If
+        paths.Add filePath
+
+NextEntry:
+    Next entry
+
+    Set BuildUserAttachmentPaths = paths
+End Function
+
 Private Function RemoveUserAttachmentFromPath(ByVal filePath As String) As Boolean
     Dim normalizedKey As String
 
@@ -1205,6 +1239,7 @@ Private Sub bCFC_Click()
     Dim errDescription As String
     Dim whitelist As Object
     Dim templateKey As String
+    Dim userAttachments As Collection
 
     On Error GoTo CleanFail
 
@@ -1224,7 +1259,9 @@ Private Sub bCFC_Click()
         templateKey = Trim$(Me.txtTEMP.Value)
     End If
 
-    CreateDraftsFromID whitelist, templateKey
+    Set userAttachments = BuildUserAttachmentPaths()
+
+    CreateDraftsFromID whitelist, templateKey, userAttachments
 
 CleanExit:
     SetCursorDefault
