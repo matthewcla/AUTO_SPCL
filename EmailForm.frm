@@ -1396,7 +1396,8 @@ Private Sub bCFC_Click()
     Dim errDescription As String
     Dim whitelist As Object
     Dim templateKey As String
-    Dim attachmentEntries As Collection
+    Dim templateEntries As Collection
+    Dim userEntries As Collection
 
     On Error GoTo CleanFail
 
@@ -1416,9 +1417,12 @@ Private Sub bCFC_Click()
         templateKey = Trim$(Me.txtTEMP.value)
     End If
 
-    Set attachmentEntries = BuildCombinedAttachmentEntries()
+    EnsureAttachmentTracking templateKey
 
-    CreateDraftsFromID whitelist, templateKey, attachmentEntries
+    Set templateEntries = mTemplateAttachmentEntries
+    Set userEntries = mUserAttachmentEntries
+
+    CreateDraftsFromID whitelist, templateKey, templateEntries, userEntries
 
 CleanExit:
     SetCursorDefault
