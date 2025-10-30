@@ -61,6 +61,18 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         End If
     End If
 
+    If Not IsMissing(userAttachments) Then
+        If IsObject(userAttachments) Then
+            On Error Resume Next
+            Set userAttachmentPaths = userAttachments
+            If Err.Number <> 0 Then
+                Err.Clear
+                Set userAttachmentPaths = Nothing
+            End If
+            On Error GoTo CleanFail
+        End If
+    End If
+
     Application.ScreenUpdating = False
 
     For r = 2 To lastRow
@@ -99,6 +111,16 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
             .Body = BuildBody(personName, eligNote)
             If Not draftAttachments Is Nothing Then
                 For Each attachmentPath In draftAttachments
+                    If LenB(Trim$(CStr(attachmentPath))) > 0 Then
+                        On Error Resume Next
+                        .Attachments.Add CStr(attachmentPath)
+                        If Err.Number <> 0 Then Err.Clear
+                        On Error GoTo CleanFail
+                    End If
+                Next attachmentPath
+            End If
+            If Not userAttachmentPaths Is Nothing Then
+                For Each attachmentPath In userAttachmentPaths
                     If LenB(Trim$(CStr(attachmentPath))) > 0 Then
                         On Error Resume Next
                         .Attachments.Add CStr(attachmentPath)

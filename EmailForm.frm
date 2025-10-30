@@ -904,6 +904,40 @@ Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
     AddUserAttachmentFromPath = True
 End Function
 
+Private Function BuildUserAttachmentPaths() As Collection
+    Dim paths As Collection
+    Dim entry As Variant
+    Dim trimmedEntry As String
+    Dim separatorPos As Long
+    Dim filePath As String
+
+    If mUserAttachmentEntries Is Nothing Then Exit Function
+    If mUserAttachmentEntries.Count = 0 Then Exit Function
+
+    For Each entry In mUserAttachmentEntries
+        trimmedEntry = Trim$(CStr(entry))
+        If LenB(trimmedEntry) = 0 Then GoTo NextEntry
+
+        separatorPos = InStr(trimmedEntry, "|")
+        If separatorPos > 0 Then
+            filePath = Trim$(Mid$(trimmedEntry, separatorPos + 1))
+        Else
+            filePath = trimmedEntry
+        End If
+
+        If LenB(filePath) = 0 Then GoTo NextEntry
+
+        If paths Is Nothing Then
+            Set paths = New Collection
+        End If
+        paths.Add filePath
+
+NextEntry:
+    Next entry
+
+    Set BuildUserAttachmentPaths = paths
+End Function
+
 Private Function RemoveUserAttachmentFromPath(ByVal filePath As String) As Boolean
     Dim normalizedKey As String
 
