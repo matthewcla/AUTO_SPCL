@@ -827,32 +827,45 @@ Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
 End Sub
 
 Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
-    Dim entries As Collection
     Dim entry As Variant
     Dim normalizedKey As String
 
     mCurrentTemplateKey = templateKey
 
-    Set mTemplateAttachmentEntries = New Collection
-    Set mUserAttachmentEntries = New Collection
+    Set mTemplateAttachmentEntries = GetTemplateAttachmentEntriesForKey(templateKey)
+    If mTemplateAttachmentEntries Is Nothing Then
+        Set mTemplateAttachmentEntries = New Collection
+    End If
+
+    Set mUserAttachmentEntries = GetUserAttachmentEntries(templateKey)
+    If mUserAttachmentEntries Is Nothing Then
+        Set mUserAttachmentEntries = New Collection
+    End If
 
     Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
     Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
 
-    Set entries = GetAttachmentEntriesFromListBox(Me.lstAT)
-    If entries Is Nothing Then Exit Sub
-
-    For Each entry In entries
-        mTemplateAttachmentEntries.Add CStr(entry)
-        normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
-        If LenB(normalizedKey) = 0 Then GoTo NextEntry
-        If Not mTemplateAttachmentLookup Is Nothing Then
+    If Not mTemplateAttachmentLookup Is Nothing Then
+        For Each entry In mTemplateAttachmentEntries
+            normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+            If LenB(normalizedKey) = 0 Then GoTo NextTemplateEntry
             If Not mTemplateAttachmentLookup.Exists(normalizedKey) Then
                 mTemplateAttachmentLookup(normalizedKey) = True
             End If
-        End If
-NextEntry:
-    Next entry
+NextTemplateEntry:
+        Next entry
+    End If
+
+    If Not mUserAttachmentLookup Is Nothing Then
+        For Each entry In mUserAttachmentEntries
+            normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+            If LenB(normalizedKey) = 0 Then GoTo NextUserEntry
+            If Not mUserAttachmentLookup.Exists(normalizedKey) Then
+                mUserAttachmentLookup(normalizedKey) = True
+            End If
+NextUserEntry:
+        Next entry
+    End If
 
     RefreshAttachmentListDisplay
 End Sub
@@ -1149,6 +1162,22 @@ Private Sub ApplyAttachmentUpdates(ByVal templateKey As String)
 
     Set combined = BuildCombinedAttachmentEntries()
     PopulateAttachmentListControl Me.lstAT, combined
+    PersistUserAttachmentsToWorksheet templateKey
+End Sub
+
+Private Sub PersistUserAttachmentsToWorksheet(ByVal templateKey As String)
+    Dim activeTemplateKey As String
+
+    activeTemplateKey = Trim$(templateKey)
+    If LenB(activeTemplateKey) = 0 Then
+        activeTemplateKey = Trim$(mCurrentTemplateKey)
+    End If
+
+    If LenB(activeTemplateKey) = 0 Then Exit Sub
+
+    On Error Resume Next
+    WriteUserAttachmentEntries activeTemplateKey, mUserAttachmentEntries
+    On Error GoTo 0
 End Sub
 
 Private Sub PopulateAttachmentListControl(ByRef listBox As MSForms.ListBox, ByVal entries As Collection)
