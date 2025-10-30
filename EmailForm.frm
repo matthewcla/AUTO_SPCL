@@ -555,6 +555,10 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Sub bBE_Click()
+    ToggleEmailStatus SelectedMemberIndex
+End Sub
+
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL1
 End Sub
