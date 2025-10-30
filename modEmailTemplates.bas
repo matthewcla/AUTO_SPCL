@@ -62,6 +62,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
     signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
     attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    attachmentValue = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
 
     AssignTextBoxValue txtTO, toValue
     AssignTextBoxValue txtCC, ccValue
@@ -381,6 +382,118 @@ Private Function JoinAttachmentEntries(ByVal entries As Collection) As String
     Next idx
 
     JoinAttachmentEntries = Join(arr, vbCrLf)
+End Function
+
+Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
+                                                ByVal templateColumn As Long, _
+                                                ByVal rawValue As String) As String
+    Dim entries As Collection
+    Dim updatedEntries As Collection
+    Dim entry As Variant
+    Dim pathValue As String
+    Dim newEntry As String
+    Dim resultValue As String
+    Dim changed As Boolean
+
+    Set entries = ParseAttachmentEntries(rawValue)
+    If entries Is Nothing Then
+        ValidateTemplateAttachmentPaths = rawValue
+        Exit Function
+    End If
+
+    Set updatedEntries = New Collection
+
+    For Each entry In entries
+        pathValue = ExtractAttachmentPath(CStr(entry))
+        If LenB(pathValue) = 0 Then
+            updatedEntries.Add CStr(entry)
+        ElseIf AttachmentFileExists(pathValue) Then
+            updatedEntries.Add CStr(entry)
+        ElseIf HandleMissingAttachment(pathValue, newEntry) Then
+            If LenB(newEntry) > 0 Then
+                updatedEntries.Add newEntry
+                changed = True
+            Else
+                updatedEntries.Add CStr(entry)
+            End If
+        Else
+            changed = True
+        End If
+    Next entry
+
+    If updatedEntries Is Nothing Then
+        resultValue = vbNullString
+    Else
+        resultValue = JoinAttachmentEntries(updatedEntries)
+    End If
+
+    If changed Or StrComp(resultValue, rawValue, vbBinaryCompare) <> 0 Then
+        ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = resultValue
+    End If
+
+    ValidateTemplateAttachmentPaths = resultValue
+End Function
+
+Private Function AttachmentFileExists(ByVal filePath As String) As Boolean
+    Dim resolvedPath As String
+
+    filePath = Trim$(filePath)
+    If LenB(filePath) = 0 Then Exit Function
+
+    On Error Resume Next
+    resolvedPath = Dir(filePath, vbNormal Or vbReadOnly Or vbHidden Or vbSystem Or vbArchive)
+    On Error GoTo 0
+
+    AttachmentFileExists = LenB(resolvedPath) > 0
+End Function
+
+Private Function HandleMissingAttachment(ByVal missingPath As String, _
+                                         ByRef replacementEntry As String) As Boolean
+    Dim response As VbMsgBoxResult
+    Dim fd As FileDialog
+    Dim selectedPath As String
+
+    replacementEntry = vbNullString
+
+    response = MsgBox("The attachment '" & missingPath & "' could not be found." & _
+                      vbCrLf & vbCrLf & _
+                      "Would you like to locate the file?" & vbCrLf & _
+                      "Click Yes to find the file or No to remove it from the template.", _
+                      vbYesNo + vbQuestion, "Attachment Not Found")
+
+    If response = vbYes Then
+        On Error Resume Next
+        Set fd = Application.FileDialog(msoFileDialogFilePicker)
+        On Error GoTo 0
+        If fd Is Nothing Then
+            HandleMissingAttachment = True
+            Exit Function
+        End If
+
+        With fd
+            .AllowMultiSelect = False
+            .Title = "Select replacement attachment"
+            On Error Resume Next
+            .InitialFileName = missingPath
+            On Error GoTo 0
+            .Filters.Clear
+            .Filters.Add "All Files", "*.*"
+            If .Show = -1 Then
+                If .SelectedItems.Count > 0 Then
+                    selectedPath = Trim$(CStr(.SelectedItems(1)))
+                End If
+            End If
+        End With
+
+        If LenB(selectedPath) > 0 Then
+            replacementEntry = BuildAttachmentEntry(selectedPath)
+        End If
+
+        Set fd = Nothing
+        HandleMissingAttachment = True
+    ElseIf response = vbNo Then
+        HandleMissingAttachment = False
+    End If
 End Function
 
 Private Function CStrSafe(ByVal value As Variant) As String
