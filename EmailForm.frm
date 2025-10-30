@@ -964,14 +964,21 @@ End Function
 Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
     Dim normalizedKey As String
     Dim entry As String
+    Dim resolvedPath As String
+    Dim displayName As String
 
-    normalizedKey = NormalizeTemplateAttachmentPath(filePath)
+    resolvedPath = Trim$(filePath)
+    displayName = vbNullString
+
+    If Not CheckIfAttachmentExists(displayName, resolvedPath) Then Exit Function
+
+    normalizedKey = NormalizeTemplateAttachmentPath(resolvedPath)
     If LenB(normalizedKey) = 0 Then Exit Function
 
     If AttachmentExistsInTemplate(normalizedKey) Then Exit Function
     If AttachmentExistsInUser(normalizedKey) Then Exit Function
 
-    entry = BuildTemplateAttachmentEntry(filePath)
+    entry = BuildAttachmentEntryFromComponents(displayName, resolvedPath)
     If LenB(entry) = 0 Then Exit Function
 
     If mUserAttachmentEntries Is Nothing Then

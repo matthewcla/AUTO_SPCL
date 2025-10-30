@@ -184,6 +184,8 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
     Dim normalizedKey As String
     Dim selectedPath As Variant
     Dim newEntry As String
+    Dim resolvedPath As String
+    Dim displayName As String
 
     If LenB(templateKey) = 0 Then Exit Function
 
@@ -226,13 +228,19 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
 
     If Not attachmentPaths Is Nothing Then
         For Each selectedPath In attachmentPaths
-            normalizedKey = NormalizeAttachmentPath(CStr(selectedPath))
+            resolvedPath = Trim$(CStr(selectedPath))
+            displayName = vbNullString
+
+            If Not CheckIfAttachmentExists(displayName, resolvedPath) Then GoTo NextSelection
+
+            normalizedKey = NormalizeAttachmentPath(resolvedPath)
             If LenB(normalizedKey) = 0 Then GoTo NextSelection
             If Not seen Is Nothing Then
                 If seen.Exists(normalizedKey) Then GoTo NextSelection
                 seen(normalizedKey) = True
             End If
-            newEntry = BuildAttachmentEntry(CStr(selectedPath))
+            newEntry = BuildAttachmentEntryFromComponents(displayName, resolvedPath)
+            If LenB(newEntry) = 0 Then GoTo NextSelection
             resultEntries.Add newEntry
 NextSelection:
         Next selectedPath
@@ -756,8 +764,8 @@ Private Function BuildAttachmentEntry(ByVal filePath As String) As String
     End If
 End Function
 
-Private Function BuildAttachmentEntryFromComponents(ByVal fileName As String, _
-                                                    ByVal filePath As String) As String
+Public Function BuildAttachmentEntryFromComponents(ByVal fileName As String, _
+                                                   ByVal filePath As String) As String
     fileName = Trim$(fileName)
     filePath = Trim$(filePath)
 
