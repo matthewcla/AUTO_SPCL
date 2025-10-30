@@ -555,6 +555,89 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Sub bCFC_Click()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+    Dim whitelist As Object
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
+    Set whitelist = BuildDraftWhitelist()
+
+    If whitelist Is Nothing Then
+        SetCursorDefault
+        MsgBox "All members are currently marked as Cancel. There are no Draft emails to create.", _
+               vbInformation
+        GoTo CleanExit
+    End If
+
+    CreateDraftsFromID whitelist
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    MsgBox "Unable to finalize drafts: " & errDescription, vbCritical
+    errNumber = 0
+    Resume CleanExit
+End Sub
+
+Private Function BuildDraftWhitelist() As Object
+    Dim dict As Object
+    Dim maxIndex As Long
+    Dim idx As Long
+    Dim statusCaption As String
+    Dim nameCaption As String
+    Dim key As String
+    Dim draftCount As Long
+
+    Set dict = CreateObject("Scripting.Dictionary")
+    If dict Is Nothing Then Exit Function
+    On Error Resume Next
+    dict.CompareMode = vbTextCompare
+    On Error GoTo 0
+
+    maxIndex = DetermineMaxMemberIndex()
+    If maxIndex < 1 Then maxIndex = 1
+
+    For idx = 1 To maxIndex
+        statusCaption = GetLabelCaptionByName("lblSTAT" & CStr(idx))
+        If StrComp(statusCaption, "Draft", vbTextCompare) = 0 Then
+            key = "IDX:" & CStr(idx)
+            If Not dict.Exists(key) Then
+                dict.Add key, True
+                draftCount = draftCount + 1
+            Else
+                dict(key) = True
+            End If
+
+            nameCaption = GetLabelCaptionByName("lblNM" & CStr(idx))
+            If LenB(nameCaption) > 0 Then
+                key = "NAME:" & NormalizeDraftWhitelistValue(nameCaption)
+                dict(key) = True
+            End If
+        End If
+    Next idx
+
+    If draftCount = 0 Then
+        Set BuildDraftWhitelist = Nothing
+    Else
+        Set BuildDraftWhitelist = dict
+    End If
+End Function
+
+Private Function NormalizeDraftWhitelistValue(ByVal value As String) As String
+    NormalizeDraftWhitelistValue = UCase$(Trim$(value))
+End Function
+
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL1
 End Sub
