@@ -16,7 +16,7 @@ Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
 Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
                                  ByRef txtTO As MSForms.TextBox, _
                                  ByRef txtCC As MSForms.TextBox, _
-                                 ByRef txtAT As MSForms.TextBox, _
+                                 ByRef lstAT As MSForms.ListBox, _
                                  ByRef txtSubj As MSForms.TextBox, _
                                  ByRef txtBody As MSForms.TextBox, _
                                  ByRef txtSignature As MSForms.TextBox)
@@ -38,7 +38,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    ClearTemplateControls txtTO, txtCC, txtAT, txtSubj, txtBody, txtSignature
+    ClearTemplateControls txtTO, txtCC, lstAT, txtSubj, txtBody, txtSignature
 
     lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
     If lastCol < 1 Then Exit Sub
@@ -68,7 +68,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     AssignTextBoxValue txtCC, ccValue
     AssignTextBoxValue txtSubj, subjValue
     AssignTextBoxValue txtSignature, signatureValue
-    AssignTextBoxValue txtAT, attachmentValue
+    AssignAttachmentList lstAT, attachmentValue
     AssignTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
 End Sub
 
@@ -86,21 +86,49 @@ End Function
 
 Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
                                   ByRef txtCC As MSForms.TextBox, _
-                                  ByRef txtAT As MSForms.TextBox, _
+                                  ByRef lstAT As MSForms.ListBox, _
                                   ByRef txtSubj As MSForms.TextBox, _
                                   ByRef txtBody As MSForms.TextBox, _
                                   ByRef txtSignature As MSForms.TextBox)
     AssignTextBoxValue txtTO, vbNullString
     AssignTextBoxValue txtCC, vbNullString
-    AssignTextBoxValue txtAT, vbNullString
+    ClearListBoxItems lstAT
     AssignTextBoxValue txtSubj, vbNullString
     AssignTextBoxValue txtBody, vbNullString
     AssignTextBoxValue txtSignature, vbNullString
 End Sub
 
+Private Sub AssignAttachmentList(ByRef target As MSForms.ListBox, ByVal attachmentValue As String)
+    Dim entries As Collection
+
+    Set entries = GetTemplateAttachmentEntries(attachmentValue)
+    AssignListBoxItems target, entries
+End Sub
+
 Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As String)
     If target Is Nothing Then Exit Sub
     target.Value = value
+End Sub
+
+Private Sub ClearListBoxItems(ByRef target As MSForms.ListBox)
+    If target Is Nothing Then Exit Sub
+    target.Clear
+End Sub
+
+Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As Collection)
+    Dim entry As Variant
+
+    If target Is Nothing Then Exit Sub
+
+    target.Clear
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        On Error Resume Next
+        target.AddItem CStr(entry)
+        On Error GoTo 0
+    Next entry
 End Sub
 
 Private Function BuildBodyValue(ByVal greetingValue As String, _
