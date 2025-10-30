@@ -839,7 +839,7 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
     Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
 
-    Set entries = GetListBoxEntries(Me.lstAT)
+    Set entries = GetAttachmentEntriesFromListBox(Me.lstAT)
     If entries Is Nothing Then Exit Sub
 
     For Each entry In entries
@@ -853,7 +853,42 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
         End If
 NextEntry:
     Next entry
+
+    RefreshAttachmentListDisplay
 End Sub
+
+Private Function GetAttachmentEntriesFromListBox(ByRef listBox As MSForms.ListBox) As Collection
+    Dim entries As Collection
+    Dim idx As Long
+    Dim entryText As String
+
+    Set entries = New Collection
+
+    If listBox Is Nothing Then
+        Set GetAttachmentEntriesFromListBox = entries
+        Exit Function
+    End If
+
+    If listBox.ListCount = 0 Then
+        Set GetAttachmentEntriesFromListBox = entries
+        Exit Function
+    End If
+
+    For idx = 0 To listBox.ListCount - 1
+        On Error Resume Next
+        entryText = Trim$(CStr(listBox.List(idx)))
+        If Err.Number <> 0 Then
+            entryText = vbNullString
+            Err.Clear
+        End If
+        On Error GoTo 0
+        If LenB(entryText) > 0 Then
+            entries.Add entryText
+        End If
+    Next idx
+
+    Set GetAttachmentEntriesFromListBox = entries
+End Function
 
 Private Sub EnsureAttachmentTracking(ByVal templateKey As String)
     If StrComp(Trim$(mCurrentTemplateKey), Trim$(templateKey), vbTextCompare) <> 0 Then
@@ -1109,17 +1144,32 @@ Private Function BuildCombinedAttachmentEntries() As Collection
     Set BuildCombinedAttachmentEntries = combined
 End Function
 
-Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
+Private Sub ApplyAttachmentUpdates(ByVal templateKey As String)
     Dim combined As Collection
-    Dim resultText As String
 
     Set combined = BuildCombinedAttachmentEntries()
+    PopulateAttachmentListControl Me.lstAT, combined
+End Sub
 
-    resultText = JoinTemplateAttachmentEntries(combined)
-    LoadListBoxFromCollection Me.lstAT, combined
+Private Sub PopulateAttachmentListControl(ByRef listBox As MSForms.ListBox, ByVal entries As Collection)
+    Dim entry As Variant
 
-    ApplyAttachmentUpdates = resultText
-End Function
+    If listBox Is Nothing Then Exit Sub
+
+    listBox.Clear
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        On Error Resume Next
+        listBox.AddItem CStr(entry)
+        On Error GoTo 0
+    Next entry
+End Sub
+
+Private Sub RefreshAttachmentListDisplay()
+    PopulateAttachmentListControl Me.lstAT, BuildCombinedAttachmentEntries()
+End Sub
 
 Private Sub bADD_Click()
     Dim fd As FileDialog
@@ -1175,7 +1225,7 @@ Private Sub bADD_Click()
     SetCursorWait
     waitApplied = True
 
-    Call ApplyAttachmentUpdates(templateKey)
+    ApplyAttachmentUpdates templateKey
 
 CleanExit:
     If waitApplied Then SetCursorDefault
@@ -1267,7 +1317,7 @@ NextSelection:
     SetCursorWait
     waitApplied = True
 
-    Call ApplyAttachmentUpdates(templateKey)
+    ApplyAttachmentUpdates templateKey
 
     If ignoredCount > 0 Then
         MsgBox "Some selected files were ignored because they belong to the template and cannot be removed.", _

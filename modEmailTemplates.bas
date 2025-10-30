@@ -69,7 +69,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     AssignTextBoxValue txtCC, ccValue
     AssignTextBoxValue txtSubj, subjValue
     AssignTextBoxValue txtSignature, signatureValue
-    AssignListBoxValues lstAT, attachmentEntries
+    AssignAttachmentList lstAT, attachmentValue
     AssignTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
 End Sub
 
@@ -94,9 +94,17 @@ Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
     AssignTextBoxValue txtTO, vbNullString
     AssignTextBoxValue txtCC, vbNullString
     AssignListBoxValues lstAT, Nothing
+    ClearListBoxItems lstAT
     AssignTextBoxValue txtSubj, vbNullString
     AssignTextBoxValue txtBody, vbNullString
     AssignTextBoxValue txtSignature, vbNullString
+End Sub
+
+Private Sub AssignAttachmentList(ByRef target As MSForms.ListBox, ByVal attachmentValue As String)
+    Dim entries As Collection
+
+    Set entries = GetTemplateAttachmentEntries(attachmentValue)
+    AssignListBoxItems target, entries
 End Sub
 
 Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As String)
@@ -104,7 +112,12 @@ Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As S
     target.Value = value
 End Sub
 
-Private Sub AssignListBoxValues(ByRef target As MSForms.ListBox, ByVal entries As Collection)
+Private Sub ClearListBoxItems(ByRef target As MSForms.ListBox)
+    If target Is Nothing Then Exit Sub
+    target.Clear
+End Sub
+
+Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As Collection)
     Dim entry As Variant
 
     If target Is Nothing Then Exit Sub
@@ -114,7 +127,9 @@ Private Sub AssignListBoxValues(ByRef target As MSForms.ListBox, ByVal entries A
     If entries Is Nothing Then Exit Sub
 
     For Each entry In entries
+        On Error Resume Next
         target.AddItem CStr(entry)
+        On Error GoTo 0
     Next entry
 End Sub
 
