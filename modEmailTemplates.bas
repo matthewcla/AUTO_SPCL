@@ -32,6 +32,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     Dim greetingValue As String
     Dim signatureValue As String
     Dim attachmentValue As String
+    Dim attachmentEntries As Collection
 
     If LenB(templateKey) = 0 Then Exit Sub
 
@@ -62,7 +63,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
     signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
     attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
-    attachmentValue = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
+    Set attachmentEntries = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
 
     AssignTextBoxValue txtTO, toValue
     AssignTextBoxValue txtCC, ccValue
@@ -92,6 +93,7 @@ Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
                                   ByRef txtSignature As MSForms.TextBox)
     AssignTextBoxValue txtTO, vbNullString
     AssignTextBoxValue txtCC, vbNullString
+    AssignListBoxValues lstAT, Nothing
     ClearListBoxItems lstAT
     AssignTextBoxValue txtSubj, vbNullString
     AssignTextBoxValue txtBody, vbNullString
@@ -716,7 +718,7 @@ End Function
 
 Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
                                                 ByVal templateColumn As Long, _
-                                                ByVal rawValue As String) As String
+                                                ByVal rawValue As String) As Collection
     Dim entries As Collection
     Dim updatedEntries As Collection
     Dim entry As Variant
@@ -726,10 +728,7 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
     Dim changed As Boolean
 
     Set entries = ParseAttachmentEntries(rawValue)
-    If entries Is Nothing Then
-        ValidateTemplateAttachmentPaths = rawValue
-        Exit Function
-    End If
+    If entries Is Nothing Then Exit Function
 
     Set updatedEntries = New Collection
 
@@ -761,7 +760,7 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
         ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = resultValue
     End If
 
-    ValidateTemplateAttachmentPaths = resultValue
+    Set ValidateTemplateAttachmentPaths = updatedEntries
 End Function
 
 Private Function AttachmentFileExists(ByVal filePath As String) As Boolean

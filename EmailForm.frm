@@ -794,6 +794,38 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Function GetListBoxEntries(ByVal listControl As MSForms.ListBox) As Collection
+    Dim entries As Collection
+    Dim idx As Long
+
+    Set entries = New Collection
+    If listControl Is Nothing Then
+        Set GetListBoxEntries = entries
+        Exit Function
+    End If
+
+    For idx = 0 To listControl.ListCount - 1
+        entries.Add CStr(listControl.List(idx))
+    Next idx
+
+    Set GetListBoxEntries = entries
+End Function
+
+Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
+                                      ByVal entries As Collection)
+    Dim entry As Variant
+
+    If listControl Is Nothing Then Exit Sub
+
+    listControl.Clear
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        listControl.AddItem CStr(entry)
+    Next entry
+End Sub
+
 Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Dim entries As Collection
     Dim entry As Variant
