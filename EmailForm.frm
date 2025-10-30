@@ -53,11 +53,11 @@ Private Sub UserForm_Initialize()
     titleBarHidden = False
 
     On Error Resume Next
-    templateKey = Trim$(Me.cboTemplate.Value)
+    templateKey = Trim$(Me.cboTemplate.value)
     On Error GoTo CleanFail
 
     If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.Value)
+        templateKey = Trim$(Me.txtTEMP.value)
     End If
 
     If LenB(templateKey) > 0 Then
@@ -67,7 +67,7 @@ Private Sub UserForm_Initialize()
     End If
 
     mSelectedMemberIndex = 1
-    mOriginalBodyTemplate = Me.txtBody.Value
+    mOriginalBodyTemplate = Me.txtBody.value
     If LenB(mOriginalBodyTemplate) > 0 Then
         ApplyBodyPlaceholders mSelectedMemberIndex
     End If
@@ -128,12 +128,12 @@ Private Sub HideTitleBar()
     Dim originalCaption As String
     Dim tempCaption As String
 
-    originalCaption = Me.Caption
+    originalCaption = Me.caption
     tempCaption = "email-" & Hex$(ObjPtr(Me))
-    Me.Caption = tempCaption
+    Me.caption = tempCaption
 
     hWnd = FindWindow("ThunderDFrame", tempCaption)
-    Me.Caption = originalCaption
+    Me.caption = originalCaption
 
     If hWnd = 0 Then Exit Sub
 
@@ -158,14 +158,14 @@ End Property
 Public Sub RefreshBodyPlaceholders(Optional ByVal memberIndex As Long = -1, _
                                    Optional ByVal resetTemplate As Boolean = False)
     If resetTemplate Or LenB(mOriginalBodyTemplate) = 0 Then
-        mOriginalBodyTemplate = Me.txtBody.Value
+        mOriginalBodyTemplate = Me.txtBody.value
     End If
     ApplyBodyPlaceholders memberIndex
 End Sub
 
 Public Sub LoadBodyTemplate(ByVal templateText As String, Optional ByVal memberIndex As Long = -1)
     mOriginalBodyTemplate = templateText
-    Me.txtBody.Value = templateText
+    Me.txtBody.value = templateText
     ApplyBodyPlaceholders memberIndex
 End Sub
 
@@ -176,7 +176,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
 
     baseText = mOriginalBodyTemplate
     If LenB(baseText) = 0 Then
-        baseText = Me.txtBody.Value
+        baseText = Me.txtBody.value
     End If
 
     If LenB(baseText) = 0 Then Exit Sub
@@ -193,7 +193,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     End If
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
-    Me.txtBody.Value = ReplacePlaceholdersArray(baseText, placeholderPairs)
+    Me.txtBody.value = ReplacePlaceholdersArray(baseText, placeholderPairs)
 End Sub
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
@@ -266,7 +266,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
         AddPlaceholderValue placeholders, "ISSUES_LIST", BuildIssuesSummary(issues, False)
         AddPlaceholderValue placeholders, "ISSUES_BULLETED", BuildIssuesSummary(issues, True)
 
-        keys = issues.Keys
+        keys = issues.keys
         SortNumericKeys keys
         If IsArray(keys) Then
             For Each key In keys
@@ -283,7 +283,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     Dim ctrl As MSForms.Control
     For Each ctrl In Me.Controls
         If TypeOf ctrl Is MSForms.Label Then
-            textValue = SafeText(ctrl.Caption)
+            textValue = SafeText(ctrl.caption)
             AddPlaceholderValue placeholders, ctrl.Name, textValue, False
             If Len(ctrl.Name) > 3 Then
                 AddPlaceholderValue placeholders, Mid$(ctrl.Name, 4), textValue, False
@@ -298,7 +298,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
 
     ReDim arr(0 To placeholders.Count * 2 - 1)
     nextSlot = 0
-    For Each key In placeholders.Keys
+    For Each key In placeholders.keys
         arr(nextSlot) = key
         arr(nextSlot + 1) = placeholders(key)
         nextSlot = nextSlot + 2
@@ -322,7 +322,7 @@ Private Function CollectIssueMap() As Object
         If TypeOf ctrl Is MSForms.Label Then
             idx = ExtractIndex(ctrl.Name, "lblL")
             If idx > 0 Then
-                caption = SafeText(ctrl.Caption)
+                caption = SafeText(ctrl.caption)
                 If LenB(caption) > 0 Then
                     dict(CStr(idx)) = caption
                 End If
@@ -344,7 +344,7 @@ Private Function BuildIssuesSummary(ByVal issues As Object, Optional ByVal inclu
     If issues Is Nothing Then Exit Function
     If issues.Count = 0 Then Exit Function
 
-    keys = issues.Keys
+    keys = issues.keys
     SortNumericKeys keys
 
     If Not IsArray(keys) Then Exit Function
@@ -461,7 +461,7 @@ Private Function GetLabelCaptionByName(ByVal controlName As String) As String
     On Error Resume Next
     Set ctrl = Me.Controls(controlName)
     If Not ctrl Is Nothing Then
-        GetLabelCaptionByName = SafeText(ctrl.Caption)
+        GetLabelCaptionByName = SafeText(ctrl.caption)
     End If
     On Error GoTo 0
 End Function
@@ -528,12 +528,12 @@ Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
 
     Set statusLabel = statusControl
 
-    currentStatus = Trim$(statusLabel.Caption)
+    currentStatus = Trim$(statusLabel.caption)
 
     If StrComp(currentStatus, "Draft", vbTextCompare) = 0 Then
-        statusLabel.Caption = "Cancel"
+        statusLabel.caption = "Cancel"
     Else
-        statusLabel.Caption = "Draft"
+        statusLabel.caption = "Draft"
     End If
 
     ApplyStatusColor statusLabel
@@ -544,7 +544,7 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
 
     If statusLabel Is Nothing Then Exit Sub
 
-    statusText = Trim$(statusLabel.Caption)
+    statusText = Trim$(statusLabel.caption)
 
     If StrComp(statusText, "Draft", vbTextCompare) = 0 Then
         statusLabel.ForeColor = vbGreen
@@ -618,3 +618,4 @@ End Sub
 Private Sub lblL8_Click()
     ToggleEmailStatus 8
 End Sub
+
