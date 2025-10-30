@@ -1,17 +1,26 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
-Public Sub CreateDraftsFromID()
+Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant)
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
     Dim personName As String, toList As String, eligNote As String
     Dim olApp As Object, olMail As Object  ' Outlook.Application / MailItem (late bound)
     Dim createdCount As Long, skippedCount As Long
+    Dim whitelist As Object
+    Dim hasWhitelist As Boolean
+    Dim memberIndex As Long
+    Dim skipNote As String
     
     On Error GoTo CleanFail
     
     Set wsID = ThisWorkbook.Worksheets("ID")
     Set wsElig = ThisWorkbook.Worksheets("Eligibles RED Board")
+
+    If Not IsMissing(allowedMembers) Then
+        Set whitelist = NormalizeDraftWhitelist(allowedMembers)
+        hasWhitelist = Not whitelist Is Nothing
+    End If
     
     lastRow = wsID.Cells(wsID.Rows.Count, "B").End(xlUp).row
     If lastRow < 2 Then
@@ -32,7 +41,16 @@ Public Sub CreateDraftsFromID()
     Application.ScreenUpdating = False
     
     For r = 2 To lastRow
+        memberIndex = r - 1
         personName = Trim$(wsID.Cells(r, "B").Value)
+
+        If hasWhitelist Then
+            If Not DraftWhitelistAllowsMember(memberIndex, personName, whitelist) Then
+                skippedCount = skippedCount + 1
+                GoTo nextRow
+            End If
+        End If
+
         If Len(personName) = 0 Then
             skippedCount = skippedCount + 1
             GoTo nextRow
@@ -64,9 +82,10 @@ nextRow:
     Next r
     
     Application.ScreenUpdating = True
+    If hasWhitelist Then skipNote = " (including members not marked as Draft)"
     MsgBox "Draft creation complete." & vbCrLf & _
            "Created: " & createdCount & vbCrLf & _
-           "Skipped (no name or no emails): " & skippedCount, vbInformation
+           "Skipped (no name, no emails, or filtered out): " & skippedCount & skipNote, vbInformation
     Exit Sub
     
 CleanFail:
@@ -138,6 +157,102 @@ Private Function BuildBody(ByVal personName As String, ByVal eligNote As String)
 
     bodyText = ReplacePlaceholdersArray(bodyText, replacements)
     BuildBody = bodyText
+End Function
+
+Private Function NormalizeDraftWhitelist(ByVal allowedMembers As Variant) As Object
+    Dim dict As Object
+    Dim key As Variant
+    Dim normalizedKey As String
+
+    If IsObject(allowedMembers) Then
+        If allowedMembers Is Nothing Then Exit Function
+    ElseIf IsArray(allowedMembers) Then
+        ' continue
+    Else
+        If VarType(allowedMembers) = vbEmpty Then Exit Function
+    End If
+
+    Set dict = CreateObject("Scripting.Dictionary")
+    If dict Is Nothing Then Exit Function
+    On Error Resume Next
+    dict.CompareMode = vbTextCompare
+    On Error GoTo 0
+
+    If IsObject(allowedMembers) Then
+        For Each key In allowedMembers
+            normalizedKey = NormalizeDraftWhitelistKey(CStr(key))
+            If LenB(normalizedKey) > 0 Then dict(normalizedKey) = True
+        Next key
+    ElseIf IsArray(allowedMembers) Then
+        For Each key In allowedMembers
+            normalizedKey = DraftWhitelistIndexKey(key)
+            If LenB(normalizedKey) > 0 Then dict(normalizedKey) = True
+        Next key
+    Else
+        normalizedKey = DraftWhitelistIndexKey(allowedMembers)
+        If LenB(normalizedKey) > 0 Then dict(normalizedKey) = True
+    End If
+
+    If dict.Count = 0 Then Exit Function
+    Set NormalizeDraftWhitelist = dict
+End Function
+
+Private Function NormalizeDraftWhitelistKey(ByVal rawKey As String) As String
+    Dim trimmedKey As String
+
+    trimmedKey = UCase$(Trim$(rawKey))
+    If LenB(trimmedKey) = 0 Then Exit Function
+
+    If Left$(trimmedKey, 4) = "IDX:" Or Left$(trimmedKey, 5) = "NAME:" Then
+        NormalizeDraftWhitelistKey = trimmedKey
+    ElseIf IsNumeric(trimmedKey) Then
+        NormalizeDraftWhitelistKey = DraftWhitelistIndexKey(trimmedKey)
+    End If
+End Function
+
+Private Function DraftWhitelistAllowsMember(ByVal memberIndex As Long, _
+                                            ByVal personName As String, _
+                                            ByVal whitelist As Object) As Boolean
+    Dim indexKey As String
+    Dim nameKey As String
+
+    If whitelist Is Nothing Then
+        DraftWhitelistAllowsMember = True
+        Exit Function
+    End If
+
+    indexKey = DraftWhitelistIndexKey(memberIndex)
+    If LenB(indexKey) > 0 Then
+        If whitelist.Exists(indexKey) Then
+            DraftWhitelistAllowsMember = True
+            Exit Function
+        End If
+    End If
+
+    nameKey = DraftWhitelistNameKey(personName)
+    If LenB(nameKey) > 0 Then
+        DraftWhitelistAllowsMember = whitelist.Exists(nameKey)
+    End If
+End Function
+
+Private Function DraftWhitelistIndexKey(ByVal candidate As Variant) As String
+    Dim idx As Long
+
+    If IsNumeric(candidate) Then
+        idx = CLng(candidate)
+        If idx > 0 Then DraftWhitelistIndexKey = "IDX:" & CStr(idx)
+    End If
+End Function
+
+Private Function DraftWhitelistNameKey(ByVal candidate As String) As String
+    Dim normalized As String
+
+    normalized = DraftWhitelistNormalizeName(candidate)
+    If LenB(normalized) > 0 Then DraftWhitelistNameKey = "NAME:" & normalized
+End Function
+
+Private Function DraftWhitelistNormalizeName(ByVal value As String) As String
+    DraftWhitelistNormalizeName = UCase$(Trim$(value))
 End Function
 
 
