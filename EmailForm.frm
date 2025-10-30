@@ -938,6 +938,41 @@ NextEntry:
     Set BuildUserAttachmentPaths = paths
 End Function
 
+Private Function ResolveInitialAttachmentDialogPath(ByVal userPaths As Collection) As String
+    Dim entry As Variant
+    Dim candidate As String
+    Dim resolved As String
+    Dim candidateResult As String
+
+    If userPaths Is Nothing Then Exit Function
+
+    For Each entry In userPaths
+        candidate = Trim$(CStr(entry))
+        If LenB(candidate) = 0 Then GoTo NextEntry
+
+        If LenB(resolved) = 0 Then
+            resolved = candidate
+        End If
+
+        On Error Resume Next
+        Err.Clear
+        candidateResult = Dir$(candidate, vbNormal)
+        If Err.Number = 0 Then
+            If LenB(candidateResult) > 0 Then
+                ResolveInitialAttachmentDialogPath = candidate
+                On Error GoTo 0
+                Exit Function
+            End If
+        Else
+            Err.Clear
+        End If
+        On Error GoTo 0
+NextEntry:
+    Next entry
+
+    ResolveInitialAttachmentDialogPath = resolved
+End Function
+
 Private Function RemoveUserAttachmentFromPath(ByVal filePath As String) As Boolean
     Dim normalizedKey As String
 
@@ -1132,6 +1167,10 @@ Private Sub bSUB_Click()
     Dim waitApplied As Boolean
     Dim removedCount As Long
     Dim updatedText As String
+    Dim userPaths As Collection
+    Dim initialFileName As String
+    Dim normalizedKey As String
+    Dim ignoredCount As Long
 
     On Error GoTo CleanFail
 
@@ -1147,10 +1186,13 @@ Private Sub bSUB_Click()
 
     EnsureAttachmentTracking templateKey
 
-    If mUserAttachmentEntries Is Nothing Or mUserAttachmentEntries.Count = 0 Then
+    Set userPaths = BuildUserAttachmentPaths()
+    If userPaths Is Nothing Or userPaths.Count = 0 Then
         MsgBox "There are no user-added attachments to remove.", vbInformation
         GoTo CleanExit
     End If
+
+    initialFileName = ResolveInitialAttachmentDialogPath(userPaths)
 
     Set fd = Application.FileDialog(MSO_FILE_DIALOG_FILE_PICKER)
     If fd Is Nothing Then GoTo CleanExit
@@ -1160,18 +1202,30 @@ Private Sub bSUB_Click()
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "All Files", "*.*"
+        If LenB(initialFileName) > 0 Then
+            .InitialFileName = initialFileName
+        End If
         If .Show <> -1 Then GoTo CleanExit
         If .SelectedItems.Count = 0 Then GoTo CleanExit
         Set selectedPaths = New Collection
         For Each selectedItem In .SelectedItems
-            If LenB(CStr(selectedItem)) > 0 Then
+            normalizedKey = NormalizeTemplateAttachmentPath(CStr(selectedItem))
+            If LenB(normalizedKey) = 0 Then GoTo NextSelection
+            If AttachmentExistsInUser(normalizedKey) Then
                 selectedPaths.Add CStr(selectedItem)
+            Else
+                ignoredCount = ignoredCount + 1
             End If
+NextSelection:
         Next selectedItem
     End With
 
     If selectedPaths Is Nothing Then GoTo CleanExit
-    If selectedPaths.Count = 0 Then GoTo CleanExit
+    If selectedPaths.Count = 0 Then
+        MsgBox "None of the selected files were added by this draft. Template attachments cannot be removed.", _
+               vbInformation
+        GoTo CleanExit
+    End If
 
     For Each selectedItem In selectedPaths
         If RemoveUserAttachmentFromPath(CStr(selectedItem)) Then
@@ -1179,17 +1233,18 @@ Private Sub bSUB_Click()
         End If
     Next selectedItem
 
-    If removedCount = 0 Then
-        MsgBox "None of the selected files were added by this draft. Template attachments cannot be removed.", _
-               vbInformation
-        GoTo CleanExit
-    End If
+    If removedCount = 0 Then GoTo CleanExit
 
     SetCursorWait
     waitApplied = True
 
     updatedText = ApplyAttachmentUpdates(templateKey)
     Me.txtAT.Value = updatedText
+
+    If ignoredCount > 0 Then
+        MsgBox "Some selected files were ignored because they belong to the template and cannot be removed.", _
+               vbInformation
+    End If
 
 CleanExit:
     If waitApplied Then SetCursorDefault
