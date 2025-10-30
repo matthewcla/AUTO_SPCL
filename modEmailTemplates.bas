@@ -713,10 +713,7 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
     Dim changed As Boolean
 
     Set entries = ParseAttachmentEntries(rawValue)
-    If entries Is Nothing Then
-        ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = vbNullString
-        Exit Function
-    End If
+    If entries Is Nothing Then Exit Function
 
     Set updatedEntries = New Collection
 
