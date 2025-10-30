@@ -39,6 +39,20 @@ Private titleBarHidden As Boolean
 Private mOriginalBodyTemplate As String
 Private mSelectedMemberIndex As Long
 
+Private Type MemberRecord
+    Name As String
+    SSN As String
+    Status As String
+End Type
+
+Private mMembers() As MemberRecord
+Private mMemberCount As Long
+Private mMembersLoaded As Boolean
+Private mFirstVisibleMemberIndex As Long
+
+Private Const MEMBERS_PER_PAGE As Long = 8
+Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
+
 Private Sub UserForm_Initialize()
     Dim errNumber As Long
     Dim errSource As String
@@ -66,10 +80,17 @@ Private Sub UserForm_Initialize()
                               Me.txtSubj, Me.txtBody, Me.txtSignature
     End If
 
-    mSelectedMemberIndex = 1
+    LoadMemberRecords
+
     mOriginalBodyTemplate = Me.txtBody.value
-    If LenB(mOriginalBodyTemplate) > 0 Then
-        ApplyBodyPlaceholders mSelectedMemberIndex
+
+    mFirstVisibleMemberIndex = 1
+
+    If mMemberCount > 0 Then
+        SelectedMemberIndex = 1
+    Else
+        mSelectedMemberIndex = 0
+        RenderMemberPage
     End If
 
 CleanExit:
@@ -150,8 +171,19 @@ Public Property Get SelectedMemberIndex() As Long
 End Property
 
 Public Property Let SelectedMemberIndex(ByVal value As Long)
+    EnsureMemberRecordsLoaded
+
+    If mMemberCount = 0 Then
+        mSelectedMemberIndex = 0
+        Exit Property
+    End If
+
     If value < 1 Then value = 1
+    If value > mMemberCount Then value = mMemberCount
+
     mSelectedMemberIndex = value
+
+    EnsureSelectedIndexVisible
     ApplyBodyPlaceholders mSelectedMemberIndex
 End Property
 
@@ -169,10 +201,235 @@ Public Sub LoadBodyTemplate(ByVal templateText As String, Optional ByVal memberI
     ApplyBodyPlaceholders memberIndex
 End Sub
 
+Private Sub EnsureMemberRecordsLoaded()
+    If mMembersLoaded Then Exit Sub
+    LoadMemberRecords
+End Sub
+
+Private Sub LoadMemberRecords()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim data As Variant
+    Dim rowCount As Long
+    Dim idx As Long
+
+    mMembersLoaded = True
+    mMemberCount = 0
+    Erase mMembers
+    mFirstVisibleMemberIndex = 1
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("ID")
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    If lastRow < 2 Then Exit Sub
+
+    data = ws.Range("A2:B" & lastRow).Value
+    If Not IsArray(data) Then Exit Sub
+
+    rowCount = UBound(data, 1)
+    If rowCount <= 0 Then Exit Sub
+
+    ReDim mMembers(1 To rowCount)
+    For idx = 1 To rowCount
+        mMembers(idx).SSN = SafeText(data(idx, 1))
+        mMembers(idx).Name = SafeText(data(idx, 2))
+        mMembers(idx).Status = DEFAULT_EMAIL_STATUS
+    Next idx
+
+    mMemberCount = rowCount
+End Sub
+
+Private Sub RenderMemberPage()
+    Dim slotIndex As Long
+    Dim memberIndex As Long
+    Dim nameLabel As MSForms.Label
+    Dim ssnLabel As MSForms.Label
+    Dim statusLabel As MSForms.Label
+
+    EnsureMemberRecordsLoaded
+
+    For slotIndex = 1 To MEMBERS_PER_PAGE
+        memberIndex = mFirstVisibleMemberIndex + slotIndex - 1
+
+        Set nameLabel = GetLabelControl("lblNM", slotIndex)
+        Set ssnLabel = GetLabelControl("lblSSN", slotIndex)
+        Set statusLabel = GetLabelControl("lblSTAT", slotIndex)
+
+        If memberIndex >= 1 And memberIndex <= mMemberCount Then
+            If Not nameLabel Is Nothing Then nameLabel.caption = GetMemberNameValue(memberIndex)
+            If Not ssnLabel Is Nothing Then ssnLabel.caption = GetMemberSSNValue(memberIndex)
+            If Not statusLabel Is Nothing Then
+                statusLabel.caption = GetMemberStatusValue(memberIndex)
+                ApplyStatusColor statusLabel
+            End If
+        Else
+            If Not nameLabel Is Nothing Then nameLabel.caption = ""
+            If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
+            If Not statusLabel Is Nothing Then
+                statusLabel.caption = ""
+                ApplyStatusColor statusLabel
+            End If
+        End If
+    Next slotIndex
+End Sub
+
+Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As MSForms.Label
+    Dim ctrl As MSForms.Control
+    Dim controlName As String
+
+    controlName = prefix & CStr(index)
+
+    On Error Resume Next
+    Set ctrl = Me.Controls(controlName)
+    On Error GoTo 0
+
+    If ctrl Is Nothing Then Exit Function
+    If Not TypeOf ctrl Is MSForms.Label Then Exit Function
+
+    Set GetLabelControl = ctrl
+End Function
+
+Private Sub EnsureSelectedIndexVisible()
+    Dim maxStart As Long
+
+    EnsureMemberRecordsLoaded
+
+    If mMemberCount = 0 Then
+        mFirstVisibleMemberIndex = 1
+        RenderMemberPage
+        Exit Sub
+    End If
+
+    If mFirstVisibleMemberIndex < 1 Then mFirstVisibleMemberIndex = 1
+
+    maxStart = mMemberCount - MEMBERS_PER_PAGE + 1
+    If maxStart < 1 Then maxStart = 1
+
+    If mSelectedMemberIndex < mFirstVisibleMemberIndex Then
+        mFirstVisibleMemberIndex = mSelectedMemberIndex
+    ElseIf mSelectedMemberIndex > mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1 Then
+        mFirstVisibleMemberIndex = mSelectedMemberIndex - MEMBERS_PER_PAGE + 1
+    End If
+
+    If mFirstVisibleMemberIndex > maxStart Then mFirstVisibleMemberIndex = maxStart
+    If mFirstVisibleMemberIndex < 1 Then mFirstVisibleMemberIndex = 1
+
+    RenderMemberPage
+End Sub
+
+Private Sub ScrollMembers(ByVal delta As Long)
+    Dim maxStart As Long
+    Dim newStart As Long
+
+    EnsureMemberRecordsLoaded
+
+    If mMemberCount = 0 Then Exit Sub
+    If delta = 0 Then Exit Sub
+
+    maxStart = mMemberCount - MEMBERS_PER_PAGE + 1
+    If maxStart < 1 Then maxStart = 1
+
+    newStart = mFirstVisibleMemberIndex + delta
+    If newStart < 1 Then newStart = 1
+    If newStart > maxStart Then newStart = maxStart
+
+    If newStart = mFirstVisibleMemberIndex Then Exit Sub
+
+    mFirstVisibleMemberIndex = newStart
+    RenderMemberPage
+
+    If mSelectedMemberIndex < mFirstVisibleMemberIndex Then
+        SelectedMemberIndex = mFirstVisibleMemberIndex
+    ElseIf mSelectedMemberIndex > mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1 Then
+        SelectedMemberIndex = mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1
+    Else
+        ApplyBodyPlaceholders mSelectedMemberIndex
+    End If
+End Sub
+
+Private Function DisplayIndexToMemberIndex(ByVal displayIndex As Long) As Long
+    Dim memberIndex As Long
+
+    EnsureMemberRecordsLoaded
+
+    If displayIndex < 1 Then Exit Function
+
+    memberIndex = mFirstVisibleMemberIndex + displayIndex - 1
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
+
+    DisplayIndexToMemberIndex = memberIndex
+End Function
+
+Private Function MemberIndexToDisplayIndex(ByVal memberIndex As Long) As Long
+    Dim displayIndex As Long
+
+    displayIndex = memberIndex - mFirstVisibleMemberIndex + 1
+    If displayIndex < 1 Or displayIndex > MEMBERS_PER_PAGE Then Exit Function
+
+    MemberIndexToDisplayIndex = displayIndex
+End Function
+
+Private Function GetMemberNameValue(ByVal memberIndex As Long) As String
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
+    GetMemberNameValue = mMembers(memberIndex).Name
+End Function
+
+Private Function GetMemberSSNValue(ByVal memberIndex As Long) As String
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
+    GetMemberSSNValue = mMembers(memberIndex).SSN
+End Function
+
+Private Function GetMemberStatusValue(ByVal memberIndex As Long) As String
+    Dim statusText As String
+
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
+
+    statusText = mMembers(memberIndex).Status
+    If LenB(statusText) = 0 Then
+        statusText = DEFAULT_EMAIL_STATUS
+        mMembers(memberIndex).Status = statusText
+    End If
+
+    GetMemberStatusValue = statusText
+End Function
+
+Private Sub SetMemberStatus(ByVal memberIndex As Long, ByVal statusText As String, _
+                             Optional ByVal updateUI As Boolean = True)
+    Dim normalized As String
+    Dim displayIndex As Long
+    Dim statusLabel As MSForms.Label
+
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Sub
+
+    normalized = Trim$(statusText)
+    If LenB(normalized) = 0 Then
+        normalized = DEFAULT_EMAIL_STATUS
+    End If
+
+    mMembers(memberIndex).Status = normalized
+
+    If Not updateUI Then Exit Sub
+
+    displayIndex = MemberIndexToDisplayIndex(memberIndex)
+    If displayIndex < 1 Then Exit Sub
+
+    Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
+    If statusLabel Is Nothing Then Exit Sub
+
+    statusLabel.caption = normalized
+    ApplyStatusColor statusLabel
+End Sub
+
 Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     Dim baseText As String
     Dim targetIndex As Long
     Dim placeholderPairs As Variant
+
+    EnsureMemberRecordsLoaded
 
     baseText = mOriginalBodyTemplate
     If LenB(baseText) = 0 Then
@@ -180,6 +437,8 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     End If
 
     If LenB(baseText) = 0 Then Exit Sub
+
+    If mMemberCount = 0 Then Exit Sub
 
     If memberIndex < 1 Then
         If mSelectedMemberIndex < 1 Then
@@ -189,8 +448,15 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
         End If
     Else
         targetIndex = memberIndex
-        mSelectedMemberIndex = targetIndex
     End If
+
+    If targetIndex < 1 Then
+        targetIndex = 1
+    ElseIf targetIndex > mMemberCount Then
+        targetIndex = mMemberCount
+    End If
+
+    mSelectedMemberIndex = targetIndex
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
     Me.txtBody.value = ReplacePlaceholdersArray(baseText, placeholderPairs)
@@ -198,7 +464,6 @@ End Sub
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     Dim placeholders As Object
-    Dim maxIndex As Long
     Dim idx As Long
     Dim textValue As String
     Dim issues As Object
@@ -207,49 +472,51 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     Dim arr() As Variant
     Dim nextSlot As Long
 
+    EnsureMemberRecordsLoaded
+
+    If mMemberCount = 0 Then
+        BuildPlaceholderPairs = Array()
+        Exit Function
+    End If
+
+    If memberIndex < 1 Or memberIndex > mMemberCount Then
+        memberIndex = 1
+    End If
+
     Set placeholders = CreateObject("Scripting.Dictionary")
     On Error Resume Next
     placeholders.CompareMode = vbTextCompare
     On Error GoTo 0
 
-    maxIndex = DetermineMaxMemberIndex()
-    If maxIndex < 1 Then maxIndex = 1
-
-    For idx = 1 To maxIndex
-        If ControlExists("lblNM" & CStr(idx)) Then
-            textValue = SafeText(GetLabelCaptionByName("lblNM" & CStr(idx)))
-            AddPlaceholderValue placeholders, "NAME" & CStr(idx), textValue
-            If idx = memberIndex Then
-                AddPlaceholderValue placeholders, "NAME", textValue
-                AddPlaceholderValue placeholders, "MEMBERNAME", textValue
-                AddPlaceholderValue placeholders, "SELECTEDNAME", textValue
-                AddPlaceholderValue placeholders, "PRIMARYNAME", textValue
-                AddPlaceholderValue placeholders, "CURRENTNAME", textValue
-            End If
+    For idx = 1 To mMemberCount
+        textValue = SafeText(GetMemberNameValue(idx))
+        AddPlaceholderValue placeholders, "NAME" & CStr(idx), textValue
+        If idx = memberIndex Then
+            AddPlaceholderValue placeholders, "NAME", textValue
+            AddPlaceholderValue placeholders, "MEMBERNAME", textValue
+            AddPlaceholderValue placeholders, "SELECTEDNAME", textValue
+            AddPlaceholderValue placeholders, "PRIMARYNAME", textValue
+            AddPlaceholderValue placeholders, "CURRENTNAME", textValue
         End If
 
-        If ControlExists("lblSSN" & CStr(idx)) Then
-            textValue = SafeText(GetLabelCaptionByName("lblSSN" & CStr(idx)))
-            AddPlaceholderValue placeholders, "SSN" & CStr(idx), textValue
-            If idx = memberIndex Then
-                AddPlaceholderValue placeholders, "SSN", textValue
-                AddPlaceholderValue placeholders, "MEMBERSSN", textValue
-                AddPlaceholderValue placeholders, "SELECTEDSSN", textValue
-                AddPlaceholderValue placeholders, "CURRENTSSN", textValue
-            End If
+        textValue = SafeText(GetMemberSSNValue(idx))
+        AddPlaceholderValue placeholders, "SSN" & CStr(idx), textValue
+        If idx = memberIndex Then
+            AddPlaceholderValue placeholders, "SSN", textValue
+            AddPlaceholderValue placeholders, "MEMBERSSN", textValue
+            AddPlaceholderValue placeholders, "SELECTEDSSN", textValue
+            AddPlaceholderValue placeholders, "CURRENTSSN", textValue
         End If
 
-        If ControlExists("lblSTAT" & CStr(idx)) Then
-            textValue = SafeText(GetLabelCaptionByName("lblSTAT" & CStr(idx)))
-            AddPlaceholderValue placeholders, "STAT" & CStr(idx), textValue
-            AddPlaceholderValue placeholders, "STATUS" & CStr(idx), textValue
-            If idx = memberIndex Then
-                AddPlaceholderValue placeholders, "STAT", textValue
-                AddPlaceholderValue placeholders, "STATUS", textValue
-                AddPlaceholderValue placeholders, "MEMBERSTATUS", textValue
-                AddPlaceholderValue placeholders, "SELECTEDSTATUS", textValue
-                AddPlaceholderValue placeholders, "CURRENTSTATUS", textValue
-            End If
+        textValue = SafeText(GetMemberStatusValue(idx))
+        AddPlaceholderValue placeholders, "STAT" & CStr(idx), textValue
+        AddPlaceholderValue placeholders, "STATUS" & CStr(idx), textValue
+        If idx = memberIndex Then
+            AddPlaceholderValue placeholders, "STAT", textValue
+            AddPlaceholderValue placeholders, "STATUS", textValue
+            AddPlaceholderValue placeholders, "MEMBERSTATUS", textValue
+            AddPlaceholderValue placeholders, "SELECTEDSTATUS", textValue
+            AddPlaceholderValue placeholders, "CURRENTSTATUS", textValue
         End If
     Next idx
 
@@ -407,24 +674,9 @@ Private Sub SortNumericKeys(ByRef keys As Variant)
 End Sub
 
 Private Function DetermineMaxMemberIndex() As Long
-    Dim ctrl As MSForms.Control
-    Dim maxIndex As Long
-    Dim idx As Long
+    EnsureMemberRecordsLoaded
 
-    maxIndex = 0
-    For Each ctrl In Me.Controls
-        If TypeOf ctrl Is MSForms.Label Then
-            idx = ExtractIndex(ctrl.Name, "lblNM")
-            If idx > maxIndex Then maxIndex = idx
-            idx = ExtractIndex(ctrl.Name, "lblSSN")
-            If idx > maxIndex Then maxIndex = idx
-            idx = ExtractIndex(ctrl.Name, "lblSTAT")
-            If idx > maxIndex Then maxIndex = idx
-        End If
-    Next ctrl
-
-    If maxIndex = 0 Then maxIndex = 1
-    DetermineMaxMemberIndex = maxIndex
+    DetermineMaxMemberIndex = mMemberCount
 End Function
 
 Private Function ExtractIndex(ByVal controlName As String, ByVal prefix As String) As Long
@@ -453,26 +705,6 @@ Private Function ExtractIndex(ByVal controlName As String, ByVal prefix As Strin
     If Len(digits) > 0 Then
         ExtractIndex = Val(digits)
     End If
-End Function
-
-Private Function GetLabelCaptionByName(ByVal controlName As String) As String
-    Dim ctrl As Object
-
-    On Error Resume Next
-    Set ctrl = Me.Controls(controlName)
-    If Not ctrl Is Nothing Then
-        GetLabelCaptionByName = SafeText(ctrl.caption)
-    End If
-    On Error GoTo 0
-End Function
-
-Private Function ControlExists(ByVal controlName As String) As Boolean
-    Dim ctrl As Object
-
-    On Error Resume Next
-    Set ctrl = Me.Controls(controlName)
-    ControlExists = Not ctrl Is Nothing
-    On Error GoTo 0
 End Function
 
 Private Sub AddPlaceholderValue(ByVal dict As Object, ByVal key As String, ByVal value As String, _
@@ -511,32 +743,31 @@ Private Sub HandleLabelMouseMove(ByVal target As MSForms.Label)
     End If
 End Sub
 
+Private Sub lblUP_Click()
+    ScrollMembers -1
+End Sub
+
+Private Sub lblDOWN_Click()
+    ScrollMembers 1
+End Sub
+
 Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
-    Dim statusLabelName As String
-    Dim statusControl As MSForms.Control
-    Dim statusLabel As MSForms.Label
     Dim currentStatus As String
+    Dim newStatus As String
 
-    statusLabelName = "lblSTAT" & CStr(memberIndex)
+    EnsureMemberRecordsLoaded
 
-    On Error Resume Next
-    Set statusControl = Me.Controls(statusLabelName)
-    On Error GoTo 0
+    If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Sub
 
-    If statusControl Is Nothing Then Exit Sub
-    If Not TypeOf statusControl Is MSForms.Label Then Exit Sub
+    currentStatus = GetMemberStatusValue(memberIndex)
 
-    Set statusLabel = statusControl
-
-    currentStatus = Trim$(statusLabel.caption)
-
-    If StrComp(currentStatus, "Draft", vbTextCompare) = 0 Then
-        statusLabel.caption = "Cancel"
+    If StrComp(currentStatus, DEFAULT_EMAIL_STATUS, vbTextCompare) = 0 Then
+        newStatus = "Cancel"
     Else
-        statusLabel.caption = "Draft"
+        newStatus = DEFAULT_EMAIL_STATUS
     End If
 
-    ApplyStatusColor statusLabel
+    SetMemberStatus memberIndex, newStatus, True
 End Sub
 
 Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
@@ -546,7 +777,7 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
 
     statusText = Trim$(statusLabel.caption)
 
-    If StrComp(statusText, "Draft", vbTextCompare) = 0 Then
+    If StrComp(statusText, DEFAULT_EMAIL_STATUS, vbTextCompare) = 0 Then
         statusLabel.ForeColor = vbGreen
     ElseIf StrComp(statusText, "Cancel", vbTextCompare) = 0 Then
         statusLabel.ForeColor = vbRed
@@ -630,12 +861,17 @@ Private Function BuildDraftWhitelist() As Object
     dict.CompareMode = vbTextCompare
     On Error GoTo 0
 
+    EnsureMemberRecordsLoaded
+
     maxIndex = DetermineMaxMemberIndex()
-    If maxIndex < 1 Then maxIndex = 1
+    If maxIndex < 1 Then
+        Set BuildDraftWhitelist = Nothing
+        Exit Function
+    End If
 
     For idx = 1 To maxIndex
-        statusCaption = GetLabelCaptionByName("lblSTAT" & CStr(idx))
-        If StrComp(statusCaption, "Draft", vbTextCompare) = 0 Then
+        statusCaption = GetMemberStatusValue(idx)
+        If StrComp(statusCaption, DEFAULT_EMAIL_STATUS, vbTextCompare) = 0 Then
             key = "IDX:" & CStr(idx)
             If Not dict.Exists(key) Then
                 dict.Add key, True
@@ -644,7 +880,7 @@ Private Function BuildDraftWhitelist() As Object
                 dict(key) = True
             End If
 
-            nameCaption = GetLabelCaptionByName("lblNM" & CStr(idx))
+            nameCaption = GetMemberNameValue(idx)
             If LenB(nameCaption) > 0 Then
                 key = "NAME:" & NormalizeDraftWhitelistValue(nameCaption)
                 dict(key) = True
@@ -663,12 +899,23 @@ Private Function NormalizeDraftWhitelistValue(ByVal value As String) As String
     NormalizeDraftWhitelistValue = UCase$(Trim$(value))
 End Function
 Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
+    EnsureMemberRecordsLoaded
+
+    If mMemberCount = 0 Then Exit Sub
+
+    If memberIndex < 1 Then
+        memberIndex = mFirstVisibleMemberIndex
+    End If
+
     If memberIndex < 1 Then
         memberIndex = 1
+    ElseIf memberIndex > mMemberCount Then
+        memberIndex = mMemberCount
     End If
 
     SelectedMemberIndex = memberIndex
     ToggleEmailStatus memberIndex
+    ApplyBodyPlaceholders mSelectedMemberIndex
 End Sub
 
 Private Sub bBE_Click()
@@ -680,7 +927,12 @@ Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL1_Click()
-    HandleEmailToggleClick 1
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(1)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -688,7 +940,12 @@ Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL2_Click()
-    HandleEmailToggleClick 2
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(2)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -696,7 +953,12 @@ Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL3_Click()
-    HandleEmailToggleClick 3
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(3)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -704,7 +966,12 @@ Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL4_Click()
-    HandleEmailToggleClick 4
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(4)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -712,7 +979,12 @@ Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL5_Click()
-    HandleEmailToggleClick 5
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(5)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -720,7 +992,12 @@ Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL6_Click()
-    HandleEmailToggleClick 6
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(6)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -728,7 +1005,12 @@ Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL7_Click()
-    HandleEmailToggleClick 7
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(7)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -736,6 +1018,11 @@ Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL8_Click()
-    HandleEmailToggleClick 8
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(8)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
 End Sub
 
