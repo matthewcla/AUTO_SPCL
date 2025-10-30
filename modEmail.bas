@@ -3,7 +3,8 @@ Option Explicit
 
 Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
                               Optional ByVal templateKey As String = vbNullString, _
-                              Optional ByVal attachmentEntries As Variant)
+                              Optional ByVal templateAttachmentEntries As Variant, _
+                              Optional ByVal userAttachmentEntries As Variant)
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
     Dim personName As String, toList As String, eligNote As String
@@ -13,8 +14,11 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
     Dim hasWhitelist As Boolean
     Dim memberIndex As Long
     Dim skipNote As String
-    Dim draftAttachments As Collection
-    Dim providedEntries As Collection
+    Dim templateAttachmentPaths As Collection
+    Dim userAttachmentPaths As Collection
+    Dim providedTemplateEntries As Collection
+    Dim providedUserEntries As Collection
+    Dim storedUserEntries As Collection
     Dim attachmentPath As Variant
     
     On Error GoTo CleanFail
@@ -43,33 +47,42 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         Exit Sub
     End If
 
-    If Not IsMissing(attachmentEntries) Then
-        If IsObject(attachmentEntries) Then
+    If Not IsMissing(templateAttachmentEntries) Then
+        If IsObject(templateAttachmentEntries) Then
             On Error Resume Next
-            Set providedEntries = attachmentEntries
+            Set providedTemplateEntries = templateAttachmentEntries
             On Error GoTo CleanFail
         End If
     End If
 
-    If Not providedEntries Is Nothing Then
-        Set draftAttachments = ResolveAttachmentPathsFromEntries(providedEntries)
+    If Not providedTemplateEntries Is Nothing Then
+        Set templateAttachmentPaths = ResolveAttachmentPathsFromEntries(providedTemplateEntries)
     End If
 
-    If draftAttachments Is Nothing Then
+    If templateAttachmentPaths Is Nothing Then
         If LenB(templateKey) > 0 Then
-            Set draftAttachments = GetValidatedTemplateAttachmentPaths(templateKey)
+            Set templateAttachmentPaths = GetValidatedTemplateAttachmentPaths(templateKey)
         End If
     End If
 
-    If Not IsMissing(userAttachments) Then
-        If IsObject(userAttachments) Then
+    If Not IsMissing(userAttachmentEntries) Then
+        If IsObject(userAttachmentEntries) Then
             On Error Resume Next
-            Set userAttachmentPaths = userAttachments
-            If Err.Number <> 0 Then
-                Err.Clear
-                Set userAttachmentPaths = Nothing
-            End If
+            Set providedUserEntries = userAttachmentEntries
             On Error GoTo CleanFail
+        End If
+    End If
+
+    If Not providedUserEntries Is Nothing Then
+        Set userAttachmentPaths = ResolveAttachmentPathsFromEntries(providedUserEntries)
+    End If
+
+    If userAttachmentPaths Is Nothing Then
+        If LenB(templateKey) > 0 Then
+            Set storedUserEntries = GetUserAttachmentEntries(templateKey)
+            If Not storedUserEntries Is Nothing Then
+                Set userAttachmentPaths = ResolveAttachmentPathsFromEntries(storedUserEntries)
+            End If
         End If
     End If
 
@@ -109,8 +122,8 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
             .CC = CC_LIST  ' hard-coded CCs (modify above)
             .Subject = Replace(SUBJECT_TEMPLATE, "{Name}", personName)
             .Body = BuildBody(personName, eligNote)
-            If Not draftAttachments Is Nothing Then
-                For Each attachmentPath In draftAttachments
+            If Not templateAttachmentPaths Is Nothing Then
+                For Each attachmentPath In templateAttachmentPaths
                     If LenB(Trim$(CStr(attachmentPath))) > 0 Then
                         On Error Resume Next
                         .Attachments.Add CStr(attachmentPath)
