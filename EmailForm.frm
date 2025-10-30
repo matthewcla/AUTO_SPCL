@@ -555,6 +555,31 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Sub bCF_Click()
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
+
+    SetCursorWait
+
+    Unload Me
+    ShowStartupFormOnce True
+
+CleanExit:
+    SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    MsgBox "Unable to cancel email creation: " & errDescription, vbCritical
+    Resume CleanExit
+End Sub
+
 Private Sub bCFC_Click()
     Dim errNumber As Long
     Dim errSource As String
