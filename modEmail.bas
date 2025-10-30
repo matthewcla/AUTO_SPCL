@@ -1,10 +1,6 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
-' ==== CONFIGURE THESE ====
-Private Const CC_LIST As String
-Private Const SUBJECT_TEMPLATE As string
-
 Public Sub CreateDraftsFromID()
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
@@ -143,6 +139,7 @@ Private Function BuildBody(ByVal personName As String, ByVal eligNote As String)
     bodyText = ReplacePlaceholdersArray(bodyText, replacements)
     BuildBody = bodyText
 End Function
+
 
 
 
