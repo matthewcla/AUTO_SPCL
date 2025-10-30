@@ -186,6 +186,55 @@ NextSelection:
     ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = AppendTemplateAttachments
 End Function
 
+Public Function GetTemplateAttachmentEntries(ByVal rawValue As String) As Collection
+    Set GetTemplateAttachmentEntries = ParseAttachmentEntries(rawValue)
+End Function
+
+Public Function NormalizeTemplateAttachmentPath(ByVal filePath As String) As String
+    NormalizeTemplateAttachmentPath = NormalizeAttachmentPath(filePath)
+End Function
+
+Public Function BuildTemplateAttachmentEntry(ByVal filePath As String) As String
+    BuildTemplateAttachmentEntry = BuildAttachmentEntry(filePath)
+End Function
+
+Public Function JoinTemplateAttachmentEntries(ByVal entries As Collection) As String
+    JoinTemplateAttachmentEntries = JoinAttachmentEntries(entries)
+End Function
+
+Public Function NormalizeTemplateAttachmentEntry(ByVal entry As String) As String
+    NormalizeTemplateAttachmentEntry = NormalizeAttachmentKey(entry)
+End Function
+
+Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
+                                               ByVal attachmentEntries As Collection) As String
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+    Dim finalValue As String
+
+    finalValue = JoinAttachmentEntries(attachmentEntries)
+
+    If LenB(templateKey) = 0 Then
+        WriteTemplateAttachmentEntries = finalValue
+        Exit Function
+    End If
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 515, "modEmailTemplates.WriteTemplateAttachmentEntries", _
+                  "Email template worksheet could not be found."
+    End If
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then
+        Err.Raise vbObjectError + 516, "modEmailTemplates.WriteTemplateAttachmentEntries", _
+                  "The selected template could not be found on the EmailTemplate worksheet."
+    End If
+
+    ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = finalValue
+    WriteTemplateAttachmentEntries = finalValue
+End Function
+
 Private Function ResolveTemplateColumn(ByVal ws As Worksheet, ByVal templateKey As String) As Long
     Dim lastCol As Long
     Dim colIndex As Long
