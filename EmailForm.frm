@@ -232,10 +232,10 @@ Private Sub LoadMemberRecords()
 
     If ws Is Nothing Then Exit Sub
 
-    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).row
     If lastRow < 2 Then Exit Sub
 
-    data = ws.Range("A2:B" & lastRow).Value
+    data = ws.Range("A2:B" & lastRow).value
     If Not IsArray(data) Then Exit Sub
 
     rowCount = UBound(data, 1)
@@ -807,7 +807,7 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
     Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
 
-    Set entries = GetTemplateAttachmentEntries(Me.txtAT.Value)
+    Set entries = GetTemplateAttachmentEntries(Me.txtAT.value)
     If entries Is Nothing Then Exit Sub
 
     For Each entry In entries
@@ -1084,7 +1084,7 @@ Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
     Set combined = BuildCombinedAttachmentEntries()
 
     resultText = JoinTemplateAttachmentEntries(combined)
-    Me.txtAT.Value = resultText
+    Me.txtAT.value = resultText
 
     ApplyAttachmentUpdates = resultText
 End Function
@@ -1100,9 +1100,9 @@ Private Sub bADD_Click()
 
     On Error GoTo CleanFail
 
-    templateKey = Trim$(Me.cboTemplate.Value)
+    templateKey = Trim$(Me.cboTemplate.value)
     If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.Value)
+        templateKey = Trim$(Me.txtTEMP.value)
     End If
 
     If LenB(templateKey) = 0 Then
@@ -1116,7 +1116,7 @@ Private Sub bADD_Click()
     If fd Is Nothing Then GoTo CleanExit
 
     With fd
-        .Title = "Select attachments to include"
+        .title = "Select attachments to include"
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "All Files", "*.*"
@@ -1145,7 +1145,7 @@ Private Sub bADD_Click()
     waitApplied = True
 
     updatedText = ApplyAttachmentUpdates(templateKey)
-    Me.txtAT.Value = updatedText
+    Me.txtAT.value = updatedText
 
 CleanExit:
     If waitApplied Then SetCursorDefault
@@ -1174,9 +1174,9 @@ Private Sub bSUB_Click()
 
     On Error GoTo CleanFail
 
-    templateKey = Trim$(Me.cboTemplate.Value)
+    templateKey = Trim$(Me.cboTemplate.value)
     If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.Value)
+        templateKey = Trim$(Me.txtTEMP.value)
     End If
 
     If LenB(templateKey) = 0 Then
@@ -1198,12 +1198,12 @@ Private Sub bSUB_Click()
     If fd Is Nothing Then GoTo CleanExit
 
     With fd
-        .Title = "Select attachments to remove"
+        .title = "Select attachments to remove"
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "All Files", "*.*"
         If LenB(initialFileName) > 0 Then
-            .InitialFileName = initialFileName
+            .initialFileName = initialFileName
         End If
         If .Show <> -1 Then GoTo CleanExit
         If .SelectedItems.Count = 0 Then GoTo CleanExit
@@ -1239,7 +1239,7 @@ NextSelection:
     waitApplied = True
 
     updatedText = ApplyAttachmentUpdates(templateKey)
-    Me.txtAT.Value = updatedText
+    Me.txtAT.value = updatedText
 
     If ignoredCount > 0 Then
         MsgBox "Some selected files were ignored because they belong to the template and cannot be removed.", _
@@ -1304,9 +1304,9 @@ Private Sub bCFC_Click()
         GoTo CleanExit
     End If
 
-    templateKey = Trim$(Me.cboTemplate.Value)
+    templateKey = Trim$(Me.cboTemplate.value)
     If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.Value)
+        templateKey = Trim$(Me.txtTEMP.value)
     End If
 
     Set attachmentEntries = BuildCombinedAttachmentEntries()
@@ -1506,4 +1506,5 @@ Private Sub lblL8_Click()
 
     HandleEmailToggleClick memberIndex
 End Sub
+
 
