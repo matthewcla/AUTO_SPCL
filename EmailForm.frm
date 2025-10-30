@@ -555,8 +555,17 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
+    If memberIndex < 1 Then
+        memberIndex = 1
+    End If
+
+    SelectedMemberIndex = memberIndex
+    ToggleEmailStatus memberIndex
+End Sub
+
 Private Sub bBE_Click()
-    ToggleEmailStatus SelectedMemberIndex
+    HandleEmailToggleClick SelectedMemberIndex
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -564,7 +573,7 @@ Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL1_Click()
-    ToggleEmailStatus 1
+    HandleEmailToggleClick 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -572,7 +581,7 @@ Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL2_Click()
-    ToggleEmailStatus 2
+    HandleEmailToggleClick 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -580,7 +589,7 @@ Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL3_Click()
-    ToggleEmailStatus 3
+    HandleEmailToggleClick 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -588,7 +597,7 @@ Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL4_Click()
-    ToggleEmailStatus 4
+    HandleEmailToggleClick 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -596,7 +605,7 @@ Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL5_Click()
-    ToggleEmailStatus 5
+    HandleEmailToggleClick 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -604,7 +613,7 @@ Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL6_Click()
-    ToggleEmailStatus 6
+    HandleEmailToggleClick 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -612,7 +621,7 @@ Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL7_Click()
-    ToggleEmailStatus 7
+    HandleEmailToggleClick 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -620,6 +629,6 @@ Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL8_Click()
-    ToggleEmailStatus 8
+    HandleEmailToggleClick 8
 End Sub
 
