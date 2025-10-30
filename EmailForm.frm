@@ -1204,6 +1204,7 @@ Private Sub bCFC_Click()
     Dim errSource As String
     Dim errDescription As String
     Dim whitelist As Object
+    Dim templateKey As String
 
     On Error GoTo CleanFail
 
@@ -1218,7 +1219,12 @@ Private Sub bCFC_Click()
         GoTo CleanExit
     End If
 
-    CreateDraftsFromID whitelist
+    templateKey = Trim$(Me.cboTemplate.Value)
+    If LenB(templateKey) = 0 Then
+        templateKey = Trim$(Me.txtTEMP.Value)
+    End If
+
+    CreateDraftsFromID whitelist, templateKey
 
 CleanExit:
     SetCursorDefault

@@ -236,6 +236,185 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
     WriteTemplateAttachmentEntries = finalValue
 End Function
 
+Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String) As Collection
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+    Dim originalNamesValue As String
+    Dim originalPathsValue As String
+    Dim nameValues As Collection
+    Dim pathValues As Collection
+    Dim validatedNames As Collection
+    Dim validatedPaths As Collection
+    Dim attachments As Collection
+    Dim idx As Long
+    Dim fileName As String
+    Dim filePath As String
+    Dim finalNamesValue As String
+    Dim finalPathsValue As String
+    Dim legacyValue As String
+    Dim legacyEntries As Collection
+    Dim entry As Variant
+
+    If LenB(templateKey) = 0 Then Exit Function
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then Exit Function
+
+    originalNamesValue = Trim$(CStrSafe(ws.Cells(4, templateColumn).Value))
+    originalPathsValue = Trim$(CStrSafe(ws.Cells(5, templateColumn).Value))
+
+    Set nameValues = CollectTemplateAttachmentValues(originalNamesValue)
+    Set pathValues = CollectTemplateAttachmentValues(originalPathsValue)
+
+    Set validatedNames = New Collection
+    Set validatedPaths = New Collection
+    Set attachments = New Collection
+
+    If Not pathValues Is Nothing Then
+        If pathValues.Count > 0 Then
+            For idx = 1 To pathValues.Count
+                filePath = Trim$(CStr(pathValues(idx)))
+                If LenB(filePath) = 0 Then GoTo NextAttachment
+
+                If nameValues Is Nothing Then
+                    fileName = vbNullString
+                ElseIf idx <= nameValues.Count Then
+                    fileName = Trim$(CStr(nameValues(idx)))
+                Else
+                    fileName = vbNullString
+                End If
+
+                If CheckIfAttachmentExists(fileName, filePath) Then
+                    If LenB(fileName) = 0 Then
+                        fileName = ExtractAttachmentFileName(filePath)
+                    End If
+                    validatedNames.Add fileName
+                    validatedPaths.Add filePath
+                    attachments.Add filePath
+                ElseIf LenB(filePath) > 0 Then
+                    If LenB(fileName) = 0 Then
+                        fileName = ExtractAttachmentFileName(filePath)
+                    End If
+                    validatedNames.Add fileName
+                    validatedPaths.Add filePath
+                End If
+NextAttachment:
+            Next idx
+
+            finalNamesValue = JoinCollectionValues(validatedNames)
+            finalPathsValue = JoinCollectionValues(validatedPaths)
+
+            If StrComp(originalNamesValue, finalNamesValue, vbBinaryCompare) <> 0 Then
+                ws.Cells(4, templateColumn).Value = finalNamesValue
+            End If
+
+            If StrComp(originalPathsValue, finalPathsValue, vbBinaryCompare) <> 0 Then
+                ws.Cells(5, templateColumn).Value = finalPathsValue
+            End If
+
+            If attachments.Count > 0 Then
+                Set GetValidatedTemplateAttachmentPaths = attachments
+            End If
+            Exit Function
+        End If
+    End If
+
+    legacyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    If LenB(legacyValue) = 0 Then Exit Function
+
+    Set legacyEntries = ParseAttachmentEntries(legacyValue)
+    If legacyEntries Is Nothing Then Exit Function
+    If legacyEntries.Count = 0 Then Exit Function
+
+    Set validatedNames = New Collection
+    Set validatedPaths = New Collection
+    Set attachments = New Collection
+
+    For Each entry In legacyEntries
+        filePath = ExtractAttachmentPath(CStr(entry))
+        If LenB(filePath) = 0 Then
+            filePath = Trim$(CStr(entry))
+        End If
+        If LenB(filePath) = 0 Then GoTo NextLegacy
+
+        fileName = ExtractAttachmentFileName(filePath)
+        If CheckIfAttachmentExists(fileName, filePath) Then
+            If LenB(fileName) = 0 Then
+                fileName = ExtractAttachmentFileName(filePath)
+            End If
+            validatedNames.Add fileName
+            validatedPaths.Add filePath
+            attachments.Add filePath
+        ElseIf LenB(filePath) > 0 Then
+            If LenB(fileName) = 0 Then
+                fileName = ExtractAttachmentFileName(filePath)
+            End If
+            validatedNames.Add fileName
+            validatedPaths.Add filePath
+        End If
+NextLegacy:
+    Next entry
+
+    finalNamesValue = JoinCollectionValues(validatedNames)
+    finalPathsValue = JoinCollectionValues(validatedPaths)
+
+    If StrComp(originalNamesValue, finalNamesValue, vbBinaryCompare) <> 0 Then
+        ws.Cells(4, templateColumn).Value = finalNamesValue
+    End If
+
+    If StrComp(originalPathsValue, finalPathsValue, vbBinaryCompare) <> 0 Then
+        ws.Cells(5, templateColumn).Value = finalPathsValue
+    End If
+
+    If attachments.Count = 0 Then Exit Function
+
+    Set GetValidatedTemplateAttachmentPaths = attachments
+End Function
+
+Public Function CheckIfAttachmentExists(ByRef fileName As String, _
+                                        ByRef filePath As String) As Boolean
+    Dim replacementEntry As String
+    Dim newPath As String
+    Dim newName As String
+
+    fileName = Trim$(fileName)
+    filePath = Trim$(filePath)
+
+    If LenB(filePath) = 0 Then Exit Function
+
+    If AttachmentFileExists(filePath) Then
+        If LenB(fileName) = 0 Then
+            fileName = ExtractAttachmentFileName(filePath)
+        End If
+        CheckIfAttachmentExists = True
+        Exit Function
+    End If
+
+    If HandleMissingAttachment(filePath, replacementEntry) Then
+        If LenB(replacementEntry) > 0 Then
+            newPath = ExtractAttachmentPath(replacementEntry)
+            If LenB(newPath) > 0 Then
+                filePath = newPath
+                newName = ExtractAttachmentFileName(newPath)
+                If LenB(newName) > 0 Then
+                    fileName = newName
+                ElseIf LenB(fileName) = 0 Then
+                    fileName = newPath
+                End If
+                If AttachmentFileExists(filePath) Then
+                    CheckIfAttachmentExists = True
+                End If
+            End If
+        End If
+    Else
+        fileName = vbNullString
+        filePath = vbNullString
+    End If
+End Function
+
 Private Function ResolveTemplateColumn(ByVal ws As Worksheet, ByVal templateKey As String) As Long
     Dim lastCol As Long
     Dim colIndex As Long
@@ -304,6 +483,49 @@ NextPart:
     End If
 
     Set ParseAttachmentEntries = entries
+End Function
+
+Private Function CollectTemplateAttachmentValues(ByVal rawValue As String) As Collection
+    Dim items As Collection
+    Dim normalized As String
+    Dim parts() As String
+    Dim part As Variant
+
+    Set items = New Collection
+
+    rawValue = Trim$(rawValue)
+    If LenB(rawValue) = 0 Then
+        Set CollectTemplateAttachmentValues = items
+        Exit Function
+    End If
+
+    normalized = Replace(rawValue, vbCrLf, vbLf)
+    normalized = Replace(normalized, vbCr, vbLf)
+    normalized = Replace(normalized, ";", vbLf)
+    normalized = Replace(normalized, ",", vbLf)
+
+    parts = Split(normalized, vbLf)
+    For Each part In parts
+        part = Trim$(CStr(part))
+        If LenB(part) > 0 Then items.Add CStr(part)
+    Next part
+
+    Set CollectTemplateAttachmentValues = items
+End Function
+
+Private Function JoinCollectionValues(ByVal items As Collection) As String
+    Dim arr() As String
+    Dim idx As Long
+
+    If items Is Nothing Then Exit Function
+    If items.Count = 0 Then Exit Function
+
+    ReDim arr(1 To items.Count)
+    For idx = 1 To items.Count
+        arr(idx) = Trim$(CStr(items(idx)))
+    Next idx
+
+    JoinCollectionValues = Join(arr, vbCrLf)
 End Function
 
 Private Function NormalizeAttachmentKey(ByVal entry As String) As String

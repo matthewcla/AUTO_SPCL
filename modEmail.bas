@@ -1,7 +1,8 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
-Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant)
+Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
+                              Optional ByVal templateKey As String = vbNullString)
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
     Dim personName As String, toList As String, eligNote As String
@@ -11,6 +12,8 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant)
     Dim hasWhitelist As Boolean
     Dim memberIndex As Long
     Dim skipNote As String
+    Dim templateAttachments As Collection
+    Dim attachmentPath As Variant
     
     On Error GoTo CleanFail
     
@@ -37,9 +40,13 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant)
         MsgBox "Unable to start Outlook.", vbCritical
         Exit Sub
     End If
-    
+
+    If LenB(templateKey) > 0 Then
+        Set templateAttachments = GetValidatedTemplateAttachmentPaths(templateKey)
+    End If
+
     Application.ScreenUpdating = False
-    
+
     For r = 2 To lastRow
         memberIndex = r - 1
         personName = Trim$(wsID.Cells(r, "B").Value)
@@ -74,6 +81,16 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant)
             .CC = CC_LIST  ' hard-coded CCs (modify above)
             .Subject = Replace(SUBJECT_TEMPLATE, "{Name}", personName)
             .Body = BuildBody(personName, eligNote)
+            If Not templateAttachments Is Nothing Then
+                For Each attachmentPath In templateAttachments
+                    If LenB(Trim$(CStr(attachmentPath))) > 0 Then
+                        On Error Resume Next
+                        .Attachments.Add CStr(attachmentPath)
+                        If Err.Number <> 0 Then Err.Clear
+                        On Error GoTo CleanFail
+                    End If
+                Next attachmentPath
+            End If
             .Save            ' <-- creates draft in Outlook Drafts
             ' .Display       ' (intentionally NOT displayed to keep it hidden)
         End With
