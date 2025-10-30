@@ -498,3 +498,47 @@ Private Function SafeText(ByVal value As Variant) As String
     If IsNull(value) Then Exit Function
     SafeText = Trim$(CStr(value))
 End Function
+
+Private Sub HandleLabelMouseMove(ByVal target As MSForms.Label)
+    If target Is Nothing Then Exit Sub
+
+    target.BorderStyle = fmBorderStyleSingle
+
+    If target.BorderStyle = fmBorderStyleSingle Then
+        target.BorderColor = vbWhite
+    Else
+        target.BorderColor = vbRed
+    End If
+End Sub
+
+Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL1
+End Sub
+
+Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL2
+End Sub
+
+Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL3
+End Sub
+
+Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL4
+End Sub
+
+Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL5
+End Sub
+
+Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL6
+End Sub
+
+Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL7
+End Sub
+
+Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    HandleLabelMouseMove Me.lblL8
+End Sub
