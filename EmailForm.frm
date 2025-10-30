@@ -1051,11 +1051,6 @@ Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
     resultText = JoinTemplateAttachmentEntries(combined)
     Me.txtAT.Value = resultText
 
-    If LenB(templateKey) > 0 Then
-        resultText = WriteTemplateAttachmentEntries(templateKey, combined)
-        Me.txtAT.Value = resultText
-    End If
-
     ApplyAttachmentUpdates = resultText
 End Function
 
@@ -1239,7 +1234,7 @@ Private Sub bCFC_Click()
     Dim errDescription As String
     Dim whitelist As Object
     Dim templateKey As String
-    Dim userAttachments As Collection
+    Dim attachmentEntries As Collection
 
     On Error GoTo CleanFail
 
@@ -1259,9 +1254,9 @@ Private Sub bCFC_Click()
         templateKey = Trim$(Me.txtTEMP.Value)
     End If
 
-    Set userAttachments = BuildUserAttachmentPaths()
+    Set attachmentEntries = BuildCombinedAttachmentEntries()
 
-    CreateDraftsFromID whitelist, templateKey, userAttachments
+    CreateDraftsFromID whitelist, templateKey, attachmentEntries
 
 CleanExit:
     SetCursorDefault

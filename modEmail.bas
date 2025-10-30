@@ -3,7 +3,7 @@ Option Explicit
 
 Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
                               Optional ByVal templateKey As String = vbNullString, _
-                              Optional ByVal userAttachments As Variant)
+                              Optional ByVal attachmentEntries As Variant)
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
     Dim personName As String, toList As String, eligNote As String
@@ -13,8 +13,8 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
     Dim hasWhitelist As Boolean
     Dim memberIndex As Long
     Dim skipNote As String
-    Dim templateAttachments As Collection
-    Dim userAttachmentPaths As Collection
+    Dim draftAttachments As Collection
+    Dim providedEntries As Collection
     Dim attachmentPath As Variant
     
     On Error GoTo CleanFail
@@ -43,8 +43,22 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         Exit Sub
     End If
 
-    If LenB(templateKey) > 0 Then
-        Set templateAttachments = GetValidatedTemplateAttachmentPaths(templateKey)
+    If Not IsMissing(attachmentEntries) Then
+        If IsObject(attachmentEntries) Then
+            On Error Resume Next
+            Set providedEntries = attachmentEntries
+            On Error GoTo CleanFail
+        End If
+    End If
+
+    If Not providedEntries Is Nothing Then
+        Set draftAttachments = ResolveAttachmentPathsFromEntries(providedEntries)
+    End If
+
+    If draftAttachments Is Nothing Then
+        If LenB(templateKey) > 0 Then
+            Set draftAttachments = GetValidatedTemplateAttachmentPaths(templateKey)
+        End If
     End If
 
     If Not IsMissing(userAttachments) Then
@@ -95,8 +109,8 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
             .CC = CC_LIST  ' hard-coded CCs (modify above)
             .Subject = Replace(SUBJECT_TEMPLATE, "{Name}", personName)
             .Body = BuildBody(personName, eligNote)
-            If Not templateAttachments Is Nothing Then
-                For Each attachmentPath In templateAttachments
+            If Not draftAttachments Is Nothing Then
+                For Each attachmentPath In draftAttachments
                     If LenB(Trim$(CStr(attachmentPath))) > 0 Then
                         On Error Resume Next
                         .Attachments.Add CStr(attachmentPath)

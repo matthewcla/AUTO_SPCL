@@ -323,6 +323,77 @@ NextEntry:
     End If
 End Function
 
+Public Function ResolveAttachmentPathsFromEntries(ByVal entries As Collection) As Collection
+    Dim attachments As Collection
+    Dim entry As Variant
+    Dim entryValue As String
+    Dim fileName As String
+    Dim filePath As String
+    Dim replacementEntry As String
+    Dim attachmentExists As Boolean
+    Dim normalizedKey As String
+    Dim seen As Object
+
+    If entries Is Nothing Then Exit Function
+    If entries.Count = 0 Then Exit Function
+
+    Set attachments = New Collection
+    Set seen = CreateObject("Scripting.Dictionary")
+    If Not seen Is Nothing Then
+        On Error Resume Next
+        seen.CompareMode = vbTextCompare
+        On Error GoTo 0
+    End If
+
+    For Each entry In entries
+        entryValue = CStr(entry)
+        filePath = ExtractAttachmentPath(entryValue)
+        If LenB(filePath) = 0 Then
+            filePath = Trim$(entryValue)
+        End If
+        If LenB(filePath) = 0 Then GoTo NextEntry
+
+        fileName = ExtractAttachmentEntryName(entryValue)
+        If LenB(fileName) = 0 Then
+            fileName = ExtractAttachmentFileName(filePath)
+        End If
+
+        attachmentExists = AttachmentFileExists(filePath)
+
+        If Not attachmentExists Then
+            replacementEntry = vbNullString
+            If HandleMissingAttachment(filePath, replacementEntry) Then
+                If LenB(replacementEntry) > 0 Then
+                    filePath = ExtractAttachmentPath(replacementEntry)
+                    If LenB(filePath) = 0 Then
+                        filePath = Trim$(replacementEntry)
+                    End If
+                    fileName = ExtractAttachmentEntryName(replacementEntry)
+                    If LenB(fileName) = 0 Then
+                        fileName = ExtractAttachmentFileName(filePath)
+                    End If
+                    attachmentExists = AttachmentFileExists(filePath)
+                End If
+            End If
+        End If
+
+        If Not attachmentExists Then GoTo NextEntry
+
+        normalizedKey = NormalizeAttachmentPath(filePath)
+        If Not seen Is Nothing Then
+            If seen.Exists(normalizedKey) Then GoTo NextEntry
+            seen(normalizedKey) = True
+        End If
+
+        attachments.Add filePath
+NextEntry:
+    Next entry
+
+    If attachments.Count > 0 Then
+        Set ResolveAttachmentPathsFromEntries = attachments
+    End If
+End Function
+
 Public Function CheckIfAttachmentExists(ByRef fileName As String, _
                                         ByRef filePath As String) As Boolean
     Dim replacementEntry As String
