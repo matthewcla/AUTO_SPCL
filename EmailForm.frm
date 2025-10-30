@@ -1,6 +1,6 @@
 VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} EmailForm
-   ClientHeight    =   12285
+Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} EmailForm 
+   ClientHeight    =   11760
    ClientLeft      =   120
    ClientTop       =   465
    ClientWidth     =   14355
@@ -37,6 +37,10 @@ Private Const WS_CAPTION As Long = &HC00000
 
 Private titleBarHidden As Boolean
 
+Private Sub lblTempL_Click()
+
+End Sub
+
 Private Sub UserForm_Initialize()
     Dim errNumber As Long
     Dim errSource As String
@@ -60,7 +64,7 @@ CleanFail:
     Resume CleanExit
 End Sub
 
-Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+Private Sub UserForm_QueryClose(cancel As Integer, CloseMode As Integer)
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -85,10 +89,6 @@ Private Sub UserForm_Activate()
     If Not titleBarHidden Then
         HideTitleBar
     End If
-End Sub
-
-Private Sub UserForm_Click()
-
 End Sub
 
 Private Sub HideTitleBar()
@@ -120,3 +120,4 @@ Private Sub HideTitleBar()
 
     titleBarHidden = True
 End Sub
+
