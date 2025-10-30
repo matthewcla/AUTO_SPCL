@@ -655,9 +655,6 @@ Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL1_Click()
-    ToggleEmailStatus 1
-End Sub
-Private Sub lblL1_Click()
     HandleEmailToggleClick 1
 End Sub
 
