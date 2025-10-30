@@ -39,6 +39,11 @@ Private Const MSO_FILE_DIALOG_FILE_PICKER As Long = 3
 Private titleBarHidden As Boolean
 Private mOriginalBodyTemplate As String
 Private mSelectedMemberIndex As Long
+Private mTemplateAttachmentEntries As Collection
+Private mTemplateAttachmentLookup As Object
+Private mUserAttachmentEntries As Collection
+Private mUserAttachmentLookup As Object
+Private mCurrentTemplateKey As String
 
 Private Type MemberRecord
     Name As String
@@ -80,6 +85,8 @@ Private Sub UserForm_Initialize()
                               Me.txtTO, Me.txtCC, Me.txtAT, _
                               Me.txtSubj, Me.txtBody, Me.txtSignature
     End If
+
+    InitializeAttachmentTracking templateKey
 
     LoadMemberRecords
 
@@ -787,13 +794,245 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
+Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
+    Dim entries As Collection
+    Dim entry As Variant
+    Dim normalizedKey As String
+
+    mCurrentTemplateKey = templateKey
+
+    Set mTemplateAttachmentEntries = New Collection
+    Set mUserAttachmentEntries = New Collection
+
+    Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
+    Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
+
+    Set entries = GetTemplateAttachmentEntries(Me.txtAT.Value)
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        mTemplateAttachmentEntries.Add CStr(entry)
+        normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+        If LenB(normalizedKey) = 0 Then GoTo NextEntry
+        If Not mTemplateAttachmentLookup Is Nothing Then
+            If Not mTemplateAttachmentLookup.Exists(normalizedKey) Then
+                mTemplateAttachmentLookup(normalizedKey) = True
+            End If
+        End If
+NextEntry:
+    Next entry
+End Sub
+
+Private Sub EnsureAttachmentTracking(ByVal templateKey As String)
+    If StrComp(Trim$(mCurrentTemplateKey), Trim$(templateKey), vbTextCompare) <> 0 Then
+        InitializeAttachmentTracking templateKey
+        Exit Sub
+    End If
+
+    If mTemplateAttachmentEntries Is Nothing Then
+        InitializeAttachmentTracking templateKey
+        Exit Sub
+    End If
+
+    If mUserAttachmentEntries Is Nothing Then
+        Set mUserAttachmentEntries = New Collection
+    End If
+
+    If mTemplateAttachmentLookup Is Nothing Then
+        Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
+        RebuildLookupFromCollection mTemplateAttachmentLookup, mTemplateAttachmentEntries
+    End If
+
+    If mUserAttachmentLookup Is Nothing Then
+        Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
+        RebuildLookupFromCollection mUserAttachmentLookup, mUserAttachmentEntries
+    End If
+End Sub
+
+Private Sub RebuildLookupFromCollection(ByRef dict As Object, ByVal entries As Collection)
+    Dim entry As Variant
+    Dim normalizedKey As String
+
+    If dict Is Nothing Then Exit Sub
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+        If LenB(normalizedKey) > 0 Then
+            If Not dict.Exists(normalizedKey) Then
+                dict(normalizedKey) = True
+            End If
+        End If
+    Next entry
+End Sub
+
+Private Function CreateCaseInsensitiveDictionary() As Object
+    Dim dict As Object
+
+    On Error Resume Next
+    Set dict = CreateObject("Scripting.Dictionary")
+    If Not dict Is Nothing Then
+        dict.CompareMode = vbTextCompare
+    End If
+    On Error GoTo 0
+
+    Set CreateCaseInsensitiveDictionary = dict
+End Function
+
+Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
+    Dim normalizedKey As String
+    Dim entry As String
+
+    normalizedKey = NormalizeTemplateAttachmentPath(filePath)
+    If LenB(normalizedKey) = 0 Then Exit Function
+
+    If AttachmentExistsInTemplate(normalizedKey) Then Exit Function
+    If AttachmentExistsInUser(normalizedKey) Then Exit Function
+
+    entry = BuildTemplateAttachmentEntry(filePath)
+    If LenB(entry) = 0 Then Exit Function
+
+    If mUserAttachmentEntries Is Nothing Then
+        Set mUserAttachmentEntries = New Collection
+    End If
+    mUserAttachmentEntries.Add entry
+
+    If Not mUserAttachmentLookup Is Nothing Then
+        mUserAttachmentLookup(normalizedKey) = True
+    End If
+
+    AddUserAttachmentFromPath = True
+End Function
+
+Private Function RemoveUserAttachmentFromPath(ByVal filePath As String) As Boolean
+    Dim normalizedKey As String
+
+    normalizedKey = NormalizeTemplateAttachmentPath(filePath)
+    If LenB(normalizedKey) = 0 Then Exit Function
+
+    If AttachmentExistsInTemplate(normalizedKey) Then Exit Function
+    If Not AttachmentExistsInUser(normalizedKey) Then Exit Function
+
+    RemoveUserAttachmentByNormalizedKey normalizedKey
+    RemoveUserAttachmentFromPath = True
+End Function
+
+Private Sub RemoveUserAttachmentByNormalizedKey(ByVal normalizedKey As String)
+    Dim filtered As Collection
+    Dim entry As Variant
+    Dim entryKey As String
+    Dim removed As Boolean
+
+    If mUserAttachmentEntries Is Nothing Then Exit Sub
+
+    Set filtered = New Collection
+
+    For Each entry In mUserAttachmentEntries
+        entryKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+        If LenB(entryKey) = 0 Then
+            filtered.Add CStr(entry)
+        ElseIf Not removed And StrComp(entryKey, normalizedKey, vbTextCompare) = 0 Then
+            removed = True
+        Else
+            filtered.Add CStr(entry)
+        End If
+    Next entry
+
+    Set mUserAttachmentEntries = filtered
+
+    If Not mUserAttachmentLookup Is Nothing Then
+        If mUserAttachmentLookup.Exists(normalizedKey) Then
+            mUserAttachmentLookup.Remove normalizedKey
+        End If
+    End If
+End Sub
+
+Private Function AttachmentExistsInTemplate(ByVal normalizedKey As String) As Boolean
+    If LenB(normalizedKey) = 0 Then Exit Function
+
+    If Not mTemplateAttachmentLookup Is Nothing Then
+        AttachmentExistsInTemplate = mTemplateAttachmentLookup.Exists(normalizedKey)
+        Exit Function
+    End If
+
+    AttachmentExistsInTemplate = CollectionContainsNormalized(mTemplateAttachmentEntries, normalizedKey)
+End Function
+
+Private Function AttachmentExistsInUser(ByVal normalizedKey As String) As Boolean
+    If LenB(normalizedKey) = 0 Then Exit Function
+
+    If Not mUserAttachmentLookup Is Nothing Then
+        AttachmentExistsInUser = mUserAttachmentLookup.Exists(normalizedKey)
+        Exit Function
+    End If
+
+    AttachmentExistsInUser = CollectionContainsNormalized(mUserAttachmentEntries, normalizedKey)
+End Function
+
+Private Function CollectionContainsNormalized(ByVal entries As Collection, _
+                                              ByVal normalizedKey As String) As Boolean
+    Dim entry As Variant
+    Dim entryKey As String
+
+    If entries Is Nothing Then Exit Function
+
+    For Each entry In entries
+        entryKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+        If LenB(entryKey) = 0 Then GoTo NextEntry
+        If StrComp(entryKey, normalizedKey, vbTextCompare) = 0 Then
+            CollectionContainsNormalized = True
+            Exit Function
+        End If
+NextEntry:
+    Next entry
+End Function
+
+Private Function BuildCombinedAttachmentEntries() As Collection
+    Dim combined As Collection
+    Dim entry As Variant
+
+    Set combined = New Collection
+
+    If Not mTemplateAttachmentEntries Is Nothing Then
+        For Each entry In mTemplateAttachmentEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    If Not mUserAttachmentEntries Is Nothing Then
+        For Each entry In mUserAttachmentEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    Set BuildCombinedAttachmentEntries = combined
+End Function
+
+Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
+    Dim combined As Collection
+    Dim resultText As String
+
+    Set combined = BuildCombinedAttachmentEntries()
+
+    resultText = JoinTemplateAttachmentEntries(combined)
+    Me.txtAT.Value = resultText
+
+    If LenB(templateKey) > 0 Then
+        resultText = WriteTemplateAttachmentEntries(templateKey, combined)
+        Me.txtAT.Value = resultText
+    End If
+
+    ApplyAttachmentUpdates = resultText
+End Function
+
 Private Sub bADD_Click()
     Dim fd As FileDialog
     Dim selectedPaths As Collection
     Dim selectedItem As Variant
     Dim templateKey As String
-    Dim updatedText As String
     Dim waitApplied As Boolean
+    Dim addedCount As Long
+    Dim updatedText As String
 
     On Error GoTo CleanFail
 
@@ -806,6 +1045,8 @@ Private Sub bADD_Click()
         MsgBox "Please select a template before adding attachments.", vbExclamation
         GoTo CleanExit
     End If
+
+    EnsureAttachmentTracking templateKey
 
     Set fd = Application.FileDialog(MSO_FILE_DIALOG_FILE_PICKER)
     If fd Is Nothing Then GoTo CleanExit
@@ -828,10 +1069,18 @@ Private Sub bADD_Click()
     If selectedPaths Is Nothing Then GoTo CleanExit
     If selectedPaths.Count = 0 Then GoTo CleanExit
 
+    For Each selectedItem In selectedPaths
+        If AddUserAttachmentFromPath(CStr(selectedItem)) Then
+            addedCount = addedCount + 1
+        End If
+    Next selectedItem
+
+    If addedCount = 0 Then GoTo CleanExit
+
     SetCursorWait
     waitApplied = True
 
-    updatedText = AppendTemplateAttachments(templateKey, selectedPaths)
+    updatedText = ApplyAttachmentUpdates(templateKey)
     Me.txtAT.Value = updatedText
 
 CleanExit:
@@ -843,6 +1092,85 @@ CleanExit:
 CleanFail:
     If waitApplied Then SetCursorDefault
     MsgBox "Unable to add attachments: " & Err.Description, vbCritical
+    Resume CleanExit
+End Sub
+
+Private Sub bSUB_Click()
+    Dim fd As FileDialog
+    Dim selectedPaths As Collection
+    Dim selectedItem As Variant
+    Dim templateKey As String
+    Dim waitApplied As Boolean
+    Dim removedCount As Long
+    Dim updatedText As String
+
+    On Error GoTo CleanFail
+
+    templateKey = Trim$(Me.cboTemplate.Value)
+    If LenB(templateKey) = 0 Then
+        templateKey = Trim$(Me.txtTEMP.Value)
+    End If
+
+    If LenB(templateKey) = 0 Then
+        MsgBox "Please select a template before removing attachments.", vbExclamation
+        GoTo CleanExit
+    End If
+
+    EnsureAttachmentTracking templateKey
+
+    If mUserAttachmentEntries Is Nothing Or mUserAttachmentEntries.Count = 0 Then
+        MsgBox "There are no user-added attachments to remove.", vbInformation
+        GoTo CleanExit
+    End If
+
+    Set fd = Application.FileDialog(MSO_FILE_DIALOG_FILE_PICKER)
+    If fd Is Nothing Then GoTo CleanExit
+
+    With fd
+        .Title = "Select attachments to remove"
+        .AllowMultiSelect = True
+        .Filters.Clear
+        .Filters.Add "All Files", "*.*"
+        If .Show <> -1 Then GoTo CleanExit
+        If .SelectedItems.Count = 0 Then GoTo CleanExit
+        Set selectedPaths = New Collection
+        For Each selectedItem In .SelectedItems
+            If LenB(CStr(selectedItem)) > 0 Then
+                selectedPaths.Add CStr(selectedItem)
+            End If
+        Next selectedItem
+    End With
+
+    If selectedPaths Is Nothing Then GoTo CleanExit
+    If selectedPaths.Count = 0 Then GoTo CleanExit
+
+    For Each selectedItem In selectedPaths
+        If RemoveUserAttachmentFromPath(CStr(selectedItem)) Then
+            removedCount = removedCount + 1
+        End If
+    Next selectedItem
+
+    If removedCount = 0 Then
+        MsgBox "None of the selected files were added by this draft. Template attachments cannot be removed.", _
+               vbInformation
+        GoTo CleanExit
+    End If
+
+    SetCursorWait
+    waitApplied = True
+
+    updatedText = ApplyAttachmentUpdates(templateKey)
+    Me.txtAT.Value = updatedText
+
+CleanExit:
+    If waitApplied Then SetCursorDefault
+    Set fd = Nothing
+    Set selectedPaths = Nothing
+    Exit Sub
+
+CleanFail:
+    If waitApplied Then SetCursorDefault
+    MsgBox "Unable to remove attachments: " & Err.Description, vbCritical
     Resume CleanExit
 End Sub
 
