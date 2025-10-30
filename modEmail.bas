@@ -9,17 +9,17 @@ Private Const SUBJECT_TEMPLATE As String = "CDR CMD Record Review"
 ' Add any other fixed lines you need. Use vbCrLf for new lines.
 Private Const BODY_TEMPLATE As String = _
     "Greetings from Millington!" & vbCrLf & vbCrLf & _
-    "We are in the process of doing our initial round of record reviews for the FY-27 CDR CMD board taking place from 8-12 December 2025.  Below are items that require your immediate attention from our internal review; however, we also request you review your personal OSR/PSR in BOL for accuracy and to ensure alignment with anything we may find missing or inaccurate." & vbCrLf & vbCrLf & _
+    "We are in the process of doing our initial round of record reviews for the FY-27 CDR CMD board taking place from 8-12 December 2025.Â  Below are items that require your immediate attention from our internal review; however, we also request you review your personal OSR/PSR in BOL for accuracy and to ensure alignment with anything we may find missing or inaccurate." & vbCrLf & vbCrLf & _
     "Noted issues: " & vbCrLf & vbCrLf & _
     "{EligiblesNote}" & vbCrLf & vbCrLf & _
-    "I'm here to assist you in resolving the above discrepancies.  Let me know if any information is incorrect and we will work to resolve the issues before the board in December." & vbCrLf & vbCrLf & _
-    "If you have missing AQDs I am able to add those to your record, but will require appropriate documentation (with the exception of Joint-related AQDs).  For any FITREP related issues, you will need to work with MNCC (askmncc@navy.mil) to resolve those issues and anything that can’t be resolved before the board must be submitted via BOL as a letter to the board (LTB) – if in doubt, just submit a LTB as backup to be sure.  As a detailer, I am unable to fix FITREP issues, or upload FITREPs into your OMPF/record." & vbCrLf & vbCrLf & _
-    "Keep in mind that any items submitted as a LTB will not permanently be fixed in your record but only temporarily for that particular board.  LTBs must be submitted via BOL ESSBD NLT 28 November to be accepted, and request you also email me a copy of your submitted LTB for our internal records since we do not have access to your LTB as detailers." & vbCrLf & vbCrLf & _
-    "Also be aware that we do not know what awards you've received throughout your career, so this is an item we are unable to verify on your behalf.  If any awards are missing from your OSR just submit as a LTB to fix for the board." & vbCrLf & vbCrLf & _
-    "MyNavyHR contains a plethora of helpful information regarding all things career and record related.  I highly recommend you utilize MyNavyHR to answer any immediate questions you may have.  The below links may be particularly useful.  The second link takes you to the PERS-41 homepage --> Click the [Officer Record Management Guide] hyperlink on the right side of the page for a great record management tool." & vbCrLf & vbCrLf & _
+    "I'm here to assist you in resolving the above discrepancies.Â  Let me know if any information is incorrect and we will work to resolve the issues before the board in December." & vbCrLf & vbCrLf & _
+    "If you have missing AQDs I am able to add those to your record, but will require appropriate documentation (with the exception of Joint-related AQDs).Â  For any FITREP related issues, you will need to work with MNCC (askmncc@navy.mil) to resolve those issues and anything that canâ€™t be resolved before the board must be submitted via BOL as a letter to the board (LTB) â€“ if in doubt, just submit a LTB as backup to be sure.Â  As a detailer, I am unable to fix FITREP issues, or upload FITREPs into your OMPF/record." & vbCrLf & vbCrLf & _
+    "Keep in mind that any items submitted as a LTB will not permanently be fixed in your record but only temporarily for that particular board.Â  LTBs must be submitted via BOL ESSBD NLT 28 NovemberÂ to be accepted, and request you also email me a copy of your submitted LTB for our internal records since we do not have access to your LTB as detailers." & vbCrLf & vbCrLf & _
+    "Also be aware that we do not know what awards you've received throughout your career, so this is an item we are unable to verify on your behalf.Â  If any awards are missing from your OSR just submit as a LTB to fix for the board." & vbCrLf & vbCrLf & _
+    "MyNavyHR contains a plethora of helpful information regarding all things career and record related.Â  I highly recommend you utilize MyNavyHR to answer any immediate questions you may have.Â  The below links may be particularly useful.Â  The second link takes you to the PERS-41 homepage --> Click the [Officer Record Management Guide] hyperlink on the right side of the page for a great record management tool." & vbCrLf & vbCrLf & _
     "https://www.mynavyhr.navy.mil/Career-Management/Detailing/Officer/Pers-41-SWO/Detailers/410-411/" & vbCrLf & vbCrLf & _
     "https://www.mynavyhr.navy.mil/Career-Management/Detailing/Officer/Pers-41-SWO/" & vbCrLf & vbCrLf & _
-    "Let me know if you have any questions or require further guidance and/or assistance.  Thank you, and have a great day!" & vbCrLf & _
+    "Let me know if you have any questions or require further guidance and/or assistance.Â  Thank you, and have a great day!" & vbCrLf & _
     "Very respectfully," & vbCrLf & _
     "Alex"
 
@@ -140,9 +140,25 @@ End Function
 ' Build the email body by replacing placeholders in BODY_TEMPLATE.
 Private Function BuildBody(ByVal personName As String, ByVal eligNote As String) As String
     Dim bodyText As String
+    Dim noteText As String
+    Dim replacements As Variant
+
     bodyText = BODY_TEMPLATE
-    bodyText = Replace(bodyText, "{Name}", personName)
-    bodyText = Replace(bodyText, "{EligiblesNote}", IIf(Len(eligNote) > 0, eligNote, "(no note found)"))
+
+    If LenB(eligNote) > 0 Then
+        noteText = eligNote
+    Else
+        noteText = "(no note found)"
+    End If
+
+    replacements = Array( _
+        "Name", personName, _
+        "EligiblesNote", noteText, _
+        "ISSUES", noteText, _
+        "ISSUE", noteText _
+    )
+
+    bodyText = ReplacePlaceholdersArray(bodyText, replacements)
     BuildBody = bodyText
 End Function
 
