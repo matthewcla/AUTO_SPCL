@@ -2,7 +2,8 @@ Attribute VB_Name = "modEmail"
 Option Explicit
 
 Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
-                              Optional ByVal templateKey As String = vbNullString)
+                              Optional ByVal templateKey As String = vbNullString, _
+                              Optional ByVal userAttachments As Variant)
     Dim wsID As Worksheet, wsElig As Worksheet
     Dim lastRow As Long, r As Long
     Dim personName As String, toList As String, eligNote As String
@@ -13,6 +14,7 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
     Dim memberIndex As Long
     Dim skipNote As String
     Dim templateAttachments As Collection
+    Dim userAttachmentPaths As Collection
     Dim attachmentPath As Variant
     
     On Error GoTo CleanFail
@@ -43,6 +45,18 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
 
     If LenB(templateKey) > 0 Then
         Set templateAttachments = GetValidatedTemplateAttachmentPaths(templateKey)
+    End If
+
+    If Not IsMissing(userAttachments) Then
+        If IsObject(userAttachments) Then
+            On Error Resume Next
+            Set userAttachmentPaths = userAttachments
+            If Err.Number <> 0 Then
+                Err.Clear
+                Set userAttachmentPaths = Nothing
+            End If
+            On Error GoTo CleanFail
+        End If
     End If
 
     Application.ScreenUpdating = False
@@ -83,6 +97,16 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
             .Body = BuildBody(personName, eligNote)
             If Not templateAttachments Is Nothing Then
                 For Each attachmentPath In templateAttachments
+                    If LenB(Trim$(CStr(attachmentPath))) > 0 Then
+                        On Error Resume Next
+                        .Attachments.Add CStr(attachmentPath)
+                        If Err.Number <> 0 Then Err.Clear
+                        On Error GoTo CleanFail
+                    End If
+                Next attachmentPath
+            End If
+            If Not userAttachmentPaths Is Nothing Then
+                For Each attachmentPath In userAttachmentPaths
                     If LenB(Trim$(CStr(attachmentPath))) > 0 Then
                         On Error Resume Next
                         .Attachments.Add CStr(attachmentPath)
