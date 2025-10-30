@@ -942,6 +942,143 @@ Private Function AttachmentFileExists(ByVal filePath As String) As Boolean
     AttachmentFileExists = LenB(resolvedPath) > 0
 End Function
 
+Private Function ResolveActiveTemplateKeyFromForm() As String
+    Dim frm As Object
+    Dim resolved As String
+
+    On Error Resume Next
+    For Each frm In VBA.UserForms
+        If StrComp(TypeName(frm), "EmailForm", vbTextCompare) = 0 Then
+            resolved = Trim$(CStr(frm.txtTEMP.Value))
+            If LenB(resolved) = 0 Then
+                resolved = Trim$(CStr(frm.cboTemplate.Value))
+            End If
+            Exit For
+        End If
+    Next frm
+    On Error GoTo 0
+
+    ResolveActiveTemplateKeyFromForm = resolved
+End Function
+
+Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String, _
+                                                     ByVal replacementPath As String)
+    Dim templateKey As String
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+    Dim normalizedMissing As String
+    Dim replacementName As String
+    Dim attachmentEntries As Collection
+    Dim updatedEntries As Collection
+    Dim entry As Variant
+    Dim entryValue As String
+    Dim entryPath As String
+    Dim candidateKey As String
+    Dim templateUpdated As Boolean
+    Dim nameValues As Collection
+    Dim pathValues As Collection
+    Dim updatedNameValues As Collection
+    Dim updatedPathValues As Collection
+    Dim maxCount As Long
+    Dim idx As Long
+    Dim entryName As String
+    Dim userUpdated As Boolean
+
+    replacementPath = Trim$(replacementPath)
+    If LenB(replacementPath) = 0 Then Exit Sub
+
+    templateKey = ResolveActiveTemplateKeyFromForm()
+    If LenB(templateKey) = 0 Then Exit Sub
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then Exit Sub
+
+    normalizedMissing = NormalizeAttachmentPath(missingPath)
+    If LenB(normalizedMissing) = 0 Then Exit Sub
+
+    replacementName = ExtractAttachmentFileName(replacementPath)
+    If LenB(replacementName) = 0 Then
+        replacementName = replacementPath
+    End If
+
+    Set attachmentEntries = ParseAttachmentEntries(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    If Not attachmentEntries Is Nothing Then
+        If attachmentEntries.Count > 0 Then
+            Set updatedEntries = New Collection
+            For Each entry In attachmentEntries
+                entryValue = CStr(entry)
+                entryPath = ExtractAttachmentPath(entryValue)
+                If LenB(entryPath) = 0 Then
+                    entryPath = Trim$(entryValue)
+                End If
+                candidateKey = NormalizeAttachmentPath(entryPath)
+                If LenB(candidateKey) > 0 And _
+                   StrComp(candidateKey, normalizedMissing, vbTextCompare) = 0 Then
+                    updatedEntries.Add BuildAttachmentEntry(replacementPath)
+                    templateUpdated = True
+                Else
+                    updatedEntries.Add entryValue
+                End If
+            Next entry
+            If templateUpdated Then
+                ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = JoinAttachmentEntries(updatedEntries)
+            End If
+        End If
+    End If
+
+    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value))
+    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value))
+
+    maxCount = pathValues.Count
+    If nameValues.Count > maxCount Then
+        maxCount = nameValues.Count
+    End If
+
+    If maxCount = 0 Then Exit Sub
+
+    Set updatedNameValues = New Collection
+    Set updatedPathValues = New Collection
+
+    For idx = 1 To maxCount
+        entryName = vbNullString
+        entryPath = vbNullString
+
+        If idx <= nameValues.Count Then entryName = Trim$(CStr(nameValues(idx)))
+        If idx <= pathValues.Count Then entryPath = Trim$(CStr(pathValues(idx)))
+
+        If LenB(entryPath) = 0 And LenB(entryName) > 0 Then
+            entryPath = entryName
+        End If
+
+        If LenB(entryPath) = 0 And LenB(entryName) = 0 Then GoTo NextEntry
+
+        candidateKey = NormalizeAttachmentPath(entryPath)
+        If LenB(candidateKey) > 0 And _
+           StrComp(candidateKey, normalizedMissing, vbTextCompare) = 0 Then
+            entryPath = replacementPath
+            entryName = replacementName
+            userUpdated = True
+        ElseIf LenB(entryName) = 0 Then
+            entryName = ExtractAttachmentFileName(entryPath)
+            If LenB(entryName) = 0 Then
+                entryName = entryPath
+            End If
+        End If
+
+        updatedNameValues.Add entryName
+        updatedPathValues.Add entryPath
+NextEntry:
+    Next idx
+
+    If userUpdated Then
+        ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(updatedNameValues)
+        ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(updatedPathValues)
+    End If
+End Sub
+
 Private Function HandleMissingAttachment(ByVal missingPath As String, _
                                          ByRef replacementEntry As String) As Boolean
     Dim response As VbMsgBoxResult
@@ -982,6 +1119,7 @@ Private Function HandleMissingAttachment(ByVal missingPath As String, _
 
         If LenB(selectedPath) > 0 Then
             replacementEntry = BuildAttachmentEntry(selectedPath)
+            UpdateWorksheetAttachmentsForReplacement missingPath, selectedPath
         End If
 
         Set fd = Nothing
