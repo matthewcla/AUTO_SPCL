@@ -942,6 +942,7 @@ Private Function ResolveInitialAttachmentDialogPath(ByVal userPaths As Collectio
     Dim entry As Variant
     Dim candidate As String
     Dim resolved As String
+    Dim candidateResult As String
 
     If userPaths Is Nothing Then Exit Function
 
@@ -953,10 +954,19 @@ Private Function ResolveInitialAttachmentDialogPath(ByVal userPaths As Collectio
             resolved = candidate
         End If
 
-        If LenB(Dir(candidate, vbNormal)) > 0 Then
-            ResolveInitialAttachmentDialogPath = candidate
-            Exit Function
+        On Error Resume Next
+        Err.Clear
+        candidateResult = Dir$(candidate, vbNormal)
+        If Err.Number = 0 Then
+            If LenB(candidateResult) > 0 Then
+                ResolveInitialAttachmentDialogPath = candidate
+                On Error GoTo 0
+                Exit Function
+            End If
+        Else
+            Err.Clear
         End If
+        On Error GoTo 0
 NextEntry:
     Next entry
 
