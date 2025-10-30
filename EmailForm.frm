@@ -931,6 +931,36 @@ Private Sub EnsureAttachmentTracking(ByVal templateKey As String)
     End If
 End Sub
 
+Private Sub RefreshTemplateAttachmentTrackingFromWorksheet(ByVal templateKey As String)
+    Dim entries As Collection
+    Dim lookup As Object
+
+    templateKey = Trim$(templateKey)
+    If LenB(templateKey) = 0 Then Exit Sub
+
+    Set entries = GetTemplateAttachmentEntriesForKey(templateKey)
+    If entries Is Nothing Then
+        Set entries = New Collection
+    End If
+
+    Set mTemplateAttachmentEntries = entries
+
+    Set lookup = CreateCaseInsensitiveDictionary()
+    If lookup Is Nothing Then
+        Set lookup = mTemplateAttachmentLookup
+        If Not lookup Is Nothing Then
+            On Error Resume Next
+            lookup.RemoveAll
+            On Error GoTo 0
+        End If
+    End If
+
+    Set mTemplateAttachmentLookup = lookup
+    RebuildLookupFromCollection mTemplateAttachmentLookup, mTemplateAttachmentEntries
+
+    RefreshAttachmentListDisplay
+End Sub
+
 Private Sub RebuildLookupFromCollection(ByRef dict As Object, ByVal entries As Collection)
     Dim entry As Variant
     Dim normalizedKey As String
@@ -964,14 +994,30 @@ End Function
 Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
     Dim normalizedKey As String
     Dim entry As String
+    Dim resolvedPath As String
+    Dim displayName As String
+    Dim originalNormalized As String
 
-    normalizedKey = NormalizeTemplateAttachmentPath(filePath)
+    resolvedPath = Trim$(filePath)
+    displayName = vbNullString
+
+    originalNormalized = NormalizeTemplateAttachmentPath(resolvedPath)
+
+    If Not CheckIfAttachmentExists(displayName, resolvedPath) Then Exit Function
+
+    normalizedKey = NormalizeTemplateAttachmentPath(resolvedPath)
     If LenB(normalizedKey) = 0 Then Exit Function
+
+    If LenB(mCurrentTemplateKey) > 0 Then
+        If StrComp(originalNormalized, normalizedKey, vbTextCompare) <> 0 Then
+            RefreshTemplateAttachmentTrackingFromWorksheet mCurrentTemplateKey
+        End If
+    End If
 
     If AttachmentExistsInTemplate(normalizedKey) Then Exit Function
     If AttachmentExistsInUser(normalizedKey) Then Exit Function
 
-    entry = BuildTemplateAttachmentEntry(filePath)
+    entry = BuildAttachmentEntryFromComponents(displayName, resolvedPath)
     If LenB(entry) = 0 Then Exit Function
 
     If mUserAttachmentEntries Is Nothing Then
