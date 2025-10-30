@@ -1017,11 +1017,6 @@ Private Function ApplyAttachmentUpdates(ByVal templateKey As String) As String
     resultText = JoinTemplateAttachmentEntries(combined)
     Me.txtAT.Value = resultText
 
-    If LenB(templateKey) > 0 Then
-        resultText = WriteTemplateAttachmentEntries(templateKey, combined)
-        Me.txtAT.Value = resultText
-    End If
-
     ApplyAttachmentUpdates = resultText
 End Function
 
