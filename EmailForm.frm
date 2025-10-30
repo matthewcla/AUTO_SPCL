@@ -34,6 +34,7 @@ Option Explicit
 
 Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
+Private Const MSO_FILE_DIALOG_FILE_PICKER As Long = 3
 
 Private titleBarHidden As Boolean
 Private mOriginalBodyTemplate As String
@@ -784,6 +785,65 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     Else
         statusLabel.ForeColor = vbBlack
     End If
+End Sub
+
+Private Sub bADD_Click()
+    Dim fd As FileDialog
+    Dim selectedPaths As Collection
+    Dim selectedItem As Variant
+    Dim templateKey As String
+    Dim updatedText As String
+    Dim waitApplied As Boolean
+
+    On Error GoTo CleanFail
+
+    templateKey = Trim$(Me.cboTemplate.Value)
+    If LenB(templateKey) = 0 Then
+        templateKey = Trim$(Me.txtTEMP.Value)
+    End If
+
+    If LenB(templateKey) = 0 Then
+        MsgBox "Please select a template before adding attachments.", vbExclamation
+        GoTo CleanExit
+    End If
+
+    Set fd = Application.FileDialog(MSO_FILE_DIALOG_FILE_PICKER)
+    If fd Is Nothing Then GoTo CleanExit
+
+    With fd
+        .Title = "Select attachments to include"
+        .AllowMultiSelect = True
+        .Filters.Clear
+        .Filters.Add "All Files", "*.*"
+        If .Show <> -1 Then GoTo CleanExit
+        If .SelectedItems.Count = 0 Then GoTo CleanExit
+        Set selectedPaths = New Collection
+        For Each selectedItem In .SelectedItems
+            If LenB(CStr(selectedItem)) > 0 Then
+                selectedPaths.Add CStr(selectedItem)
+            End If
+        Next selectedItem
+    End With
+
+    If selectedPaths Is Nothing Then GoTo CleanExit
+    If selectedPaths.Count = 0 Then GoTo CleanExit
+
+    SetCursorWait
+    waitApplied = True
+
+    updatedText = AppendTemplateAttachments(templateKey, selectedPaths)
+    Me.txtAT.Value = updatedText
+
+CleanExit:
+    If waitApplied Then SetCursorDefault
+    Set fd = Nothing
+    Set selectedPaths = Nothing
+    Exit Sub
+
+CleanFail:
+    If waitApplied Then SetCursorDefault
+    MsgBox "Unable to add attachments: " & Err.Description, vbCritical
+    Resume CleanExit
 End Sub
 
 Private Sub bCF_Click()
