@@ -9,6 +9,8 @@ Private Const EMAIL_ROW_TO As Long = 2
 Private Const EMAIL_ROW_CC As Long = 3
 Private Const EMAIL_ROW_SUBJECT As Long = 4
 Private Const EMAIL_ROW_BODY As Long = 5
+Private Const EMAIL_ROW_USER_ATTACHMENT_NAMES As Long = 4
+Private Const EMAIL_ROW_USER_ATTACHMENT_PATHS As Long = 5
 Private Const EMAIL_ROW_GREETING As Long = 6
 Private Const EMAIL_ROW_SIGNATURE As Long = 7
 Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
@@ -33,6 +35,8 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     Dim signatureValue As String
     Dim attachmentValue As String
     Dim attachmentEntries As Collection
+    Dim userAttachmentEntries As Collection
+    Dim combinedAttachments As Collection
 
     If LenB(templateKey) = 0 Then Exit Sub
 
@@ -64,12 +68,14 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
     attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
     Set attachmentEntries = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
+    Set userAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
+    Set combinedAttachments = CombineAttachmentCollections(attachmentEntries, userAttachmentEntries)
 
     AssignTextBoxValue txtTO, toValue
     AssignTextBoxValue txtCC, ccValue
     AssignTextBoxValue txtSubj, subjValue
     AssignTextBoxValue txtSignature, signatureValue
-    AssignAttachmentList lstAT, attachmentValue
+    AssignAttachmentList lstAT, combinedAttachments
     AssignTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
 End Sub
 
@@ -100,10 +106,7 @@ Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
     AssignTextBoxValue txtSignature, vbNullString
 End Sub
 
-Private Sub AssignAttachmentList(ByRef target As MSForms.ListBox, ByVal attachmentValue As String)
-    Dim entries As Collection
-
-    Set entries = GetTemplateAttachmentEntries(attachmentValue)
+Private Sub AssignAttachmentList(ByRef target As MSForms.ListBox, ByVal entries As Collection)
     AssignListBoxItems target, entries
 End Sub
 
@@ -132,6 +135,28 @@ Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As
         On Error GoTo 0
     Next entry
 End Sub
+
+Private Function CombineAttachmentCollections(ByVal templateEntries As Collection, _
+                                              ByVal userEntries As Collection) As Collection
+    Dim combined As Collection
+    Dim entry As Variant
+
+    Set combined = New Collection
+
+    If Not templateEntries Is Nothing Then
+        For Each entry In templateEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    If Not userEntries Is Nothing Then
+        For Each entry In userEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    Set CombineAttachmentCollections = combined
+End Function
 
 Private Function BuildBodyValue(ByVal greetingValue As String, _
                                 ByVal bodyValue As String) As String
@@ -236,6 +261,59 @@ End Function
 Public Function NormalizeTemplateAttachmentEntry(ByVal entry As String) As String
     NormalizeTemplateAttachmentEntry = NormalizeAttachmentKey(entry)
 End Function
+
+Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) As Collection
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+    Dim attachmentValue As String
+
+    If LenB(templateKey) = 0 Then Exit Function
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then Exit Function
+
+    attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set GetTemplateAttachmentEntriesForKey = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
+End Function
+
+Public Function GetUserAttachmentEntries(ByVal templateKey As String) As Collection
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+
+    If LenB(templateKey) = 0 Then Exit Function
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then Exit Function
+
+    Set GetUserAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
+End Function
+
+Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
+                                      ByVal userEntries As Collection)
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+    Dim fileNames As Collection
+    Dim filePaths As Collection
+
+    If LenB(templateKey) = 0 Then Exit Sub
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    templateColumn = ResolveTemplateColumn(ws, templateKey)
+    If templateColumn = 0 Then Exit Sub
+
+    AppendAttachmentComponentCollections userEntries, fileNames, filePaths
+
+    ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(fileNames)
+    ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(filePaths)
+End Sub
 
 Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
                                                ByVal attachmentEntries As Collection) As String
@@ -487,6 +565,48 @@ NextColumn:
     Next colIndex
 End Function
 
+Private Function ReadUserAttachmentEntriesFromWorksheet(ByVal ws As Worksheet, _
+                                                        ByVal templateColumn As Long) As Collection
+    Dim nameValues As Collection
+    Dim pathValues As Collection
+    Dim entryName As String
+    Dim entryPath As String
+    Dim entry As String
+    Dim maxCount As Long
+    Dim idx As Long
+
+    If ws Is Nothing Then Exit Function
+    If templateColumn <= 0 Then Exit Function
+
+    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value))
+    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value))
+
+    maxCount = pathValues.Count
+    If nameValues.Count > maxCount Then
+        maxCount = nameValues.Count
+    End If
+
+    If maxCount = 0 Then Exit Function
+
+    Set ReadUserAttachmentEntriesFromWorksheet = New Collection
+
+    For idx = 1 To maxCount
+        entryName = vbNullString
+        entryPath = vbNullString
+        If idx <= nameValues.Count Then entryName = CStr(nameValues(idx))
+        If idx <= pathValues.Count Then entryPath = CStr(pathValues(idx))
+        entryName = Trim$(entryName)
+        entryPath = Trim$(entryPath)
+        If LenB(entryPath) = 0 And LenB(entryName) = 0 Then GoTo NextEntry
+        If LenB(entryPath) = 0 Then entryPath = entryName
+        entry = BuildAttachmentEntryFromComponents(entryName, entryPath)
+        If LenB(entry) > 0 Then
+            ReadUserAttachmentEntriesFromWorksheet.Add entry
+        End If
+NextEntry:
+    Next idx
+End Function
+
 Private Function ParseAttachmentEntries(ByVal rawValue As String) As Collection
     Dim entries As Collection
     Dim normalized As String
@@ -578,6 +698,38 @@ Private Function JoinCollectionValues(ByVal items As Collection) As String
     JoinCollectionValues = Join(arr, vbCrLf)
 End Function
 
+Private Sub AppendAttachmentComponentCollections(ByVal entries As Collection, _
+                                                 ByRef fileNames As Collection, _
+                                                 ByRef filePaths As Collection)
+    Dim entry As Variant
+    Dim entryValue As String
+    Dim fileName As String
+    Dim filePath As String
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        entryValue = CStr(entry)
+        filePath = ExtractAttachmentPath(entryValue)
+        If LenB(filePath) = 0 Then
+            filePath = Trim$(entryValue)
+        End If
+        If LenB(filePath) = 0 Then GoTo NextEntry
+
+        fileName = ExtractAttachmentEntryName(entryValue)
+        If LenB(fileName) = 0 Then
+            fileName = ExtractAttachmentFileName(filePath)
+        End If
+
+        If fileNames Is Nothing Then Set fileNames = New Collection
+        If filePaths Is Nothing Then Set filePaths = New Collection
+
+        fileNames.Add fileName
+        filePaths.Add filePath
+NextEntry:
+    Next entry
+End Sub
+
 Private Function NormalizeAttachmentKey(ByVal entry As String) As String
     Dim pathValue As String
 
@@ -601,6 +753,20 @@ Private Function BuildAttachmentEntry(ByVal filePath As String) As String
         BuildAttachmentEntry = fileName & " | " & Trim$(filePath)
     Else
         BuildAttachmentEntry = Trim$(filePath)
+    End If
+End Function
+
+Private Function BuildAttachmentEntryFromComponents(ByVal fileName As String, _
+                                                    ByVal filePath As String) As String
+    fileName = Trim$(fileName)
+    filePath = Trim$(filePath)
+
+    If LenB(filePath) = 0 Then Exit Function
+
+    If LenB(fileName) = 0 Then
+        BuildAttachmentEntryFromComponents = BuildAttachmentEntry(filePath)
+    Else
+        BuildAttachmentEntryFromComponents = fileName & " | " & filePath
     End If
 End Function
 
