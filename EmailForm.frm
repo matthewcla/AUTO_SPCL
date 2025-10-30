@@ -72,6 +72,8 @@ Private Sub UserForm_Initialize()
 
     titleBarHidden = False
 
+    Me.bSUB.Visible = False
+
     On Error Resume Next
     templateKey = Trim$(Me.cboTemplate.value)
     On Error GoTo CleanFail
@@ -1162,6 +1164,7 @@ Private Sub ApplyAttachmentUpdates(ByVal templateKey As String)
 
     Set combined = BuildCombinedAttachmentEntries()
     PopulateAttachmentListControl Me.lstAT, combined
+    UpdateAttachmentActionsVisibility combined
     PersistUserAttachmentsToWorksheet templateKey
 End Sub
 
@@ -1197,7 +1200,21 @@ Private Sub PopulateAttachmentListControl(ByRef listBox As MSForms.ListBox, ByVa
 End Sub
 
 Private Sub RefreshAttachmentListDisplay()
-    PopulateAttachmentListControl Me.lstAT, BuildCombinedAttachmentEntries()
+    Dim combined As Collection
+
+    Set combined = BuildCombinedAttachmentEntries()
+    PopulateAttachmentListControl Me.lstAT, combined
+    UpdateAttachmentActionsVisibility combined
+End Sub
+
+Private Sub UpdateAttachmentActionsVisibility(ByVal combined As Collection)
+    Dim hasAttachments As Boolean
+
+    hasAttachments = Not combined Is Nothing And combined.Count > 0
+
+    On Error Resume Next
+    Me.bSUB.Visible = hasAttachments
+    On Error GoTo 0
 End Sub
 
 Private Sub bADD_Click()
