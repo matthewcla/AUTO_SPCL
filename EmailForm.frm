@@ -511,34 +511,110 @@ Private Sub HandleLabelMouseMove(ByVal target As MSForms.Label)
     End If
 End Sub
 
+Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
+    Dim statusLabelName As String
+    Dim statusControl As MSForms.Control
+    Dim statusLabel As MSForms.Label
+    Dim currentStatus As String
+
+    statusLabelName = "lblSTAT" & CStr(memberIndex)
+
+    On Error Resume Next
+    Set statusControl = Me.Controls(statusLabelName)
+    On Error GoTo 0
+
+    If statusControl Is Nothing Then Exit Sub
+    If Not TypeOf statusControl Is MSForms.Label Then Exit Sub
+
+    Set statusLabel = statusControl
+
+    currentStatus = Trim$(statusLabel.Caption)
+
+    If StrComp(currentStatus, "Draft", vbTextCompare) = 0 Then
+        statusLabel.Caption = "Cancel"
+    Else
+        statusLabel.Caption = "Draft"
+    End If
+
+    ApplyStatusColor statusLabel
+End Sub
+
+Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
+    Dim statusText As String
+
+    If statusLabel Is Nothing Then Exit Sub
+
+    statusText = Trim$(statusLabel.Caption)
+
+    If StrComp(statusText, "Draft", vbTextCompare) = 0 Then
+        statusLabel.ForeColor = vbGreen
+    ElseIf StrComp(statusText, "Cancel", vbTextCompare) = 0 Then
+        statusLabel.ForeColor = vbRed
+    Else
+        statusLabel.ForeColor = vbBlack
+    End If
+End Sub
+
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL1
+End Sub
+
+Private Sub lblL1_Click()
+    ToggleEmailStatus 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL2
 End Sub
 
+Private Sub lblL2_Click()
+    ToggleEmailStatus 2
+End Sub
+
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL3
+End Sub
+
+Private Sub lblL3_Click()
+    ToggleEmailStatus 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL4
 End Sub
 
+Private Sub lblL4_Click()
+    ToggleEmailStatus 4
+End Sub
+
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL5
+End Sub
+
+Private Sub lblL5_Click()
+    ToggleEmailStatus 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL6
 End Sub
 
+Private Sub lblL6_Click()
+    ToggleEmailStatus 6
+End Sub
+
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL7
 End Sub
 
+Private Sub lblL7_Click()
+    ToggleEmailStatus 7
+End Sub
+
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     HandleLabelMouseMove Me.lblL8
+End Sub
+
+Private Sub lblL8_Click()
+    ToggleEmailStatus 8
 End Sub
