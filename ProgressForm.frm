@@ -48,28 +48,22 @@ Private Const EM_GETRECT As Long = &HB2
 Private Const EM_SETSEL As Long = &HB1
 Private Const EM_SCROLLCARET As Long = &HB7
 '==== Private state ====
-Private maxBarWidth As Single          ' Captured from the design-time width
-Private nextFormName As String
+Private progressBarMaxWidth As Single  ' Captured from the design-time width
+Private pendingNavigationTarget As String
 Private mTitleBarHidden As Boolean
 
-Private sessionStart As Date
-Private pauseStarted As Date
+Private sessionStartedAt As Date
+Private pauseStartedAt As Date
 Private pausedSeconds As Double
-Private startTick As Double
-Private lastUpdate As Double
+Private timerStartTick As Double
+Private lastTimerUpdate As Double
 
-#If VBA7 Then
-    Private timerId As LongPtr
-#Else
-    Private timerId As Long
-#End If
-Private timerBusy As Boolean
 
 Public TotalCount As Long
 Public CompletedCount As Long
 
-Public Paused As Boolean
-Public Cancelled As Boolean
+Public IsPaused As Boolean
+Public IsCancelled As Boolean
 
 Private Function TryGetFormControl(ByVal controlName As String) As MSForms.Control
     On Error Resume Next
@@ -136,30 +130,28 @@ Private Sub Class_Initialize()
     End If
 
     Me.txtLog.ControlSource = ""
-    nextFormName = ""
+    pendingNavigationTarget = ""
     mTitleBarHidden = False
-    timerId = 0
-    timerBusy = False
-    Paused = False
-    Cancelled = False
-    sessionStart = Now
-    pauseStarted = 0
+    IsPaused = False
+    IsCancelled = False
+    sessionStartedAt = Now
+    pauseStartedAt = 0
     pausedSeconds = 0#
-    startTick = 0#
-    lastUpdate = 0#
+    timerStartTick = 0#
+    lastTimerUpdate = 0#
 End Sub
 
 ' Utility: format seconds as h:mm:ss
-Private Function HMS(ByVal secs As Double) As String
+Private Function FormatDurationHms(ByVal secs As Double) As String
     If secs < 0 Or Not IsNumeric(secs) Then
-        HMS = "--:--:--"
+        FormatDurationHms = "--:--:--"
         Exit Function
     End If
     Dim h As Long, m As Long, s As Long
     h = CLng(secs \ 3600)
     m = CLng((secs - h * 3600) \ 60)
     s = CLng(secs - h * 3600 - m * 60)
-    HMS = Format$(h, "00") & ":" & Format$(m, "00") & ":" & Format$(s, "00")
+    FormatDurationHms = Format$(h, "00") & ":" & Format$(m, "00") & ":" & Format$(s, "00")
 End Function
 
 ' Call once, right after showing modeless
@@ -175,27 +167,27 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     CenterUserFormOnActiveMonitor Me
     
     ' Capture the design-time width of the bar as the maximum; then collapse to zero
-    maxBarWidth = lblProcessedBarFill.Width
+    progressBarMaxWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
     Me.txtLog.ControlSource = ""
     Me.txtLog.Value = ""
     Me.txtLog.SelStart = 0
 
-    Paused = False
-    Cancelled = False
-    modProgressUI.cancelled = False
+    IsPaused = False
+    IsCancelled = False
+    modProgressUI.IsCancellationRequested = False
     Me.btnPause.Caption = "Pause"
     Me.btnPause.Visible = True
     Me.btnCancel.Caption = "Cancel"
     Me.btnCancel.Enabled = True
-    nextFormName = ""
+    pendingNavigationTarget = ""
 
-    sessionStart = Now
-    pauseStarted = 0
+    sessionStartedAt = Now
+    pauseStartedAt = 0
     pausedSeconds = 0#
-    startTick = Timer
-    lastUpdate = startTick
+    timerStartTick = Timer
+    lastTimerUpdate = timerStartTick
     Me.TotalCount = totalCount
     Me.CompletedCount = 0
 
@@ -208,19 +200,20 @@ Friend Sub ShutdownTimer()
 End Sub
 
 Public Sub Tick_OneSecond()
-    ' Lightweight 1 Hz timer hook: only touch elapsed/ETA labels (<10ms).
+    ' Lightweight 1 Hz timer hook: keep elapsed/ETA labels in sync without
+    ' touching heavier UI elements so the timer stays under ~10ms.
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
 
     On Error GoTo HandleError
 
-    Dim nowT As Double
-    nowT = Timer
-    If nowT < lastUpdate Then nowT = nowT + 86400#
+    Dim timerSecondsNow As Double
+    timerSecondsNow = Timer
+    If timerSecondsNow < lastTimerUpdate Then timerSecondsNow = timerSecondsNow + 86400#
 
-    UpdateElapsedAndEta nowT
-    lastUpdate = nowT
+    UpdateElapsedAndEtaDisplays
+    lastTimerUpdate = timerSecondsNow
 
     Exit Sub
 
@@ -235,14 +228,16 @@ HandleError:
     End If
 End Sub
 
-Friend Sub UpdateElapsedAndEta(ByVal nowT As Double, Optional ByVal currentTime As Date = 0)
+Friend Sub UpdateElapsedAndEtaDisplays(Optional ByVal currentTime As Date = 0)
+    ' Recompute elapsed time and ETA, optionally using a supplied timestamp for
+    ' deterministic unit tests. Defaults to system clock when omitted.
     Dim elapsed As Double
     If currentTime = 0 Then
         elapsed = ActiveElapsedSeconds()
     Else
         elapsed = ActiveElapsedSeconds(currentTime)
     End If
-    lblElapsed.Caption = HMS(elapsed)
+    lblElapsed.Caption = FormatDurationHms(elapsed)
 
     Dim pctComplete As Double
     If Me.TotalCount <= 0 Then
@@ -261,22 +256,26 @@ Friend Sub UpdateElapsedAndEta(ByVal nowT As Double, Optional ByVal currentTime 
     Else
         remain = elapsed * (1# - pctComplete) / pctComplete
         If remain < 0# Then remain = 0#
-        etrText = HMS(remain)
+        etrText = FormatDurationHms(remain)
     End If
 
     lblETR.Caption = etrText
 End Sub
 
-Private Sub RefreshTimingDisplays(Optional ByVal currentTime As Date = 0)
+Private Sub RefreshTimingIndicators(Optional ByVal currentTime As Date = 0)
+    ' Force a timing refresh using the current Tick count. We explicitly handle
+    ' timer rollover so overnight runs do not regress to negative elapsed time.
     Dim tickNow As Double
     tickNow = Timer
-    If tickNow < lastUpdate Then tickNow = tickNow + 86400#
+    If tickNow < lastTimerUpdate Then tickNow = tickNow + 86400#
 
-    UpdateElapsedAndEta tickNow, currentTime
-    lastUpdate = tickNow
+    UpdateElapsedAndEtaDisplays currentTime
+    lastTimerUpdate = tickNow
 End Sub
 
 Private Function ActiveElapsedSeconds(Optional ByVal currentTime As Date = 0) As Double
+    ' Calculate the wall-clock runtime excluding time spent paused. Accepts an
+    ' optional timestamp to support deterministic unit testing.
     Dim baseTime As Date
     If currentTime = 0 Then
         baseTime = Now
@@ -285,13 +284,13 @@ Private Function ActiveElapsedSeconds(Optional ByVal currentTime As Date = 0) As
     End If
 
     Dim elapsedSeconds As Double
-    elapsedSeconds = (baseTime - sessionStart) * 86400#
+    elapsedSeconds = (baseTime - sessionStartedAt) * 86400#
     If elapsedSeconds < 0# Then elapsedSeconds = 0#
 
     Dim totalPaused As Double
     totalPaused = pausedSeconds
-    If Paused And pauseStarted <> 0 Then
-        totalPaused = totalPaused + (baseTime - pauseStarted) * 86400#
+    If IsPaused And pauseStartedAt <> 0 Then
+        totalPaused = totalPaused + (baseTime - pauseStartedAt) * 86400#
     End If
 
     elapsedSeconds = elapsedSeconds - totalPaused
@@ -334,11 +333,12 @@ Private Function GetTextBoxHwnd(ByVal tb As MSForms.TextBox) As LongPtr
     GetTextBoxHwnd = tbHandle
 End Function
 
-Private Sub AppendIssueLine(ByVal target As MSForms.TextBox, ByVal lineText As String)
-    target.Text = target.Text & lineText & vbCrLf
+Private Sub AppendLogLine(ByVal target As MSForms.TextBox, ByVal lineText As String)
+    ' Write through the Value property because Text may raise when the control lacks focus.
+    target.Value = target.Value & lineText & vbCrLf
 
     On Error Resume Next
-    target.SelStart = Len(target.Text)
+    target.SelStart = Len(target.Value)
     target.SelLength = 0
     On Error GoTo 0
 End Sub
@@ -355,34 +355,39 @@ Public Sub LogLine(ByVal lineText As String)
         Exit Sub
     End If
 
-    AppendIssueLine Me.txtLog, CStr(lineText)
+    AppendLogLine Me.txtLog, CStr(lineText)
     lastLoggedLine = lineText
 End Sub
 
 ' Update counters, percent, bar, elapsed, ETA. Call this once per record (or more).
-Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
+Public Sub UpdateProgress(ByVal recordsCompleted As Long, _
+                          ByVal recordsTotal As Long, _
+                          Optional ByVal statusMessage As String = "")
     Dim currentTime As Date
     currentTime = Now
 
+    ' statusMessage is kept for backwards compatibility; callers previously
+    ' echoed it into the log before the UI redesign.
+
     ' Numbers
-    lblProcessed.Caption = CStr(done)
-    lblRemaining.Caption = CStr(Application.Max(totalCount - done, 0))
+    lblProcessed.Caption = CStr(recordsCompleted)
+    lblRemaining.Caption = CStr(Application.Max(recordsTotal - recordsCompleted, 0))
 
     ' Percent & bar
     Dim pct As Double: pct = 0#
-    If totalCount > 0 Then pct = done / totalCount
+    If recordsTotal > 0 Then pct = recordsCompleted / recordsTotal
     lblPercentage.Caption = Format$(pct, "0%")
-    lblProcessedBarFill.Width = maxBarWidth * pct
+    lblProcessedBarFill.Width = progressBarMaxWidth * pct
 
     ' Optional status line no longer written to the log
 
     Dim isComplete As Boolean
-    isComplete = (totalCount > 0 And done >= totalCount)
+    isComplete = (recordsTotal > 0 And recordsCompleted >= recordsTotal)
 
-    Me.CompletedCount = done
-    Me.TotalCount = totalCount
+    Me.CompletedCount = recordsCompleted
+    Me.TotalCount = recordsTotal
 
-    RefreshTimingDisplays currentTime
+    RefreshTimingIndicators currentTime
 
     UpdateButtonStates isComplete
 
@@ -390,7 +395,7 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 End Sub
 
 Private Sub UpdateButtonStates(ByVal isComplete As Boolean)
-    modProgressUI.UpdateProgressButtonStates Me.btnCancel, Me.btnPause, Cancelled, isComplete
+    modProgressUI.UpdateProgressButtonStates Me.btnCancel, Me.btnPause, IsCancelled, isComplete
 End Sub
 
 Public Property Get ProgressComplete() As Boolean
@@ -399,6 +404,8 @@ End Property
 
 ' Blocks while paused; returns False if cancelled while waiting
 Public Function WaitIfPaused() As Boolean
+    ' Block the worker loop while paused, yielding to keep the UI responsive.
+    ' Returns False when a cancellation request is observed during the wait.
     Const SLICE_MS As Long = 25
 #If DEBUG_PAUSE_WAIT Then
     Dim waitStart As Double
@@ -407,9 +414,9 @@ Public Function WaitIfPaused() As Boolean
     lastLogTick = waitStart
 #End If
 
-    Do While Paused And Not Cancelled
-        If pauseStarted = 0 Then
-            pauseStarted = Now
+    Do While IsPaused And Not IsCancelled
+        If pauseStartedAt = 0 Then
+            pauseStartedAt = Now
         End If
         DoEvents
         Sleep SLICE_MS
@@ -426,23 +433,23 @@ Public Function WaitIfPaused() As Boolean
         End If
 #End If
     Loop
-    If pauseStarted <> 0 Then
-        pausedSeconds = pausedSeconds + (Now - pauseStarted) * 86400#
-        pauseStarted = 0
+    If pauseStartedAt <> 0 Then
+        pausedSeconds = pausedSeconds + (Now - pauseStartedAt) * 86400#
+        pauseStartedAt = 0
     End If
-    If Not Cancelled Then
-        RefreshTimingDisplays
+    If Not IsCancelled Then
+        RefreshTimingIndicators
     End If
-    WaitIfPaused = Not Cancelled
+    WaitIfPaused = Not IsCancelled
 End Function
 
 Private Sub btnPause_Click()
-    Paused = Not Paused
-    btnPause.Caption = IIf(Paused, "Resume", "Pause")
+    IsPaused = Not IsPaused
+    btnPause.Caption = IIf(IsPaused, "Resume", "Pause")
 
     Dim resumeTick As Double
 
-    If Paused Then
+    If IsPaused Then
         modProgressUI.LogRecordReviewPaused
         modProgressUI.Progress_StopTimer
     Else
@@ -450,29 +457,31 @@ Private Sub btnPause_Click()
         resumeTick = Timer
         Dim adjustedTick As Double
         adjustedTick = resumeTick
-        If adjustedTick < startTick Then adjustedTick = adjustedTick + 86400#
-        startTick = resumeTick
-        lastUpdate = adjustedTick
+        If adjustedTick < timerStartTick Then adjustedTick = adjustedTick + 86400#
+        timerStartTick = resumeTick
+        lastTimerUpdate = adjustedTick
         modProgressUI.Progress_StartTimer
     End If
 End Sub
 
 Private Sub btnCancel_Click()
     If btnCancel.Caption = "Next" Then
-        nextFormName = "EmailForm"
+        pendingNavigationTarget = "EmailForm"
         Unload Me
         Exit Sub
     End If
 
-    Cancelled = True
-    modProgressUI.cancelled = True
+    ' First click transitions into cancellation mode and disables further
+    ' interaction so the worker loop can exit gracefully.
+    IsCancelled = True
+    modProgressUI.IsCancellationRequested = True
     modProgressUI.Progress_StopTimer
     modProgressUI.LogRecordReviewStatus "Cancellation Triggered"
     modProgressUI.LogRecordReviewCancelled
     btnCancel.Enabled = False
     btnCancel.Caption = "Cancelling..."
     btnPause.Visible = False
-    nextFormName = "StartupForm"
+    pendingNavigationTarget = "StartupForm"
     ' Keep the form visible until the worker loop finishes and closes it.
 End Sub
 
@@ -523,8 +532,8 @@ Private Sub UserForm_Initialize()
         UpdateOAISStatusIndicator
     End If
 
-    startTick = Timer
-    lastUpdate = startTick
+    timerStartTick = Timer
+    lastTimerUpdate = timerStartTick
     modProgressUI.Progress_StartTimer
 
     'A_Record_Review
@@ -562,8 +571,8 @@ Private Sub UserForm_Terminate()
     On Error GoTo CleanFail
 
     Dim targetForm As String
-    targetForm = nextFormName
-    nextFormName = ""
+    targetForm = pendingNavigationTarget
+    pendingNavigationTarget = ""
 
     Select Case targetForm
         Case "StartupForm"
@@ -577,7 +586,7 @@ Private Sub UserForm_Terminate()
 
             ' Or when the module has flagged a user cancel
             If Not allowStartup Then
-                allowStartup = modProgressUI.cancelled
+                allowStartup = modProgressUI.IsCancellationRequested
             End If
 
             If allowStartup Then
@@ -618,7 +627,7 @@ Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
         lblOAIS.BackColor = vbGreen
     Else
         lblOAIS.ForeColor = vbWhite
-        lblOAISCap.Caption = "OAIS is Disconnected= ""
+        lblOAISCap.Caption = "OAIS is Disconnected"
         lblOAIS.BackColor = vbRed
     End If
 End Sub
