@@ -166,11 +166,11 @@ Public Sub HideUserFormTitleBar(ByVal targetForm As Object, _
     If titleBarHiddenFlag Then Exit Sub
 
     On Error Resume Next
-    originalCaption = CStr(CallByName(targetForm, "Caption", VbGet))
+    originalCaption = CStr(CallByName(targetForm, "Caption", vbGet))
     tempCaption = captionPrefix & "-" & Hex$(ObjPtr(targetForm))
-    CallByName(targetForm, "Caption", VbLet, tempCaption)
+    CallByName targetForm, "Caption", vbLet, tempCaption
     hWnd = FindWindow("ThunderDFrame", tempCaption)
-    CallByName(targetForm, "Caption", VbLet, originalCaption)
+    CallByName targetForm, "Caption", vbLet, originalCaption
     On Error GoTo 0
 
     If hWnd = 0 Then Exit Sub
