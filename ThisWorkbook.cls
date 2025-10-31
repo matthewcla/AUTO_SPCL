@@ -5,13 +5,6 @@ Private m_SavedWindowState As XlWindowState
 Private m_HasSavedWindowState As Boolean
 Private m_SplashScreenShown As Boolean
 
-'==== ThisWorkbook ====
-Option Explicit
-
-Private m_SavedWindowState As XlWindowState
-Private m_HasSavedWindowState As Boolean
-Private m_SplashScreenShown As Boolean
-
 Private Sub Workbook_Open()
     Dim routineSucceeded As Boolean
 
@@ -103,7 +96,7 @@ Private Sub MaintenanceMode()
     ' Stop background tasks and clear temporary state
     On Error Resume Next
     KeepAlive_Stop
-    Progress_Close
+    modProgressUI.Progress_Close
     ResetRunState
     BoardType = ""
     processed = 0
@@ -172,7 +165,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ' Stop background tasks and clear temporary state
     On Error Resume Next
     KeepAlive_Stop
-    Progress_Close
+    modProgressUI.Progress_Close
     ResetRunState
     BoardType = ""
     processed = 0

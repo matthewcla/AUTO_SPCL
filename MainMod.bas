@@ -139,11 +139,11 @@ NoWork:
     runWasCancelled = Progress_Cancelled()
 
     If runWasCancelled Then
-        Progress_Close PROGRESS_LOG_CONCLUDED
+        modProgressUI.Progress_Close PROGRESS_LOG_CONCLUDED
         progressClosed = True
     Else
         Progress_Update processed, total
-        Progress_Close PROGRESS_LOG_CONCLUDED, True
+        modProgressUI.Progress_Close PROGRESS_LOG_CONCLUDED, True
         progressClosed = True
     End If
 
@@ -155,7 +155,7 @@ CleanOK:
     LastRunTotal = total
     If Not progressClosed Then
         runWasCancelled = Progress_Cancelled()
-        Progress_Close PROGRESS_LOG_CONCLUDED
+        modProgressUI.Progress_Close PROGRESS_LOG_CONCLUDED
         progressClosed = True
     End If
 
