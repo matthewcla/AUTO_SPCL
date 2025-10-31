@@ -104,7 +104,6 @@ Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
                                   ByRef txtSignature As MSForms.TextBox)
     AssignTextBoxValue txtTO, vbNullString
     AssignTextBoxValue txtCC, vbNullString
-    AssignListBoxValues lstAT, Nothing
     ClearListBoxItems lstAT
     AssignTextBoxValue txtSubj, vbNullString
     AssignTextBoxValue txtBody, vbNullString
@@ -1016,19 +1015,66 @@ Private Function ResolveActiveTemplateKeyFromForm() As String
     Dim frm As Object
     Dim resolved As String
 
-    On Error Resume Next
     For Each frm In VBA.UserForms
         If StrComp(TypeName(frm), "EmailForm", vbTextCompare) = 0 Then
-            resolved = Trim$(CStr(frm.txtTEMP.Value))
-            If LenB(resolved) = 0 Then
-                resolved = Trim$(CStr(frm.cboTemplate.Value))
-            End If
+            resolved = ResolveEmailFormActiveKey(frm)
             Exit For
         End If
     Next frm
-    On Error GoTo 0
 
     ResolveActiveTemplateKeyFromForm = resolved
+End Function
+
+Private Function ResolveEmailFormActiveKey(ByVal frm As Object) As String
+    Dim resolved As String
+
+    If frm Is Nothing Then Exit Function
+
+    On Error Resume Next
+    resolved = Trim$(CStr(CallByName(frm, "ActiveTemplateKey", VbMethod, False)))
+    If LenB(resolved) = 0 Then
+        resolved = Trim$(CStr(CallByName(frm, "ActiveTemplateKey", VbMethod, True)))
+    End If
+    On Error GoTo 0
+
+    If LenB(resolved) = 0 Then
+        resolved = TryGetFormControlValue(frm, "txtTEMP")
+    End If
+    If LenB(resolved) = 0 Then
+        resolved = TryGetFormControlValue(frm, "cboTemplate")
+    End If
+
+    ResolveEmailFormActiveKey = resolved
+End Function
+
+Private Function TryGetFormControlValue(ByVal targetForm As Object, _
+                                        ByVal controlName As String) As String
+    Dim ctrl As Object
+    Dim resolved As String
+
+    controlName = Trim$(controlName)
+    If targetForm Is Nothing Then Exit Function
+    If LenB(controlName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set ctrl = targetForm.Controls(controlName)
+    If Err.Number <> 0 Then
+        Err.Clear
+        Set ctrl = Nothing
+    End If
+    On Error GoTo 0
+
+    If ctrl Is Nothing Then Exit Function
+
+    On Error Resume Next
+    resolved = Trim$(CStr(ctrl.Value))
+    If Err.Number <> 0 Then
+        Err.Clear
+        resolved = Trim$(CStr(ctrl.Text))
+    End If
+    On Error GoTo 0
+
+    TryGetFormControlValue = resolved
 End Function
 
 Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String, _
