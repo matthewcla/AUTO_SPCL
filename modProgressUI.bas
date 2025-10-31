@@ -20,6 +20,42 @@ Private mTimerEnabled As Boolean
 Private mTimerScheduled As Boolean
 Private mNextTick As Date
 
+Public Sub UpdateProgressButtonStates(ByRef btnCancel As MSForms.CommandButton, _
+                                      ByRef btnPause As MSForms.CommandButton, _
+                                      ByVal isCancelled As Boolean, _
+                                      ByVal isComplete As Boolean)
+
+    If btnCancel Is Nothing Then Exit Sub
+
+    If isCancelled Then
+        SetButtonCaptionIfDifferent btnCancel, "Cancelling..."
+        modUIHelpers.SetControlsEnabled btnCancel, False
+        modUIHelpers.SetControlsVisible btnPause, False
+        Exit Sub
+    End If
+
+    modUIHelpers.SetControlsEnabled btnCancel, True
+
+    If isComplete Then
+        SetButtonCaptionIfDifferent btnCancel, "Next"
+        modUIHelpers.SetControlsVisible btnPause, False
+    Else
+        SetButtonCaptionIfDifferent btnCancel, "Cancel"
+        modUIHelpers.SetControlsVisible btnPause, True
+    End If
+End Sub
+
+Private Sub SetButtonCaptionIfDifferent(ByRef target As MSForms.CommandButton, _
+                                        ByVal captionText As String)
+    If target Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    If StrComp(CStr(target.Caption), captionText, vbBinaryCompare) <> 0 Then
+        target.Caption = captionText
+    End If
+    On Error GoTo 0
+End Sub
+
 Public Function IsFormLoaded(ByVal formName As String) As Boolean
     Dim frm As Object
 

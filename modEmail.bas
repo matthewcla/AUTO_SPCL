@@ -1,6 +1,112 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
+Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
+                            ByRef txtCc As MSForms.TextBox, _
+                            ByRef txtSubject As MSForms.TextBox, _
+                            ByRef txtBody As MSForms.TextBox, _
+                            ByRef txtSignature As MSForms.TextBox, _
+                            Optional ByRef lstAttachments As MSForms.ListBox, _
+                            Optional ByRef btnRemoveAttachment As MSForms.CommandButton)
+
+    AssignTextBoxValue txtTo, vbNullString
+    AssignTextBoxValue txtCc, vbNullString
+    AssignTextBoxValue txtSubject, vbNullString
+    AssignTextBoxValue txtBody, vbNullString
+    AssignTextBoxValue txtSignature, vbNullString
+
+    If Not lstAttachments Is Nothing Then
+        On Error Resume Next
+        lstAttachments.Clear
+        On Error GoTo 0
+    End If
+
+    UpdateAttachmentRemoveButton btnRemoveAttachment, Nothing
+End Sub
+
+Public Function BuildAttachmentDisplayList(ByVal templateEntries As Collection, _
+                                           ByVal userEntries As Collection) As Collection
+    Dim combined As Collection
+    Dim entry As Variant
+
+    Set combined = New Collection
+
+    If Not templateEntries Is Nothing Then
+        For Each entry In templateEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    If Not userEntries Is Nothing Then
+        For Each entry In userEntries
+            combined.Add CStr(entry)
+        Next entry
+    End If
+
+    Set BuildAttachmentDisplayList = combined
+End Function
+
+Public Function SyncAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
+                                   ByRef btnRemoveAttachment As MSForms.CommandButton, _
+                                   ByVal templateEntries As Collection, _
+                                   ByVal userEntries As Collection) As Collection
+    Dim combined As Collection
+
+    Set combined = BuildAttachmentDisplayList(templateEntries, userEntries)
+    PopulateAttachmentList lstAttachments, combined
+    UpdateAttachmentRemoveButton btnRemoveAttachment, combined
+
+    Set SyncAttachmentList = combined
+End Function
+
+Public Sub UpdateAttachmentRemoveButton(ByRef btnRemoveAttachment As MSForms.CommandButton, _
+                                        ByVal attachments As Collection)
+    Dim hasAttachments As Boolean
+
+    hasAttachments = HasAttachmentEntries(attachments)
+
+    If btnRemoveAttachment Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    btnRemoveAttachment.Visible = hasAttachments
+    btnRemoveAttachment.Enabled = hasAttachments
+    On Error GoTo 0
+End Sub
+
+Private Sub PopulateAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
+                                   ByVal entries As Collection)
+    Dim entry As Variant
+
+    If lstAttachments Is Nothing Then Exit Sub
+
+    lstAttachments.Clear
+
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        On Error Resume Next
+        lstAttachments.AddItem CStr(entry)
+        On Error GoTo 0
+    Next entry
+End Sub
+
+Private Function HasAttachmentEntries(ByVal attachments As Collection) As Boolean
+    If attachments Is Nothing Then Exit Function
+
+    On Error Resume Next
+    HasAttachmentEntries = (attachments.Count > 0)
+    If Err.Number <> 0 Then
+        Err.Clear
+        HasAttachmentEntries = False
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As String)
+    If target Is Nothing Then Exit Sub
+    target.Value = value
+End Sub
+
 Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
                               Optional ByVal templateKey As String = vbNullString, _
                               Optional ByVal templateAttachmentEntries As Variant, _
