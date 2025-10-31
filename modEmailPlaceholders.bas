@@ -46,7 +46,7 @@ Private Function NormaliseParamArrayPairs(ByRef placeholderPairs As Variant, ByV
         Exit Function
     End If
 
-    pairCount = (upper + 2) \/ 2
+    pairCount = (upper + 2) / 2
 
     If pairCount = 0 Then
         NormaliseParamArrayPairs = result
