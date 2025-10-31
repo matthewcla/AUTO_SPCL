@@ -79,7 +79,69 @@ Public CompletedCount As Long
 Public Paused As Boolean
 Public Cancelled As Boolean
 
+Private Function TryGetFormControl(ByVal controlName As String) As MSForms.Control
+    On Error Resume Next
+    Set TryGetFormControl = Me.Controls(controlName)
+    On Error GoTo 0
+End Function
+
+Private Function EnsureRequiredControls() As Boolean
+    Dim missing As Collection
+
+    Set missing = New Collection
+
+    ValidateControlExists "txtLog", "TextBox", missing
+    ValidateControlExists "lblProcessed", "Label", missing
+    ValidateControlExists "lblRemaining", "Label", missing
+    ValidateControlExists "lblPercentage", "Label", missing
+    ValidateControlExists "lblElapsed", "Label", missing
+    ValidateControlExists "lblETR", "Label", missing
+    ValidateControlExists "lblProcessedBarFill", "Label", missing
+    ValidateControlExists "btnPause", "CommandButton", missing
+    ValidateControlExists "btnCancel", "CommandButton", missing
+    ValidateControlExists "lblOAIS", "Label", missing
+
+    EnsureRequiredControls = missing.Count = 0
+
+    If Not EnsureRequiredControls Then
+        MsgBox "Progress form is missing required controls:" & vbCrLf & " - " & _
+               JoinCollectionItems(missing, vbCrLf & " - "), vbCritical
+    End If
+End Function
+
+Private Sub ValidateControlExists(ByVal controlName As String, _
+                                  ByVal expectedType As String, _
+                                  ByRef missing As Collection)
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetFormControl(controlName)
+    If ctrl Is Nothing Then
+        missing.Add controlName & " (" & expectedType & ")"
+    ElseIf StrComp(TypeName(ctrl), expectedType, vbTextCompare) <> 0 Then
+        missing.Add controlName & " (expected " & expectedType & ")"
+    End If
+End Sub
+
+Private Function JoinCollectionItems(ByVal items As Collection, Optional ByVal delimiter As String = ", ") As String
+    Dim entry As Variant
+    Dim buffer As String
+
+    If items Is Nothing Then Exit Function
+
+    For Each entry In items
+        If LenB(buffer) > 0 Then buffer = buffer & delimiter
+        buffer = buffer & CStr(entry)
+    Next entry
+
+    JoinCollectionItems = buffer
+End Function
+
 Private Sub Class_Initialize()
+    If Not EnsureRequiredControls() Then
+        Err.Raise vbObjectError + 801, "ProgressForm.Class_Initialize", _
+                  "Required controls are missing from ProgressForm."
+    End If
+
     Me.txtLog.ControlSource = ""
     nextFormName = ""
     titleBarHidden = False

@@ -45,6 +45,21 @@ Private mUserAttachmentEntries As Collection
 Private mUserAttachmentLookup As Object
 Private mCurrentTemplateKey As String
 
+Private mTxtTemp As MSForms.TextBox
+Private mTxtTo As MSForms.TextBox
+Private mTxtCc As MSForms.TextBox
+Private mTxtSubject As MSForms.TextBox
+Private mTxtBody As MSForms.TextBox
+Private mTxtSignature As MSForms.TextBox
+Private mLstAttachments As MSForms.ListBox
+Private mCboTemplate As MSForms.ComboBox
+Private mBtnAddAttachment As MSForms.CommandButton
+Private mBtnRemoveAttachment As MSForms.CommandButton
+
+Private mSuppressTemplateEvents As Long
+Private mTemplateFieldWarningsShown As Object
+Private mTemplateAvailabilityWarningShown As Boolean
+
 Private Type MemberRecord
     Name As String
     SSN As String
@@ -58,6 +73,409 @@ Private mFirstVisibleMemberIndex As Long
 
 Private Const MEMBERS_PER_PAGE As Long = 8
 Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
+Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
+
+Private Sub InitializeControlReferences()
+    Set mTxtTemp = TryGetTextBox("txtTEMP")
+    Set mTxtTo = TryGetTextBox("txtTO")
+    Set mTxtCc = TryGetTextBox("txtCC")
+    Set mTxtSubject = TryGetTextBox("txtSubj")
+    Set mTxtBody = TryGetTextBox("txtBody")
+    Set mTxtSignature = TryGetTextBox("txtSignature")
+    Set mLstAttachments = TryGetListBox("lstAT")
+    Set mCboTemplate = TryGetComboBox("cboTemplate")
+    Set mBtnAddAttachment = TryGetButton("bADD")
+    Set mBtnRemoveAttachment = TryGetButton("bSUB")
+End Sub
+
+Private Function TryGetControl(ByVal controlName As String) As MSForms.Control
+    Dim ctrl As MSForms.Control
+
+    On Error Resume Next
+    Set ctrl = Me.Controls(controlName)
+    On Error GoTo 0
+
+    Set TryGetControl = ctrl
+End Function
+
+Private Function TryGetTextBox(ByVal controlName As String) As MSForms.TextBox
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetControl(controlName)
+    If ctrl Is Nothing Then Exit Function
+    If TypeOf ctrl Is MSForms.TextBox Then Set TryGetTextBox = ctrl
+End Function
+
+Private Function TryGetComboBox(ByVal controlName As String) As MSForms.ComboBox
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetControl(controlName)
+    If ctrl Is Nothing Then Exit Function
+    If TypeOf ctrl Is MSForms.ComboBox Then Set TryGetComboBox = ctrl
+End Function
+
+Private Function TryGetListBox(ByVal controlName As String) As MSForms.ListBox
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetControl(controlName)
+    If ctrl Is Nothing Then Exit Function
+    If TypeOf ctrl Is MSForms.ListBox Then Set TryGetListBox = ctrl
+End Function
+
+Private Function TryGetButton(ByVal controlName As String) As MSForms.CommandButton
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetControl(controlName)
+    If ctrl Is Nothing Then Exit Function
+    If TypeOf ctrl Is MSForms.CommandButton Then Set TryGetButton = ctrl
+End Function
+
+Private Function EnsureRequiredControls() As Boolean
+    Dim missing As Collection
+
+    Set missing = New Collection
+
+    If mTxtTemp Is Nothing Then missing.Add "txtTEMP (TextBox)"
+    If mTxtTo Is Nothing Then missing.Add "txtTO (TextBox)"
+    If mTxtCc Is Nothing Then missing.Add "txtCC (TextBox)"
+    If mTxtSubject Is Nothing Then missing.Add "txtSubj (TextBox)"
+    If mTxtBody Is Nothing Then missing.Add "txtBody (TextBox)"
+    If mTxtSignature Is Nothing Then missing.Add "txtSignature (TextBox)"
+    If mLstAttachments Is Nothing Then missing.Add "lstAT (ListBox)"
+    If mCboTemplate Is Nothing Then missing.Add "cboTemplate (ComboBox)"
+    If mBtnAddAttachment Is Nothing Then missing.Add "bADD (CommandButton)"
+    If mBtnRemoveAttachment Is Nothing Then missing.Add "bSUB (CommandButton)"
+
+    EnsureRequiredControls = missing.Count = 0
+
+    If Not EnsureRequiredControls Then
+        MsgBox "The Email form is missing required controls:" & vbCrLf & " - " & _
+               JoinCollectionString(missing, vbCrLf & " - "), vbCritical
+    End If
+End Function
+
+Private Function JoinCollectionString(ByVal items As Collection, Optional ByVal delimiter As String = ", ") As String
+    Dim entry As Variant
+    Dim buffer As String
+
+    If items Is Nothing Then Exit Function
+    For Each entry In items
+        If LenB(buffer) > 0 Then buffer = buffer & delimiter
+        buffer = buffer & CStr(entry)
+    Next entry
+
+    JoinCollectionString = buffer
+End Function
+
+Private Function GetTextBoxText(ByVal target As MSForms.TextBox, Optional ByVal trimResult As Boolean = True) As String
+    If target Is Nothing Then Exit Function
+
+    If trimResult Then
+        GetTextBoxText = Trim$(CStr(target.Value))
+    Else
+        GetTextBoxText = CStr(target.Value)
+    End If
+End Function
+
+Private Sub SetTextBoxText(ByVal target As MSForms.TextBox, ByVal value As String)
+    If target Is Nothing Then Exit Sub
+    target.Value = value
+End Sub
+
+Private Function GetComboValue(ByVal target As MSForms.ComboBox, Optional ByVal trimResult As Boolean = True) As String
+    If target Is Nothing Then Exit Function
+
+    If trimResult Then
+        GetComboValue = Trim$(CStr(target.Value))
+    Else
+        GetComboValue = CStr(target.Value)
+    End If
+End Function
+
+Private Sub SetComboValue(ByVal target As MSForms.ComboBox, ByVal value As String)
+    If target Is Nothing Then Exit Sub
+
+    mSuppressTemplateEvents = mSuppressTemplateEvents + 1
+    On Error Resume Next
+    target.Value = value
+    On Error GoTo 0
+    mSuppressTemplateEvents = mSuppressTemplateEvents - 1
+    If mSuppressTemplateEvents < 0 Then mSuppressTemplateEvents = 0
+End Sub
+
+Private Sub EnsureTemplateWarningCache()
+    If Not mTemplateFieldWarningsShown Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set mTemplateFieldWarningsShown = CreateObject("Scripting.Dictionary")
+    If Not mTemplateFieldWarningsShown Is Nothing Then
+        mTemplateFieldWarningsShown.CompareMode = vbTextCompare
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function PopulateTemplateDropdown() As Collection
+    Dim keys As Collection
+    Dim entry As Variant
+    Dim priorSelection As String
+
+    If mCboTemplate Is Nothing Then Exit Function
+
+    priorSelection = GetComboValue(mCboTemplate, False)
+
+    On Error Resume Next
+    Set keys = GetAvailableTemplateKeys()
+    On Error GoTo 0
+
+    mSuppressTemplateEvents = mSuppressTemplateEvents + 1
+    mCboTemplate.Clear
+
+    If Not keys Is Nothing Then
+        For Each entry In keys
+            If LenB(Trim$(CStr(entry))) > 0 Then
+                mCboTemplate.AddItem CStr(entry)
+            End If
+        Next entry
+    End If
+
+    mSuppressTemplateEvents = mSuppressTemplateEvents - 1
+    If mSuppressTemplateEvents < 0 Then mSuppressTemplateEvents = 0
+
+    If LenB(priorSelection) > 0 Then
+        SetComboValue mCboTemplate, priorSelection
+    End If
+
+    UpdateTemplateAvailabilityState keys
+
+    Set PopulateTemplateDropdown = keys
+End Function
+
+Private Function ResolveInitialTemplateKey(Optional ByVal templateKeys As Collection) As String
+    Dim candidate As String
+
+    candidate = GetTextBoxText(mTxtTemp)
+    If LenB(candidate) = 0 Then
+        candidate = GetComboValue(mCboTemplate)
+    End If
+
+    If LenB(candidate) = 0 Then
+        candidate = GetFirstTemplateKey(templateKeys)
+    End If
+
+    ResolveInitialTemplateKey = candidate
+End Function
+
+Private Function GetFirstTemplateKey(ByVal templateKeys As Collection) As String
+    Dim entry As Variant
+
+    If templateKeys Is Nothing Then Exit Function
+
+    For Each entry In templateKeys
+        If LenB(Trim$(CStr(entry))) > 0 Then
+            GetFirstTemplateKey = Trim$(CStr(entry))
+            Exit Function
+        End If
+    Next entry
+End Function
+
+Private Sub ApplyTemplateSelection(ByVal templateKey As String, Optional ByVal syncCombo As Boolean = False)
+    Dim normalizedKey As String
+    Dim loadSucceeded As Boolean
+    Dim toValue As String
+    Dim ccValue As String
+    Dim subjectValue As String
+    Dim bodyValue As String
+
+    normalizedKey = Trim$(templateKey)
+
+    If LenB(normalizedKey) = 0 Then
+        ClearEmailFormFields
+        mCurrentTemplateKey = vbNullString
+        SetTextBoxText mTxtTemp, vbNullString
+        If syncCombo Then SetComboValue mCboTemplate, vbNullString
+        TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString
+        Exit Sub
+    End If
+
+    loadSucceeded = LoadEmailTemplateData(normalizedKey, _
+                                          mTxtTo, mTxtCc, mLstAttachments, _
+                                          mTxtSubject, mTxtBody, mTxtSignature)
+
+    toValue = GetTextBoxText(mTxtTo, False)
+    ccValue = GetTextBoxText(mTxtCc, False)
+    subjectValue = GetTextBoxText(mTxtSubject, False)
+    bodyValue = GetTextBoxText(mTxtBody, False)
+
+    TraceTemplateSelection normalizedKey, loadSucceeded, toValue, ccValue, subjectValue, bodyValue
+
+    If Not loadSucceeded Then
+        ShowTemplateLoadFailure normalizedKey
+        ClearEmailFormFields
+        mCurrentTemplateKey = vbNullString
+        SetTextBoxText mTxtTemp, vbNullString
+        If syncCombo Then SetComboValue mCboTemplate, vbNullString
+        Exit Sub
+    End If
+
+    InitializeAttachmentTracking normalizedKey
+    mOriginalBodyTemplate = GetTextBoxText(mTxtBody, False)
+    mCurrentTemplateKey = normalizedKey
+    SetTextBoxText mTxtTemp, normalizedKey
+    If syncCombo Then SetComboValue mCboTemplate, normalizedKey
+
+    ValidateLoadedTemplateFields normalizedKey
+End Sub
+
+Private Sub ClearEmailFormFields()
+    SetTextBoxText mTxtTo, vbNullString
+    SetTextBoxText mTxtCc, vbNullString
+    SetTextBoxText mTxtSubject, vbNullString
+    SetTextBoxText mTxtBody, vbNullString
+    SetTextBoxText mTxtSignature, vbNullString
+    mOriginalBodyTemplate = vbNullString
+    If Not mLstAttachments Is Nothing Then
+        On Error Resume Next
+        mLstAttachments.Clear
+        On Error GoTo 0
+    End If
+    UpdateAttachmentActionsVisibility Nothing
+End Sub
+
+Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Collection)
+    Dim hasTemplates As Boolean
+    Dim visibleRemove As Boolean
+
+    hasTemplates = Not templateKeys Is Nothing
+    If hasTemplates Then
+        On Error Resume Next
+        hasTemplates = templateKeys.Count > 0
+        On Error GoTo 0
+    End If
+
+    If Not mCboTemplate Is Nothing Then mCboTemplate.Enabled = hasTemplates
+    If Not mTxtTo Is Nothing Then mTxtTo.Enabled = hasTemplates
+    If Not mTxtCc Is Nothing Then mTxtCc.Enabled = hasTemplates
+    If Not mTxtSubject Is Nothing Then mTxtSubject.Enabled = hasTemplates
+    If Not mTxtBody Is Nothing Then mTxtBody.Enabled = hasTemplates
+    If Not mTxtSignature Is Nothing Then mTxtSignature.Enabled = hasTemplates
+    If Not mLstAttachments Is Nothing Then mLstAttachments.Enabled = hasTemplates
+
+    If Not mBtnAddAttachment Is Nothing Then
+        mBtnAddAttachment.Enabled = hasTemplates
+    End If
+
+    visibleRemove = False
+    If Not mBtnRemoveAttachment Is Nothing Then
+        visibleRemove = mBtnRemoveAttachment.Visible
+        mBtnRemoveAttachment.Enabled = hasTemplates And visibleRemove
+    End If
+
+    If hasTemplates Then
+        mTemplateAvailabilityWarningShown = False
+    Else
+        ClearEmailFormFields
+        SetTextBoxText mTxtTemp, vbNullString
+        mCurrentTemplateKey = vbNullString
+        If Not mTemplateAvailabilityWarningShown Then
+            MsgBox "No email templates were found. Please add templates to the Email Templates worksheet before continuing.", _
+                   vbExclamation
+            mTemplateAvailabilityWarningShown = True
+        End If
+    End If
+End Sub
+
+Private Sub HandleTemplateSelectionChange()
+    Dim selectedKey As String
+
+    If mSuppressTemplateEvents > 0 Then Exit Sub
+
+    selectedKey = GetComboValue(mCboTemplate)
+    ApplyTemplateSelection selectedKey, False
+    ApplyBodyPlaceholders mSelectedMemberIndex
+End Sub
+
+Private Function ResolveActiveTemplateKey(Optional ByVal includeCurrent As Boolean = True) As String
+    Dim templateKey As String
+
+    templateKey = GetComboValue(mCboTemplate)
+    If LenB(templateKey) = 0 Then
+        templateKey = GetTextBoxText(mTxtTemp)
+    End If
+
+    If LenB(templateKey) = 0 And includeCurrent Then
+        templateKey = Trim$(mCurrentTemplateKey)
+    End If
+
+    ResolveActiveTemplateKey = templateKey
+End Function
+
+Private Sub TraceTemplateSelection(ByVal templateKey As String, _
+                                   ByVal loadSucceeded As Boolean, _
+                                   ByVal toValue As String, _
+                                   ByVal ccValue As String, _
+                                   ByVal subjectValue As String, _
+                                   ByVal bodyValue As String)
+    If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
+
+    Debug.Print "[EmailForm] Template '" & templateKey & "' load=" & loadSucceeded & _
+                " TO='" & toValue & "' CC='" & ccValue & _
+                "' Subject='" & subjectValue & "' BodyLen=" & Len(bodyValue)
+End Sub
+
+Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
+    Dim warnings As Collection
+    Dim normalizedKey As String
+    Dim warningKey As String
+    Dim warningText As String
+
+    Set warnings = New Collection
+
+    Dim toValue As String
+    Dim subjectValue As String
+    Dim bodyValue As String
+
+    toValue = GetTextBoxText(mTxtTo)
+    subjectValue = GetTextBoxText(mTxtSubject)
+    bodyValue = GetTextBoxText(mTxtBody, False)
+
+    If LenB(toValue) = 0 Then
+        warnings.Add "To"
+        SetTextBoxText mTxtTo, "<enter recipients>"
+    End If
+
+    If LenB(subjectValue) = 0 Then
+        warnings.Add "Subject"
+        SetTextBoxText mTxtSubject, "<enter subject>"
+    End If
+
+    If LenB(bodyValue) = 0 Then
+        warnings.Add "Body"
+        SetTextBoxText mTxtBody, "(No body content provided)"
+    End If
+
+    If warnings.Count = 0 Then Exit Sub
+
+    normalizedKey = UCase$(Trim$(templateKey))
+    warningKey = normalizedKey & "|" & JoinCollectionString(warnings, ";")
+
+    If Not mTemplateFieldWarningsShown Is Nothing Then
+        If mTemplateFieldWarningsShown.Exists(warningKey) Then Exit Sub
+        mTemplateFieldWarningsShown.Add warningKey, True
+    End If
+
+    warningText = "Template '" & templateKey & "' is missing required fields: " & _
+                  JoinCollectionString(warnings, ", ") & "." & vbCrLf & _
+                  "Please update the template metadata before sending emails."
+
+    MsgBox warningText, vbExclamation
+End Sub
+
+Private Sub ShowTemplateLoadFailure(ByVal templateKey As String)
+    If LenB(templateKey) = 0 Then Exit Sub
+
+    MsgBox "Template '" & templateKey & "' could not be found. Please verify the template exists on the Email Templates worksheet.", _
+           vbExclamation
+End Sub
 
 Private Sub UserForm_Initialize()
     Dim errNumber As Long
@@ -70,29 +488,33 @@ Private Sub UserForm_Initialize()
 
     Dim templateKey As String
 
+    InitializeControlReferences
+    EnsureTemplateWarningCache
+    mTemplateAvailabilityWarningShown = False
+
     titleBarHidden = False
 
-    Me.bSUB.Visible = False
-
-    On Error Resume Next
-    templateKey = Trim$(Me.cboTemplate.value)
-    On Error GoTo CleanFail
-
-    If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.value)
+    If Not mBtnRemoveAttachment Is Nothing Then
+        mBtnRemoveAttachment.Visible = False
     End If
 
-    If LenB(templateKey) > 0 Then
-        LoadEmailTemplateData templateKey, _
-                              Me.txtTO, Me.txtCC, Me.lstAT, _
-                              Me.txtSubj, Me.txtBody, Me.txtSignature
+    If Not EnsureRequiredControls() Then
+        errNumber = vbObjectError + 701
+        errSource = "EmailForm.Initialize"
+        errDescription = "One or more required controls are missing from the Email form."
+        GoTo CleanExit
     End If
 
-    InitializeAttachmentTracking templateKey
+    Dim templateKeys As Collection
+    Set templateKeys = PopulateTemplateDropdown()
+
+    templateKey = ResolveInitialTemplateKey(templateKeys)
+
+    ApplyTemplateSelection templateKey, True
 
     LoadMemberRecords
 
-    mOriginalBodyTemplate = Me.txtBody.value
+    mOriginalBodyTemplate = GetTextBoxText(mTxtBody, False)
 
     mFirstVisibleMemberIndex = 1
 
@@ -200,14 +622,14 @@ End Property
 Public Sub RefreshBodyPlaceholders(Optional ByVal memberIndex As Long = -1, _
                                    Optional ByVal resetTemplate As Boolean = False)
     If resetTemplate Or LenB(mOriginalBodyTemplate) = 0 Then
-        mOriginalBodyTemplate = Me.txtBody.value
+        mOriginalBodyTemplate = GetTextBoxText(mTxtBody, False)
     End If
     ApplyBodyPlaceholders memberIndex
 End Sub
 
 Public Sub LoadBodyTemplate(ByVal templateText As String, Optional ByVal memberIndex As Long = -1)
     mOriginalBodyTemplate = templateText
-    Me.txtBody.value = templateText
+    SetTextBoxText mTxtBody, templateText
     ApplyBodyPlaceholders memberIndex
 End Sub
 
@@ -443,7 +865,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
 
     baseText = mOriginalBodyTemplate
     If LenB(baseText) = 0 Then
-        baseText = Me.txtBody.value
+        baseText = GetTextBoxText(mTxtBody, False)
     End If
 
     If LenB(baseText) = 0 Then Exit Sub
@@ -469,7 +891,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     mSelectedMemberIndex = targetIndex
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
-    Me.txtBody.value = ReplacePlaceholdersArray(baseText, placeholderPairs)
+    SetTextBoxText mTxtBody, ReplacePlaceholdersArray(baseText, placeholderPairs)
 End Sub
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
@@ -1209,7 +1631,7 @@ Private Sub ApplyAttachmentUpdates(ByVal templateKey As String)
     Dim combined As Collection
 
     Set combined = BuildCombinedAttachmentEntries()
-    PopulateAttachmentListControl Me.lstAT, combined
+    PopulateAttachmentListControl mLstAttachments, combined
     UpdateAttachmentActionsVisibility combined
     PersistUserAttachmentsToWorksheet templateKey
 End Sub
@@ -1249,7 +1671,7 @@ Private Sub RefreshAttachmentListDisplay()
     Dim combined As Collection
 
     Set combined = BuildCombinedAttachmentEntries()
-    PopulateAttachmentListControl Me.lstAT, combined
+    PopulateAttachmentListControl mLstAttachments, combined
     UpdateAttachmentActionsVisibility combined
 End Sub
 
@@ -1258,9 +1680,20 @@ Private Sub UpdateAttachmentActionsVisibility(ByVal combined As Collection)
 
     hasAttachments = Not combined Is Nothing And combined.Count > 0
 
-    On Error Resume Next
-    Me.bSUB.Visible = hasAttachments
-    On Error GoTo 0
+    If Not mBtnRemoveAttachment Is Nothing Then
+        On Error Resume Next
+        mBtnRemoveAttachment.Visible = hasAttachments
+        mBtnRemoveAttachment.Enabled = hasAttachments
+        On Error GoTo 0
+    End If
+End Sub
+
+Private Sub cboTemplate_Change()
+    HandleTemplateSelectionChange
+End Sub
+
+Private Sub cboTemplate_Click()
+    HandleTemplateSelectionChange
 End Sub
 
 Private Sub bADD_Click()
@@ -1273,10 +1706,7 @@ Private Sub bADD_Click()
 
     On Error GoTo CleanFail
 
-    templateKey = Trim$(Me.cboTemplate.value)
-    If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.value)
-    End If
+    templateKey = ResolveActiveTemplateKey()
 
     If LenB(templateKey) = 0 Then
         MsgBox "Please select a template before adding attachments.", vbExclamation
@@ -1345,10 +1775,7 @@ Private Sub bSUB_Click()
 
     On Error GoTo CleanFail
 
-    templateKey = Trim$(Me.cboTemplate.value)
-    If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.value)
-    End If
+    templateKey = ResolveActiveTemplateKey()
 
     If LenB(templateKey) = 0 Then
         MsgBox "Please select a template before removing attachments.", vbExclamation
@@ -1475,9 +1902,11 @@ Private Sub bCFC_Click()
         GoTo CleanExit
     End If
 
-    templateKey = Trim$(Me.cboTemplate.value)
+    templateKey = ResolveActiveTemplateKey()
     If LenB(templateKey) = 0 Then
-        templateKey = Trim$(Me.txtTEMP.value)
+        SetCursorDefault
+        MsgBox "Please select a template before creating drafts.", vbExclamation
+        GoTo CleanExit
     End If
 
     EnsureAttachmentTracking templateKey
