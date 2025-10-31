@@ -140,7 +140,6 @@ Private Function EnsureRequiredControls() As Boolean
     If mTxtCc Is Nothing Then missing.Add "txtCC (TextBox)"
     If mTxtSubject Is Nothing Then missing.Add "txtSubj (TextBox)"
     If mTxtBody Is Nothing Then missing.Add "txtBody (TextBox)"
-    If mTxtSignature Is Nothing Then missing.Add "txtSignature (TextBox)"
     If mLstAttachments Is Nothing Then missing.Add "lstAT (ListBox)"
     If mCboTemplate Is Nothing Then missing.Add "cboTemplate (ComboBox)"
     If mBtnAddAttachment Is Nothing Then missing.Add "bADD (CommandButton)"
@@ -166,6 +165,21 @@ Private Function JoinCollectionString(ByVal items As Collection, Optional ByVal 
 
     JoinCollectionString = buffer
 End Function
+
+Private Sub AddFailureReason(ByRef reasons As Collection, ByVal message As String)
+    Dim existing As Variant
+
+    message = Trim$(message)
+    If LenB(message) = 0 Then Exit Sub
+
+    If reasons Is Nothing Then Set reasons = New Collection
+
+    For Each existing In reasons
+        If StrComp(CStr(existing), message, vbTextCompare) = 0 Then Exit Sub
+    Next existing
+
+    reasons.Add message
+End Sub
 
 Private Function GetTextBoxText(ByVal target As MSForms.TextBox, Optional ByVal trimResult As Boolean = True) As String
     If target Is Nothing Then Exit Function
@@ -285,6 +299,8 @@ Private Sub ApplyTemplateSelection(ByVal templateKey As String, Optional ByVal s
     Dim ccValue As String
     Dim subjectValue As String
     Dim bodyValue As String
+    Dim signatureValue As String
+    Dim attachmentCount As Long
 
     normalizedKey = Trim$(templateKey)
 
@@ -293,7 +309,7 @@ Private Sub ApplyTemplateSelection(ByVal templateKey As String, Optional ByVal s
         mCurrentTemplateKey = vbNullString
         SetTextBoxText mTxtTemp, vbNullString
         If syncCombo Then SetComboValue mCboTemplate, vbNullString
-        TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString
+        TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString, vbNullString, 0
         Exit Sub
     End If
 
@@ -305,8 +321,11 @@ Private Sub ApplyTemplateSelection(ByVal templateKey As String, Optional ByVal s
     ccValue = GetTextBoxText(mTxtCc, False)
     subjectValue = GetTextBoxText(mTxtSubject, False)
     bodyValue = GetTextBoxText(mTxtBody, False)
+    signatureValue = GetTextBoxText(mTxtSignature, False)
+    attachmentCount = 0
+    If loadSucceeded Then attachmentCount = GetAttachmentListCount()
 
-    TraceTemplateSelection normalizedKey, loadSucceeded, toValue, ccValue, subjectValue, bodyValue
+    TraceTemplateSelection normalizedKey, loadSucceeded, toValue, ccValue, subjectValue, bodyValue, signatureValue, attachmentCount
 
     If Not loadSucceeded Then
         ShowTemplateLoadFailure normalizedKey
@@ -324,6 +343,7 @@ Private Sub ApplyTemplateSelection(ByVal templateKey As String, Optional ByVal s
     If syncCombo Then SetComboValue mCboTemplate, normalizedKey
 
     ValidateLoadedTemplateFields normalizedKey
+    TraceEmailFieldState "ApplyTemplateSelection", normalizedKey
 End Sub
 
 Private Sub ClearEmailFormFields()
@@ -339,6 +359,7 @@ Private Sub ClearEmailFormFields()
         On Error GoTo 0
     End If
     UpdateAttachmentActionsVisibility Nothing
+    TraceEmailFieldState "ClearEmailFormFields", Trim$(mCurrentTemplateKey)
 End Sub
 
 Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Collection)
@@ -409,17 +430,47 @@ Private Function ResolveActiveTemplateKey(Optional ByVal includeCurrent As Boole
     ResolveActiveTemplateKey = templateKey
 End Function
 
+Public Function ActiveTemplateKey(Optional ByVal includeCurrent As Boolean = True) As String
+    ActiveTemplateKey = ResolveActiveTemplateKey(includeCurrent)
+End Function
+
 Private Sub TraceTemplateSelection(ByVal templateKey As String, _
                                    ByVal loadSucceeded As Boolean, _
                                    ByVal toValue As String, _
                                    ByVal ccValue As String, _
                                    ByVal subjectValue As String, _
-                                   ByVal bodyValue As String)
+                                   ByVal bodyValue As String, _
+                                   ByVal signatureValue As String, _
+                                   ByVal attachmentCount As Long)
     If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
 
     Debug.Print "[EmailForm] Template '" & templateKey & "' load=" & loadSucceeded & _
                 " TO='" & toValue & "' CC='" & ccValue & _
-                "' Subject='" & subjectValue & "' BodyLen=" & Len(bodyValue)
+                "' Subject='" & subjectValue & "' BodyLen=" & Len(bodyValue) & _
+                " SignatureLen=" & Len(signatureValue) & " Attachments=" & attachmentCount
+End Sub
+
+Private Sub TraceEmailFieldState(ByVal stage As String, ByVal templateKey As String)
+    Dim toValue As String
+    Dim ccValue As String
+    Dim subjectValue As String
+    Dim bodyValue As String
+    Dim signatureValue As String
+    Dim attachmentCount As Long
+
+    If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
+
+    toValue = GetTextBoxText(mTxtTo, False)
+    ccValue = GetTextBoxText(mTxtCc, False)
+    subjectValue = GetTextBoxText(mTxtSubject, False)
+    bodyValue = GetTextBoxText(mTxtBody, False)
+    signatureValue = GetTextBoxText(mTxtSignature, False)
+    attachmentCount = GetAttachmentListCount()
+
+    Debug.Print "[EmailForm] State '" & stage & "' template='" & templateKey & _
+                "' TO='" & toValue & "' CC='" & ccValue & "' Subject='" & subjectValue & _
+                "' BodyLen=" & Len(bodyValue) & " SignatureLen=" & Len(signatureValue) & _
+                " Attachments=" & attachmentCount
 End Sub
 
 Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
@@ -892,6 +943,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
     SetTextBoxText mTxtBody, ReplacePlaceholdersArray(baseText, placeholderPairs)
+    TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
 End Sub
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
@@ -1235,6 +1287,14 @@ Private Function GetListBoxEntries(ByVal listControl As MSForms.ListBox) As Coll
     Set GetListBoxEntries = entries
 End Function
 
+Private Function GetAttachmentListCount() As Long
+    If mLstAttachments Is Nothing Then Exit Function
+
+    On Error Resume Next
+    GetAttachmentListCount = mLstAttachments.ListCount
+    On Error GoTo 0
+End Function
+
 Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
                                       ByVal entries As Collection)
     Dim entry As Variant
@@ -1413,19 +1473,41 @@ Private Function CreateCaseInsensitiveDictionary() As Object
     Set CreateCaseInsensitiveDictionary = dict
 End Function
 
-Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
+Private Function AddUserAttachmentFromPath(ByVal filePath As String, _
+                                           Optional ByRef failureReason As String = vbNullString) As Boolean
     Dim normalizedKey As String
     Dim entry As String
     Dim resolvedPath As String
     Dim displayName As String
     Dim originalNormalized As String
+    Dim originalSelection As String
+    Dim missingLabel As String
 
     resolvedPath = Trim$(filePath)
     displayName = vbNullString
+    originalSelection = resolvedPath
 
     originalNormalized = NormalizeTemplateAttachmentPath(resolvedPath)
 
-    If Not CheckIfAttachmentExists(displayName, resolvedPath) Then Exit Function
+    If LenB(resolvedPath) = 0 Then
+        failureReason = "No file was selected."
+        Exit Function
+    End If
+
+    If Not CheckIfAttachmentExists(displayName, resolvedPath) Then
+        If LenB(failureReason) = 0 Then
+            missingLabel = Trim$(originalSelection)
+            If LenB(missingLabel) = 0 Then missingLabel = Trim$(filePath)
+            If LenB(missingLabel) = 0 Then missingLabel = "(unknown file)"
+            failureReason = "The file '" & missingLabel & "' could not be found."
+        End If
+        Exit Function
+    End If
+
+    If LenB(displayName) = 0 Then
+        displayName = ResolveDisplayNameFromPath(resolvedPath)
+    End If
+    If LenB(displayName) = 0 Then displayName = resolvedPath
 
     normalizedKey = NormalizeTemplateAttachmentPath(resolvedPath)
     If LenB(normalizedKey) = 0 Then Exit Function
@@ -1436,11 +1518,20 @@ Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
         End If
     End If
 
-    If AttachmentExistsInTemplate(normalizedKey) Then Exit Function
-    If AttachmentExistsInUser(normalizedKey) Then Exit Function
+    If AttachmentExistsInTemplate(normalizedKey) Then
+        failureReason = "The file '" & displayName & "' is already included with the template."
+        Exit Function
+    End If
+    If AttachmentExistsInUser(normalizedKey) Then
+        failureReason = "The file '" & displayName & "' has already been added."
+        Exit Function
+    End If
 
     entry = BuildAttachmentEntryFromComponents(displayName, resolvedPath)
-    If LenB(entry) = 0 Then Exit Function
+    If LenB(entry) = 0 Then
+        failureReason = "Unable to add '" & displayName & "' because the entry could not be created."
+        Exit Function
+    End If
 
     If mUserAttachmentEntries Is Nothing Then
         Set mUserAttachmentEntries = New Collection
@@ -1452,6 +1543,24 @@ Private Function AddUserAttachmentFromPath(ByVal filePath As String) As Boolean
     End If
 
     AddUserAttachmentFromPath = True
+    failureReason = vbNullString
+End Function
+
+Private Function ResolveDisplayNameFromPath(ByVal filePath As String) As String
+    Dim separatorPos As Long
+
+    filePath = Trim$(filePath)
+    If LenB(filePath) = 0 Then Exit Function
+
+    separatorPos = InStrRev(filePath, Application.PathSeparator)
+    If separatorPos > 0 Then
+        ResolveDisplayNameFromPath = Mid$(filePath, separatorPos + 1)
+        If LenB(ResolveDisplayNameFromPath) = 0 Then
+            ResolveDisplayNameFromPath = filePath
+        End If
+    Else
+        ResolveDisplayNameFromPath = filePath
+    End If
 End Function
 
 Private Function BuildUserAttachmentPaths() As Collection
@@ -1634,6 +1743,7 @@ Private Sub ApplyAttachmentUpdates(ByVal templateKey As String)
     PopulateAttachmentListControl mLstAttachments, combined
     UpdateAttachmentActionsVisibility combined
     PersistUserAttachmentsToWorksheet templateKey
+    TraceEmailFieldState "ApplyAttachmentUpdates", ResolveActiveTemplateKey(False)
 End Sub
 
 Private Sub PersistUserAttachmentsToWorksheet(ByVal templateKey As String)
@@ -1678,7 +1788,17 @@ End Sub
 Private Sub UpdateAttachmentActionsVisibility(ByVal combined As Collection)
     Dim hasAttachments As Boolean
 
-    hasAttachments = Not combined Is Nothing And combined.Count > 0
+    hasAttachments = False
+
+    If Not combined Is Nothing Then
+        On Error Resume Next
+        hasAttachments = (combined.Count > 0)
+        If Err.Number <> 0 Then
+            Err.Clear
+            hasAttachments = False
+        End If
+        On Error GoTo 0
+    End If
 
     If Not mBtnRemoveAttachment Is Nothing Then
         On Error Resume Next
@@ -1703,6 +1823,8 @@ Private Sub bADD_Click()
     Dim templateKey As String
     Dim waitApplied As Boolean
     Dim addedCount As Long
+    Dim failureReasons As Collection
+    Dim failureReason As String
 
     On Error GoTo CleanFail
 
@@ -1737,17 +1859,34 @@ Private Sub bADD_Click()
     If selectedPaths.Count = 0 Then GoTo CleanExit
 
     For Each selectedItem In selectedPaths
-        If AddUserAttachmentFromPath(CStr(selectedItem)) Then
+        failureReason = vbNullString
+        If AddUserAttachmentFromPath(CStr(selectedItem), failureReason) Then
             addedCount = addedCount + 1
+        Else
+            AddFailureReason failureReasons, failureReason
         End If
     Next selectedItem
 
-    If addedCount = 0 Then GoTo CleanExit
+    If addedCount = 0 Then
+        If Not failureReasons Is Nothing Then
+            MsgBox "No attachments were added:" & vbCrLf & " - " & _
+                   JoinCollectionString(failureReasons, vbCrLf & " - "), vbExclamation
+        Else
+            MsgBox "No attachments were added. The selected files may already be listed or were unavailable.", _
+                   vbInformation
+        End If
+        GoTo CleanExit
+    End If
 
     SetCursorWait
     waitApplied = True
 
     ApplyAttachmentUpdates templateKey
+
+    If Not failureReasons Is Nothing Then
+        MsgBox "Some files were skipped:" & vbCrLf & " - " & _
+               JoinCollectionString(failureReasons, vbCrLf & " - "), vbInformation
+    End If
 
 CleanExit:
     If waitApplied Then SetCursorDefault
@@ -1831,7 +1970,10 @@ NextSelection:
         End If
     Next selectedItem
 
-    If removedCount = 0 Then GoTo CleanExit
+    If removedCount = 0 Then
+        MsgBox "No attachments were removed. They may have already been cleared.", vbInformation
+        GoTo CleanExit
+    End If
 
     SetCursorWait
     waitApplied = True
