@@ -349,34 +349,6 @@ Private Sub lookINFO()
         vo5FY = fiscalYear
         wsSB.Cells(i + 1, 8).Value = vo5FY
     End If
-
-    ' Selection bucket "lk" from screening/command/FY
-    Dim f As Range
-    Dim ws As Worksheet
-    Set ws = ThisWorkbook.Worksheets("CMD_UIC")
-
-    Set f = ws.Columns("A").Find(What:=vAUIC, LookIn:=xlValues, LookAt:=xlWhole, _
-                                 SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False)
-
-    If f Is Nothing Then
-        ' Not in MAJ CMD / FLT UP
-        If Right$(vSCRN, 4) = "AKFZ" Then lk = "BNK"
-        If Right$(vSCRN, 4) = "AKNZ" Then lk = "BNK"
-        If Right$(vSCRN, 4) = "AKPZ" Then lk = "BNK"
-        If Right$(vSCRN, 4) = "AKAZ" Then lk = "BNK"
-    Else
-        lk = "SEQ"
-    End If
-    PulseIfNeeded
-
-    If lk = vbNullString Then
-        ' Fall back by year-from-promo-FY relative to current year (two-digit logic)
-        If CInt(vo5FY) + 5 = Val(Right$(CStr(Year(Date)), 2)) Then lk = "1L"
-        If CInt(vo5FY) + 5 = Val(Right$(CStr(Year(Date)), 2)) - 1 Then lk = "2L"
-        If CInt(vo5FY) + 5 = Val(Right$(CStr(Year(Date)), 2)) - 2 Then lk = "3L"
-    End If
-    PulseIfNeeded
-    wsSB.Cells(i + 1, 2).Value = lk
 End Sub
 
 '========================================================================================
@@ -897,6 +869,7 @@ Private Function FoundCell(ws As Worksheet, TableName As String, _
         FoundCell = col.Rows(pos).row                       ' actual worksheet row number
     End If
 End Function
+
 
 
 
