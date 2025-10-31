@@ -15,6 +15,7 @@ Option Explicit
 Public Function ReplacePlaceholders(ByVal template As String, ParamArray placeholderPairs()) As String
     Dim normalizedPairs As Variant
     Dim upper As Long
+    Dim sourcePairs As Variant
 
     On Error GoTo NoArguments
     upper = UBound(placeholderPairs)
@@ -25,7 +26,8 @@ Public Function ReplacePlaceholders(ByVal template As String, ParamArray placeho
         Exit Function
     End If
 
-    normalizedPairs = NormaliseParamArrayPairs(placeholderPairs, upper)
+    sourcePairs = placeholderPairs
+    normalizedPairs = NormaliseParamArrayPairs(sourcePairs, upper)
     ReplacePlaceholders = ReplacePlaceholdersArray(template, normalizedPairs)
     Exit Function
 
@@ -34,11 +36,15 @@ NoArguments:
     ReplacePlaceholders = template
 End Function
 
-Private Function NormaliseParamArrayPairs(ByRef placeholderPairs() As Variant, ByVal upper As Long) As Variant
+Private Function NormaliseParamArrayPairs(ByRef placeholderPairs As Variant, ByVal upper As Long) As Variant
     Dim pairCount As Long
     Dim result() As Variant
     Dim index As Long
     Dim targetRow As Long
+
+    If Not IsArray(placeholderPairs) Then
+        Exit Function
+    End If
 
     pairCount = (upper + 2) \/ 2
 
