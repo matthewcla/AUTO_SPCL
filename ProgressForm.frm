@@ -51,6 +51,7 @@ Private Const EM_SCROLLCARET As Long = &HB7
 Private progressBarMaxWidth As Single  ' Captured from the design-time width
 Private pendingNavigationTarget As String
 Private mTitleBarHidden As Boolean
+Private mLogTextBox As MSForms.TextBox
 
 Private sessionStartedAt As Date
 Private pauseStartedAt As Date
@@ -109,6 +110,20 @@ Private Sub ValidateControlExists(ByVal controlName As String, _
     End If
 End Sub
 
+Private Function GetLogTextBox() As MSForms.TextBox
+    If mLogTextBox Is Nothing Then
+        Dim candidate As MSForms.Control
+        Set candidate = TryGetFormControl("txtLog")
+        If Not candidate Is Nothing Then
+            If TypeOf candidate Is MSForms.TextBox Then
+                Set mLogTextBox = candidate
+            End If
+        End If
+    End If
+
+    Set GetLogTextBox = mLogTextBox
+End Function
+
 Private Function JoinCollectionItems(ByVal items As Collection, Optional ByVal delimiter As String = ", ") As String
     Dim entry As Variant
     Dim buffer As String
@@ -124,12 +139,18 @@ Private Function JoinCollectionItems(ByVal items As Collection, Optional ByVal d
 End Function
 
 Private Sub Class_Initialize()
+    Dim logBox As MSForms.TextBox
+
     If Not EnsureRequiredControls() Then
         Err.Raise vbObjectError + 801, "ProgressForm.Class_Initialize", _
                   "Required controls are missing from ProgressForm."
     End If
 
-    Me.txtLog.ControlSource = ""
+    Set mLogTextBox = Nothing
+    Set logBox = GetLogTextBox()
+    If Not logBox Is Nothing Then
+        logBox.ControlSource = ""
+    End If
     pendingNavigationTarget = ""
     mTitleBarHidden = False
     IsPaused = False
@@ -156,6 +177,8 @@ End Function
 
 ' Call once, right after showing modeless
 Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing records")
+    Dim logBox As MSForms.TextBox
+
     Me.Caption = captionText
     Me.lblProcessed.Caption = "0"
     Me.lblRemaining.Caption = CStr(totalCount)
@@ -170,9 +193,12 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     progressBarMaxWidth = lblProcessedBarFill.Width
     lblProcessedBarFill.Width = 0
 
-    Me.txtLog.ControlSource = ""
-    Me.txtLog.Value = ""
-    Me.txtLog.SelStart = 0
+    Set logBox = GetLogTextBox()
+    If Not logBox Is Nothing Then
+        logBox.ControlSource = ""
+        logBox.Value = ""
+        logBox.SelStart = 0
+    End If
 
     IsPaused = False
     IsCancelled = False
@@ -355,7 +381,14 @@ Public Sub LogLine(ByVal lineText As String)
         Exit Sub
     End If
 
-    AppendLogLine Me.txtLog, CStr(lineText)
+    Dim logBox As MSForms.TextBox
+    Set logBox = GetLogTextBox()
+    If logBox Is Nothing Then
+        Debug.Print "ProgressForm.LogLine: missing txtLog control -> " & lineText
+        Exit Sub
+    End If
+
+    AppendLogLine logBox, CStr(lineText)
     lastLoggedLine = lineText
 End Sub
 
@@ -510,6 +543,7 @@ Private Sub UserForm_Initialize()
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim logBox As MSForms.TextBox
 
     On Error GoTo CleanFail
 
@@ -517,7 +551,10 @@ Private Sub UserForm_Initialize()
 
     modProgressUI.Progress_ResetTimerState
 
-    Me.txtLog.ControlSource = ""
+    Set logBox = GetLogTextBox()
+    If Not logBox Is Nothing Then
+        logBox.ControlSource = ""
+    End If
     lblOAIS.Caption = ""
 
     RegisterReflectionsListener TypeName(Me)
@@ -563,6 +600,7 @@ Private Sub UserForm_Terminate()
     On Error GoTo CleanFail
 
     modProgressUI.Progress_ResetTimerState
+    Set mLogTextBox = Nothing
 
     SetCursorWait
 
