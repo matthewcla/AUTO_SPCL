@@ -975,7 +975,7 @@ Private Function BuildAttachmentEntry(ByVal filePath As String) As String
         BuildAttachmentEntry = fileName & " | " & Trim$(filePath)
     Else
         BuildAttachmentEntry = Trim$(filePath)
-'    End If
+    End If
 End Function
 
 '-------------------------------------------------------------------------------
