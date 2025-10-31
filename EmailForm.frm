@@ -980,7 +980,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     mSelectedMemberIndex = targetIndex
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
-    SetTextBoxText mTxtBody, ReplacePlaceholdersArray(baseText, placeholderPairs)
+    SetTextBoxText mTxtBody, modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
     TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
 End Sub
 

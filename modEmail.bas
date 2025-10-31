@@ -507,7 +507,7 @@ Private Function BuildBody(ByVal personName As String, ByVal eligNote As String)
         "ISSUE", noteText _
     )
 
-    bodyText = ReplacePlaceholdersArray(bodyText, replacements)
+    bodyText = modEmailPlaceholders.ReplacePlaceholdersArray(bodyText, replacements)
     BuildBody = bodyText
 End Function
 
