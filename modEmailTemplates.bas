@@ -160,7 +160,46 @@ Private Function ResolveTemplateColumnIndex(ByRef ws As Worksheet, _
     If TEMPLATE_COLUMN_INDEX < 1 Then Exit Function
     If TEMPLATE_COLUMN_INDEX > ws.Columns.Count Then Exit Function
 
-    ResolveTemplateColumnIndex = TEMPLATE_COLUMN_INDEX
+    Dim headerValue As String
+    Dim searchRange As Range
+    Dim candidate As Range
+
+    headerValue = ResolveTemplateColumnHeader(ws)
+
+    If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
+        ResolveTemplateColumnIndex = TEMPLATE_COLUMN_INDEX
+        Exit Function
+    End If
+
+    If LenB(headerValue) = 0 Then
+        If StrComp(templateKey, DEFAULT_TEMPLATE_KEY, vbTextCompare) = 0 Then
+            ResolveTemplateColumnIndex = TEMPLATE_COLUMN_INDEX
+            Exit Function
+        End If
+    End If
+
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
+
+    If searchRange Is Nothing Then
+        TraceTemplateColumnMismatch templateKey
+        Exit Function
+    End If
+
+    For Each candidate In searchRange.Cells
+        If candidate.Column <> TEMPLATE_COLUMN_INDEX Then
+            headerValue = Trim$(CStrSafe(candidate.Value))
+            If LenB(headerValue) > 0 Then
+                If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
+                    ResolveTemplateColumnIndex = candidate.Column
+                    Exit Function
+                End If
+            End If
+        End If
+    Next candidate
+
+    TraceTemplateColumnMismatch templateKey
 End Function
 
 Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
@@ -262,6 +301,12 @@ Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As
         target.AddItem CStr(entry)
         On Error GoTo 0
     Next entry
+End Sub
+
+Private Sub TraceTemplateColumnMismatch(ByVal templateKey As String)
+    If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
+
+    Debug.Print "[TemplateLoad] Unable to resolve template column for key '" & templateKey & "'."
 End Sub
 
 Private Sub TraceTemplateLoad(ByVal templateKey As String, _
