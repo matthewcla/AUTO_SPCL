@@ -4,6 +4,8 @@ Option Explicit
 Private Const TEMPLATE_SHEET_NAME_PRIMARY As String = "EmailTemplate"
 Private Const TEMPLATE_SHEET_NAME_ALT As String = "EmailTemplates"
 Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
+Private Const TEMPLATE_COLUMN_INDEX As Long = 2
+Private Const DEFAULT_TEMPLATE_KEY As String = "Default"
 
 Private Const EMAIL_ROW_TO As Long = 2
 Private Const EMAIL_ROW_CC As Long = 3
@@ -30,7 +32,7 @@ Private mAttachmentExistsCache As Object
 '   lstAT - List box that surfaces template and user attachment summaries.
 '   txtSubj - Text box that receives the subject line.
 '   txtBody - Text box that receives the greeting/body combination.
-'   txtSignature - Text box that receives the template signature block.
+'   txtSignature - (Optional) Text box that receives the template signature block.
 ' Returns  : True when the template column is found and controls are populated; False otherwise.
 ' Side Effects:
 '   Clears and updates supplied controls; combines template and stored user attachments.
@@ -55,10 +57,10 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     Dim userAttachmentEntries As Collection
     Dim combinedAttachments As Collection
 
-    If LenB(templateKey) = 0 Then Exit Function
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     ClearTemplateControls txtTO, txtCC, lstAT, txtSubj, txtBody, txtSignature
 
@@ -79,9 +81,12 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     AssignTemplateTextBoxValue txtTO, toValue
     AssignTemplateTextBoxValue txtCC, ccValue
     AssignTemplateTextBoxValue txtSubj, subjValue
-    AssignTemplateTextBoxValue txtSignature, signatureValue
     AssignAttachmentList lstAT, combinedAttachments
-    AssignTemplateTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
+    AssignTemplateTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue, signatureValue)
+
+    If Not txtSignature Is Nothing Then
+        AssignTemplateTextBoxValue txtSignature, vbNullString
+    End If
 
     TraceTemplateLoad templateKey, toValue, ccValue, subjValue, bodyValue, signatureValue, combinedAttachments
 
@@ -123,42 +128,94 @@ Private Function ResolveTemplateWorksheet() As Worksheet
     Set ResolveTemplateWorksheet = mTemplateWorksheet
 End Function
 
+Private Function NormaliseTemplateKey(ByVal templateKey As String, ByRef ws As Worksheet) As String
+    Dim headerValue As String
+    Dim candidate As String
+
+    candidate = Trim$(templateKey)
+    headerValue = ResolveTemplateColumnHeader(ws)
+
+    If LenB(candidate) > 0 Then
+        NormaliseTemplateKey = candidate
+        Exit Function
+    End If
+
+    If LenB(headerValue) > 0 Then
+        NormaliseTemplateKey = headerValue
+    Else
+        NormaliseTemplateKey = DEFAULT_TEMPLATE_KEY
+    End If
+End Function
+
+Private Function ResolveTemplateColumnHeader(ByRef ws As Worksheet) As String
+    If ws Is Nothing Then Exit Function
+
+    ResolveTemplateColumnHeader = Trim$(CStrSafe(ws.Cells(1, TEMPLATE_COLUMN_INDEX).Value))
+End Function
+
 Private Function ResolveTemplateColumnIndex(ByRef ws As Worksheet, _
                                             ByVal templateKey As String) As Long
-    Dim lastCol As Long
-    Dim colIndex As Long
-    Dim headerValue As String
-
     If ws Is Nothing Then Exit Function
-    If LenB(templateKey) = 0 Then Exit Function
 
-    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < 1 Then Exit Function
+    If TEMPLATE_COLUMN_INDEX < 1 Then Exit Function
+    If TEMPLATE_COLUMN_INDEX > ws.Columns.Count Then Exit Function
 
-    For colIndex = 1 To lastCol
-        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
-        If LenB(headerValue) > 0 Then
-            If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
-                ResolveTemplateColumnIndex = colIndex
-                Exit Function
+    Dim headerValue As String
+    Dim searchRange As Range
+    Dim candidate As Range
+
+    headerValue = ResolveTemplateColumnHeader(ws)
+
+    If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
+        ResolveTemplateColumnIndex = TEMPLATE_COLUMN_INDEX
+        Exit Function
+    End If
+
+    If LenB(headerValue) = 0 Then
+        If StrComp(templateKey, DEFAULT_TEMPLATE_KEY, vbTextCompare) = 0 Then
+            ResolveTemplateColumnIndex = TEMPLATE_COLUMN_INDEX
+            Exit Function
+        End If
+    End If
+
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
+
+    If searchRange Is Nothing Then
+        TraceTemplateColumnMismatch templateKey
+        Exit Function
+    End If
+
+    For Each candidate In searchRange.Cells
+        If candidate.Column <> TEMPLATE_COLUMN_INDEX Then
+            headerValue = Trim$(CStrSafe(candidate.Value))
+            If LenB(headerValue) > 0 Then
+                If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
+                    ResolveTemplateColumnIndex = candidate.Column
+                    Exit Function
+                End If
             End If
         End If
-    Next colIndex
+    Next candidate
+
+    TraceTemplateColumnMismatch templateKey
 End Function
 
 Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
                                            ByRef ccValue As String, _
                                            ByRef subjectValue As String, _
-                                           ByRef greetingValue As String, _
-                                           ByRef bodyValue As String, _
-                                           ByRef signatureValue As String) As Boolean
+                                           ByRef bodyValue As String) As Boolean
     Dim ws As Worksheet
     Dim templateColumn As Long
-
-    If LenB(templateKey) = 0 Then Exit Function
+    Dim greetingValue As String
+    Dim coreBodyValue As String
+    Dim signatureValue As String
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
     If templateColumn = 0 Then Exit Function
@@ -166,8 +223,10 @@ Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
     ccValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_CC, templateColumn).Value))
     subjectValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SUBJECT, templateColumn).Value))
     greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
-    bodyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_BODY, templateColumn).Value))
+    coreBodyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_BODY, templateColumn).Value))
     signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
+
+    bodyValue = BuildBodyValue(greetingValue, coreBodyValue, signatureValue)
 
     TryGetTemplateDraftContent = True
 End Function
@@ -244,6 +303,12 @@ Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As
     Next entry
 End Sub
 
+Private Sub TraceTemplateColumnMismatch(ByVal templateKey As String)
+    If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
+
+    Debug.Print "[TemplateLoad] Unable to resolve template column for key '" & templateKey & "'."
+End Sub
+
 Private Sub TraceTemplateLoad(ByVal templateKey As String, _
                               ByVal toValue As String, _
                               ByVal ccValue As String, _
@@ -298,50 +363,29 @@ End Function
 '-------------------------------------------------------------------------------
 Public Function GetAvailableTemplateKeys() As Collection
     Dim ws As Worksheet
-    Dim lastCol As Long
-    Dim colIndex As Long
-    Dim headerValue As String
     Dim keys As Collection
-    Dim seen As Object
+    Dim headerValue As String
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
 
-    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < 1 Then Exit Function
-
     Set keys = New Collection
-    On Error Resume Next
-    Set seen = CreateObject("Scripting.Dictionary")
-    If Not seen Is Nothing Then seen.CompareMode = vbTextCompare
-    On Error GoTo 0
 
-    For colIndex = 1 To lastCol
-        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
-        If LenB(headerValue) > 0 Then
-            If seen Is Nothing Then
-                keys.Add headerValue
-            ElseIf Not seen.Exists(headerValue) Then
-                keys.Add headerValue
-                seen(headerValue) = True
-            End If
-        End If
-    Next colIndex
+    headerValue = ResolveTemplateColumnHeader(ws)
 
-    If keys.Count > 0 Then Set GetAvailableTemplateKeys = keys
+    If LenB(headerValue) > 0 Then
+        keys.Add headerValue
+    Else
+        keys.Add DEFAULT_TEMPLATE_KEY
+    End If
+
+    Set GetAvailableTemplateKeys = keys
 End Function
 
 Private Function BuildBodyValue(ByVal greetingValue As String, _
-                                ByVal bodyValue As String) As String
-    If LenB(greetingValue) = 0 Then
-        BuildBodyValue = bodyValue
-        Exit Function
-    End If
-
-    BuildBodyValue = greetingValue
-    If LenB(bodyValue) > 0 Then
-        BuildBodyValue = BuildBodyValue & vbCrLf & vbCrLf & bodyValue
-    End If
+                                ByVal bodyValue As String, _
+                                ByVal signatureValue As String) As String
+    BuildBodyValue = modEmailPlaceholders.CombineTemplateSections(greetingValue, bodyValue, signatureValue)
 End Function
 
 '-------------------------------------------------------------------------------
@@ -372,13 +416,13 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
     Dim resolvedPath As String
     Dim displayName As String
 
-    If LenB(templateKey) = 0 Then Exit Function
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then
         Err.Raise vbObjectError + 513, "modEmailTemplates.AppendTemplateAttachments", _
                   "Email template worksheet could not be found."
     End If
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then
@@ -516,10 +560,10 @@ Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) 
     Dim templateColumn As Long
     Dim attachmentValue As String
 
-    If LenB(templateKey) = 0 Then Exit Function
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Function
@@ -541,10 +585,10 @@ Public Function GetUserAttachmentEntries(ByVal templateKey As String) As Collect
     Dim ws As Worksheet
     Dim templateColumn As Long
 
-    If LenB(templateKey) = 0 Then Exit Function
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Function
@@ -569,10 +613,10 @@ Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
     Dim fileNames As Collection
     Dim filePaths As Collection
 
-    If LenB(templateKey) = 0 Then Exit Sub
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Sub
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Sub
@@ -603,16 +647,13 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
 
     finalValue = JoinAttachmentEntries(attachmentEntries)
 
-    If LenB(templateKey) = 0 Then
-        WriteTemplateAttachmentEntries = finalValue
-        Exit Function
-    End If
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then
         Err.Raise vbObjectError + 515, "modEmailTemplates.WriteTemplateAttachmentEntries", _
                   "Email template worksheet could not be found."
     End If
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then
@@ -651,10 +692,10 @@ Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String)
     Dim attachmentExists As Boolean
     Dim changed As Boolean
 
-    If LenB(templateKey) = 0 Then Exit Function
-
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Function
@@ -856,25 +897,7 @@ Public Function CheckIfAttachmentExists(ByRef fileName As String, _
 End Function
 
 Private Function ResolveTemplateColumn(ByVal ws As Worksheet, ByVal templateKey As String) As Long
-    Dim lastCol As Long
-    Dim colIndex As Long
-    Dim headerValue As String
-
-    If ws Is Nothing Then Exit Function
-    If LenB(templateKey) = 0 Then Exit Function
-
-    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < 1 Then Exit Function
-
-    For colIndex = 1 To lastCol
-        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
-        If LenB(headerValue) = 0 Then GoTo NextColumn
-        If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
-            ResolveTemplateColumn = colIndex
-            Exit Function
-        End If
-NextColumn:
-    Next colIndex
+    ResolveTemplateColumn = ResolveTemplateColumnIndex(ws, templateKey)
 End Function
 
 Private Function ReadUserAttachmentEntriesFromWorksheet(ByVal ws As Worksheet, _
@@ -1297,6 +1320,18 @@ Private Function ResolveActiveTemplateKeyFromForm() As String
         End If
     Next frm
 
+    resolved = Trim$(resolved)
+
+    If LenB(resolved) = 0 Then
+        Dim ws As Worksheet
+        Set ws = ResolveTemplateWorksheet()
+        If ws Is Nothing Then
+            resolved = DEFAULT_TEMPLATE_KEY
+        Else
+            resolved = NormaliseTemplateKey(resolved, ws)
+        End If
+    End If
+
     ResolveActiveTemplateKeyFromForm = resolved
 End Function
 
@@ -1314,9 +1349,6 @@ Private Function ResolveEmailFormActiveKey(ByVal frm As Object) As String
 
     If LenB(resolved) = 0 Then
         resolved = TryGetFormControlValue(frm, "txtTEMP")
-    End If
-    If LenB(resolved) = 0 Then
-        resolved = TryGetFormControlValue(frm, "cboTemplate")
     End If
 
     ResolveEmailFormActiveKey = resolved
@@ -1379,10 +1411,11 @@ Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String
     If LenB(replacementPath) = 0 Then Exit Sub
 
     templateKey = ResolveActiveTemplateKeyFromForm()
-    If LenB(templateKey) = 0 Then Exit Sub
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Sub
+
+    templateKey = NormaliseTemplateKey(templateKey, ws)
 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Sub

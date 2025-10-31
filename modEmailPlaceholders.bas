@@ -36,6 +36,39 @@ NoArguments:
     ReplacePlaceholders = template
 End Function
 
+Public Function CombineTemplateSections(ParamArray sections() As Variant) As String
+    Dim section As Variant
+    Dim normalized As String
+    Dim builder As String
+
+    For Each section In sections
+        normalized = NormaliseSectionText(section)
+        If LenB(normalized) = 0 Then GoTo NextSection
+
+        If LenB(builder) > 0 Then
+            builder = builder & vbCrLf & vbCrLf
+        End If
+
+        builder = builder & normalized
+
+NextSection:
+    Next section
+
+    CombineTemplateSections = builder
+End Function
+
+Private Function NormaliseSectionText(ByVal value As Variant) As String
+    If IsObject(value) Then Exit Function
+    If IsError(value) Then Exit Function
+
+    Select Case VarType(value)
+        Case vbNull, vbEmpty
+            NormaliseSectionText = vbNullString
+        Case Else
+            NormaliseSectionText = Trim$(CStr(value))
+    End Select
+End Function
+
 Private Function NormaliseParamArrayPairs(ByRef placeholderPairs As Variant, ByVal upper As Long) As Variant
     Dim pairCount As Long
     Dim result() As Variant
