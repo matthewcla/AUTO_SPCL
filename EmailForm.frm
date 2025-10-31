@@ -380,7 +380,7 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
         modProgressUI.Progress_Log "Loading template '" & normalizedKey & "'..."
     End If
 
-    loadSucceeded = PopulateEmailTemplateControls(normalizedKey, _
+    loadSucceeded = LoadEmailTemplateIntoControls(normalizedKey, _
                                                   mTxtTo, mTxtCc, mLstAttachments, _
                                                   mTxtSubject, mTxtBody, mTxtSignature)
 
@@ -1737,11 +1737,11 @@ NextEntry:
     Next entry
 End Function
 
-Private Sub SyncAttachmentList(ByVal templateKey As String)
+Private Sub SyncTemplateAttachmentList(ByVal templateKey As String)
     modEmail.SyncAttachmentList mLstAttachments, mBtnRemoveAttachment, _
                                 mTemplateAttachmentEntries, mUserAttachmentEntries
     PersistUserAttachmentsToWorksheet templateKey
-    TraceEmailFieldState "SyncAttachmentList", ResolveActiveTemplateKey(False)
+    TraceEmailFieldState "SyncTemplateAttachmentList", ResolveActiveTemplateKey(False)
 End Sub
 
 Private Sub PersistUserAttachmentsToWorksheet(ByVal templateKey As String)
@@ -1844,7 +1844,7 @@ Private Sub bADD_Click()
     SetCursorWait
     waitApplied = True
 
-    SyncAttachmentList templateKey
+    SyncTemplateAttachmentList templateKey
 
     If Not failureReasons Is Nothing Then
         modUIHelpers.ShowWarningMessage "Some files were skipped:" & vbCrLf & " - " & _
@@ -1947,7 +1947,7 @@ NextSelection:
     SetCursorWait
     waitApplied = True
 
-    SyncAttachmentList templateKey
+    SyncTemplateAttachmentList templateKey
 
     If ignoredCount > 0 Then
         modUIHelpers.ShowInfoMessage "Some selected files were ignored because they belong to the template and cannot be removed."

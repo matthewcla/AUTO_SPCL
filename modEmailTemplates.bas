@@ -20,7 +20,7 @@ Private mTemplateWorksheet As Worksheet
 Private mAttachmentExistsCache As Object
 
 '-------------------------------------------------------------------------------
-' Procedure: PopulateEmailTemplateControls
+' Procedure: LoadEmailTemplateIntoControls
 ' Purpose  : Populate the email composition controls with content pulled from the
 '            template worksheet column matching the provided key.
 ' Parameters:
@@ -35,7 +35,7 @@ Private mAttachmentExistsCache As Object
 ' Side Effects:
 '   Clears and updates supplied controls; combines template and stored user attachments.
 '-------------------------------------------------------------------------------
-Public Function PopulateEmailTemplateControls(ByVal templateKey As String, _
+Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
                                       ByRef txtTO As MSForms.TextBox, _
                                       ByRef txtCC As MSForms.TextBox, _
                                       ByRef lstAT As MSForms.ListBox, _
@@ -76,16 +76,16 @@ Public Function PopulateEmailTemplateControls(ByVal templateKey As String, _
     Set userAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
     Set combinedAttachments = CombineAttachmentCollections(attachmentEntries, userAttachmentEntries)
 
-    AssignTextBoxValue txtTO, toValue
-    AssignTextBoxValue txtCC, ccValue
-    AssignTextBoxValue txtSubj, subjValue
-    AssignTextBoxValue txtSignature, signatureValue
+    AssignTemplateTextBoxValue txtTO, toValue
+    AssignTemplateTextBoxValue txtCC, ccValue
+    AssignTemplateTextBoxValue txtSubj, subjValue
+    AssignTemplateTextBoxValue txtSignature, signatureValue
     AssignAttachmentList lstAT, combinedAttachments
-    AssignTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
+    AssignTemplateTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
 
     TraceTemplateLoad templateKey, toValue, ccValue, subjValue, bodyValue, signatureValue, combinedAttachments
 
-    PopulateEmailTemplateControls = True
+    LoadEmailTemplateIntoControls = True
 End Function
 
 Private Function ResolveTemplateWorksheet() As Worksheet
@@ -206,19 +206,19 @@ Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
                                   ByRef txtSubj As MSForms.TextBox, _
                                   ByRef txtBody As MSForms.TextBox, _
                                   ByRef txtSignature As MSForms.TextBox)
-    AssignTextBoxValue txtTO, vbNullString
-    AssignTextBoxValue txtCC, vbNullString
+    AssignTemplateTextBoxValue txtTO, vbNullString
+    AssignTemplateTextBoxValue txtCC, vbNullString
     ClearListBoxItems lstAT
-    AssignTextBoxValue txtSubj, vbNullString
-    AssignTextBoxValue txtBody, vbNullString
-    AssignTextBoxValue txtSignature, vbNullString
+    AssignTemplateTextBoxValue txtSubj, vbNullString
+    AssignTemplateTextBoxValue txtBody, vbNullString
+    AssignTemplateTextBoxValue txtSignature, vbNullString
 End Sub
 
 Private Sub AssignAttachmentList(ByRef target As MSForms.ListBox, ByVal entries As Collection)
     AssignListBoxItems target, entries
 End Sub
 
-Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As String)
+Private Sub AssignTemplateTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As String)
     If target Is Nothing Then Exit Sub
     target.Value = value
 End Sub
