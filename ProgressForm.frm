@@ -9,13 +9,6 @@ Option Explicit
         ByVal hwnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByRef lParam As Any) As LongPtr
     Private Declare PtrSafe Function GetFocus Lib "user32" () As LongPtr
     Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As LongPtr) As LongPtr
-    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
-        ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
-    Private Declare PtrSafe Function GetWindowLong Lib "user32" Alias "GetWindowLongPtrA" ( _
-        ByVal hWnd As LongPtr, ByVal nIndex As Long) As LongPtr
-    Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
-        ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
-    Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
 #Else
     Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
@@ -24,13 +17,6 @@ Option Explicit
         ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
     Private Declare Function GetFocus Lib "user32" () As Long
     Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As Long) As Long
-    Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" ( _
-        ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-    Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" ( _
-        ByVal hWnd As Long, ByVal nIndex As Long) As Long
-    Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" ( _
-        ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
-    Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
     Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 #End If
 
@@ -52,13 +38,10 @@ Private Const EM_CHARFROMPOS As Long = &HD7
 Private Const EM_GETRECT As Long = &HB2
 Private Const EM_SETSEL As Long = &HB1
 Private Const EM_SCROLLCARET As Long = &HB7
-Private Const GWL_STYLE As Long = -16
-Private Const WS_CAPTION As Long = &HC00000
-
 '==== Private state ====
 Private maxBarWidth As Single          ' Captured from the design-time width
 Private nextFormName As String
-Private titleBarHidden As Boolean
+Private mTitleBarHidden As Boolean
 
 Private sessionStart As Date
 Private pauseStarted As Date
@@ -144,7 +127,7 @@ Private Sub Class_Initialize()
 
     Me.txtLog.ControlSource = ""
     nextFormName = ""
-    titleBarHidden = False
+    mTitleBarHidden = False
     timerId = 0
     timerBusy = False
     Paused = False
@@ -391,27 +374,13 @@ Public Sub UpdateProgress(ByVal done As Long, ByVal totalCount As Long, Optional
 
     RefreshTimingDisplays currentTime
 
-    If Cancelled Then
-        btnCancel.Caption = "Cancelling..."
-        btnCancel.Enabled = False
-        btnPause.Visible = False
-    ElseIf isComplete Then
-        If btnCancel.Caption <> "Next" Then
-            btnCancel.Caption = "Next"
-        End If
-        btnCancel.Enabled = True
-        btnPause.Visible = False
-    Else
-        If btnCancel.Caption <> "Cancel" Then
-            btnCancel.Caption = "Cancel"
-        End If
-        btnCancel.Enabled = True
-        If Not btnPause.Visible Then
-            btnPause.Visible = True
-        End If
-    End If
+    UpdateButtonStates isComplete
 
     DoEvents
+End Sub
+
+Private Sub UpdateButtonStates(ByVal isComplete As Boolean)
+    modProgressUI.UpdateProgressButtonStates Me.btnCancel, Me.btnPause, Cancelled, isComplete
 End Sub
 
 Public Property Get ProgressComplete() As Boolean
@@ -677,38 +646,6 @@ End Sub
 
 
 Private Sub UserForm_Activate()
-    If Not titleBarHidden Then
-        HideTitleBar
-    End If
-End Sub
-
-Private Sub HideTitleBar()
-#If VBA7 Then
-    Dim hWnd As LongPtr
-    Dim currentStyle As LongPtr
-    Dim newStyle As LongPtr
-#Else
-    Dim hWnd As Long
-    Dim currentStyle As Long
-    Dim newStyle As Long
-#End If
-    Dim originalCaption As String
-    Dim tempCaption As String
-
-    originalCaption = Me.Caption
-    tempCaption = "progress-" & Hex$(ObjPtr(Me))
-    Me.Caption = tempCaption
-
-    hWnd = FindWindow("ThunderDFrame", tempCaption)
-    Me.Caption = originalCaption
-
-    If hWnd = 0 Then Exit Sub
-
-    currentStyle = GetWindowLong(hWnd, GWL_STYLE)
-    newStyle = currentStyle And (Not WS_CAPTION)
-    SetWindowLong hWnd, GWL_STYLE, newStyle
-    DrawMenuBar hWnd
-
-    titleBarHidden = True
+    modUIHelpers.HideUserFormTitleBar Me, mTitleBarHidden, "progress"
 End Sub
 
