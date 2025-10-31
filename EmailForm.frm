@@ -380,9 +380,9 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
         modProgressUI.Progress_Log "Loading template '" & normalizedKey & "'..."
     End If
 
-    loadSucceeded = LoadEmailTemplateData(normalizedKey, _
-                                          mTxtTo, mTxtCc, mLstAttachments, _
-                                          mTxtSubject, mTxtBody, mTxtSignature)
+    loadSucceeded = PopulateEmailTemplateControls(normalizedKey, _
+                                                  mTxtTo, mTxtCc, mLstAttachments, _
+                                                  mTxtSubject, mTxtBody, mTxtSignature)
 
     toValue = GetTextBoxText(mTxtTo, False)
     ccValue = GetTextBoxText(mTxtCc, False)

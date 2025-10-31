@@ -20,7 +20,7 @@ Private mTemplateWorksheet As Worksheet
 Private mAttachmentExistsCache As Object
 
 '-------------------------------------------------------------------------------
-' Procedure: LoadEmailTemplateData
+' Procedure: PopulateEmailTemplateControls
 ' Purpose  : Populate the email composition controls with content pulled from the
 '            template worksheet column matching the provided key.
 ' Parameters:
@@ -35,7 +35,7 @@ Private mAttachmentExistsCache As Object
 ' Side Effects:
 '   Clears and updates supplied controls; combines template and stored user attachments.
 '-------------------------------------------------------------------------------
-Public Function LoadEmailTemplateData(ByVal templateKey As String, _
+Public Function PopulateEmailTemplateControls(ByVal templateKey As String, _
                                       ByRef txtTO As MSForms.TextBox, _
                                       ByRef txtCC As MSForms.TextBox, _
                                       ByRef lstAT As MSForms.ListBox, _
@@ -101,7 +101,7 @@ Public Function LoadEmailTemplateData(ByVal templateKey As String, _
 
     TraceTemplateLoad templateKey, toValue, ccValue, subjValue, bodyValue, signatureValue, combinedAttachments
 
-    LoadEmailTemplateData = True
+    PopulateEmailTemplateControls = True
 End Function
 
 Private Function ResolveTemplateWorksheet() As Worksheet
