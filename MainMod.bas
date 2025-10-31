@@ -852,7 +852,7 @@ Private Function FindRow(nmSearch As String) As Long
     FindRow = FoundCell(wsRB, "RED_Board", nmSearch)
     If FindRow <> 0 Then Exit Function
 
-    Set lo = wsRB.ListObjects("RED_Table")
+    Set lo = wsRB.ListObjects("RED_Board")
 
     ' If the table already has rows, look for the first blank name slot to reuse.
     If Not lo.DataBodyRange Is Nothing Then
