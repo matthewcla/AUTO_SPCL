@@ -561,7 +561,7 @@ Private Sub UserForm_Initialize()
 
     Dim isConnected As Boolean
     isConnected = EnsureReflectionsConnectionAlive(True)
-    HandleReflectionsConnection isConnected
+    Me.HandleReflectionsConnection isConnected
 
     If isConnected Then
         InitializeOAISSession lblOAIS, "", "", vbGreen, vbWhite
@@ -671,7 +671,7 @@ Public Sub HandleReflectionsConnection(ByVal isConnected As Boolean)
 End Sub
 
 Private Sub UpdateOAISStatusIndicator()
-    HandleReflectionsConnection Not (iCS Is Nothing)
+    Me.HandleReflectionsConnection Not (iCS Is Nothing)
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
