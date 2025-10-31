@@ -16,6 +16,22 @@ Private Const EMAIL_ROW_SIGNATURE As Long = 7
 Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
 Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
+'-------------------------------------------------------------------------------
+' Procedure: LoadEmailTemplateData
+' Purpose  : Populate the email composition controls with content pulled from the
+'            template worksheet column matching the provided key.
+' Parameters:
+'   templateKey - Column header identifying which template to load.
+'   txtTO - Text box receiving the To recipients.
+'   txtCC - Text box receiving the CC recipients.
+'   lstAT - List box that surfaces template and user attachment summaries.
+'   txtSubj - Text box that receives the subject line.
+'   txtBody - Text box that receives the greeting/body combination.
+'   txtSignature - Text box that receives the template signature block.
+' Returns  : True when the template column is found and controls are populated; False otherwise.
+' Side Effects:
+'   Clears and updates supplied controls; combines template and stored user attachments.
+'-------------------------------------------------------------------------------
 Public Function LoadEmailTemplateData(ByVal templateKey As String, _
                                       ByRef txtTO As MSForms.TextBox, _
                                       ByRef txtCC As MSForms.TextBox, _
@@ -52,6 +68,7 @@ Public Function LoadEmailTemplateData(ByVal templateKey As String, _
     For colIndex = 1 To lastCol
         headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
         If LenB(headerValue) > 0 Then
+            ' Match against the requested key so we only load the intended template column.
             If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
                 templateColumn = colIndex
                 Exit For
@@ -184,6 +201,14 @@ Private Function CombineAttachmentCollections(ByVal templateEntries As Collectio
     Set CombineAttachmentCollections = combined
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: GetAvailableTemplateKeys
+' Purpose  : List all template column headers on the email template worksheet.
+' Parameters: None.
+' Returns  : Collection containing each distinct template key string, preserving sheet order.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function GetAvailableTemplateKeys() As Collection
     Dim ws As Worksheet
     Dim lastCol As Long
@@ -232,6 +257,18 @@ Private Function BuildBodyValue(ByVal greetingValue As String, _
     End If
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: AppendTemplateAttachments
+' Purpose  : Add validated attachment entries to the template column without duplicating
+'            existing records.
+' Parameters:
+'   templateKey - Column header identifying the template to update.
+'   attachmentPaths - Collection of fully qualified file paths chosen by the user.
+' Returns  : String representing the final serialized attachment entries written to the sheet.
+' Side Effects:
+'   Writes the updated attachment entry string back to the template worksheet; raises
+'   descriptive errors when the worksheet or template column cannot be located.
+'-------------------------------------------------------------------------------
 Public Function AppendTemplateAttachments(ByVal templateKey As String, _
                                           ByVal attachmentPaths As Collection) As String
     Dim ws As Worksheet
@@ -292,6 +329,7 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
             resolvedPath = Trim$(CStr(selectedPath))
             displayName = vbNullString
 
+            ' Ignore selections that fail validation; error messages are emitted upstream.
             If Not CheckIfAttachmentExists(displayName, resolvedPath) Then GoTo NextSelection
 
             normalizedKey = NormalizeAttachmentPath(resolvedPath)
@@ -311,26 +349,80 @@ NextSelection:
     ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = AppendTemplateAttachments
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: GetTemplateAttachmentEntries
+' Purpose  : Parse a serialized attachment entry string into individual collection items.
+' Parameters:
+'   rawValue - Line- or semicolon-delimited attachment entry text.
+' Returns  : Collection of parsed attachment entry strings (possibly empty).
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function GetTemplateAttachmentEntries(ByVal rawValue As String) As Collection
     Set GetTemplateAttachmentEntries = ParseAttachmentEntries(rawValue)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: NormalizeTemplateAttachmentPath
+' Purpose  : Provide a consistent normalized representation of an attachment path.
+' Parameters:
+'   filePath - Raw attachment path.
+' Returns  : Normalized attachment path string.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function NormalizeTemplateAttachmentPath(ByVal filePath As String) As String
     NormalizeTemplateAttachmentPath = NormalizeAttachmentPath(filePath)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: BuildTemplateAttachmentEntry
+' Purpose  : Convert a file path into a serialized attachment entry with display name.
+' Parameters:
+'   filePath - Fully qualified attachment path.
+' Returns  : Attachment entry string suitable for persisting in the template sheet.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function BuildTemplateAttachmentEntry(ByVal filePath As String) As String
     BuildTemplateAttachmentEntry = BuildAttachmentEntry(filePath)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: JoinTemplateAttachmentEntries
+' Purpose  : Serialize attachment entries into the worksheet storage format.
+' Parameters:
+'   entries - Collection of attachment entry strings.
+' Returns  : String that joins entries using newline delimiters.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function JoinTemplateAttachmentEntries(ByVal entries As Collection) As String
     JoinTemplateAttachmentEntries = JoinAttachmentEntries(entries)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: NormalizeTemplateAttachmentEntry
+' Purpose  : Produce a comparison-friendly key for attachment entries.
+' Parameters:
+'   entry - Serialized attachment entry.
+' Returns  : Normalized entry string used for dictionary lookups.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function NormalizeTemplateAttachmentEntry(ByVal entry As String) As String
     NormalizeTemplateAttachmentEntry = NormalizeAttachmentKey(entry)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: GetTemplateAttachmentEntriesForKey
+' Purpose  : Retrieve and validate template-managed attachment entries for the given key.
+' Parameters:
+'   templateKey - Template column identifier.
+' Returns  : Collection of attachment file paths that exist on disk.
+' Side Effects:
+'   Refreshes the worksheet value when validation cleans or normalizes entries.
+'-------------------------------------------------------------------------------
 Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) As Collection
     Dim ws As Worksheet
     Dim templateColumn As Long
@@ -348,6 +440,15 @@ Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) 
     Set GetTemplateAttachmentEntriesForKey = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: GetUserAttachmentEntries
+' Purpose  : Read persisted user-managed attachments associated with the template key.
+' Parameters:
+'   templateKey - Template column identifier.
+' Returns  : Collection of attachment entry strings read from the worksheet.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function GetUserAttachmentEntries(ByVal templateKey As String) As Collection
     Dim ws As Worksheet
     Dim templateColumn As Long
@@ -363,6 +464,16 @@ Public Function GetUserAttachmentEntries(ByVal templateKey As String) As Collect
     Set GetUserAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: WriteUserAttachmentEntries
+' Purpose  : Persist user-managed attachment entries into the template worksheet.
+' Parameters:
+'   templateKey - Template column identifier.
+'   userEntries - Collection containing combined display/path entries supplied by the user.
+' Returns  : None.
+' Side Effects:
+'   Writes file name and path components into dedicated worksheet rows.
+'-------------------------------------------------------------------------------
 Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
                                       ByVal userEntries As Collection)
     Dim ws As Worksheet
@@ -384,6 +495,17 @@ Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
     ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(filePaths)
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: WriteTemplateAttachmentEntries
+' Purpose  : Replace the template-managed attachment entry set for the given key.
+' Parameters:
+'   templateKey - Template column identifier.
+'   attachmentEntries - Collection of validated attachment entry strings.
+' Returns  : String written into the worksheet (joined entries).
+' Side Effects:
+'   Writes serialized attachment string to the Email Template worksheet and raises
+'   descriptive errors if the sheet or column cannot be found.
+'-------------------------------------------------------------------------------
 Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
                                                ByVal attachmentEntries As Collection) As String
     Dim ws As Worksheet
@@ -413,6 +535,16 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
     WriteTemplateAttachmentEntries = finalValue
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: GetValidatedTemplateAttachmentPaths
+' Purpose  : Validate stored template attachment entries and return existing file paths.
+' Parameters:
+'   templateKey - Template column identifier.
+' Returns  : Collection of file paths for attachments that currently exist.
+' Side Effects:
+'   Cleans worksheet values when entries are normalized or removed, ensuring downstream
+'   consumers do not see stale or invalid references.
+'-------------------------------------------------------------------------------
 Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String) As Collection
     Dim ws As Worksheet
     Dim templateColumn As Long
@@ -463,6 +595,7 @@ Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String)
             fileName = ExtractAttachmentFileName(filePath)
         End If
 
+        ' Keep the path even if the file is missing so the worksheet can be corrected.
         attachmentExists = CheckIfAttachmentExists(fileName, filePath)
         If LenB(filePath) = 0 Then
             changed = True
@@ -500,6 +633,15 @@ NextEntry:
     End If
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: ResolveAttachmentPathsFromEntries
+' Purpose  : Extract existing file paths from serialized attachment entries.
+' Parameters:
+'   entries - Collection of attachment entry strings.
+' Returns  : Collection of unique, validated file paths corresponding to existing files.
+' Side Effects:
+'   None, although invalid entries are skipped and therefore excluded from the result.
+'-------------------------------------------------------------------------------
 Public Function ResolveAttachmentPathsFromEntries(ByVal entries As Collection) As Collection
     Dim attachments As Collection
     Dim entry As Variant
@@ -571,6 +713,17 @@ NextEntry:
     End If
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: CheckIfAttachmentExists
+' Purpose  : Confirm whether a supplied attachment path can be resolved, optionally
+'            updating it when a replacement is available.
+' Parameters:
+'   fileName - In/out parameter holding the display name for the attachment.
+'   filePath - In/out parameter holding the attachment path to validate.
+' Returns  : True when the attachment can be resolved; False when it cannot.
+' Side Effects:
+'   May modify fileName and filePath to reflect recovered attachment information.
+'-------------------------------------------------------------------------------
 Public Function CheckIfAttachmentExists(ByRef fileName As String, _
                                         ByRef filePath As String) As Boolean
     Dim replacementEntry As String
@@ -822,9 +975,19 @@ Private Function BuildAttachmentEntry(ByVal filePath As String) As String
         BuildAttachmentEntry = fileName & " | " & Trim$(filePath)
     Else
         BuildAttachmentEntry = Trim$(filePath)
-    End If
+'    End If
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: BuildAttachmentEntryFromComponents
+' Purpose  : Combine the provided display name and path into the standard entry format.
+' Parameters:
+'   fileName - Friendly name shown in the UI (optional).
+'   filePath - Fully qualified file path (required).
+' Returns  : Serialized attachment entry string or empty when the path is blank.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function BuildAttachmentEntryFromComponents(ByVal fileName As String, _
                                                    ByVal filePath As String) As String
     fileName = Trim$(fileName)
@@ -974,6 +1137,7 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
         ElseIf AttachmentFileExists(pathValue) Then
             updatedEntries.Add CStr(entry)
         ElseIf HandleMissingAttachment(pathValue, newEntry) Then
+            ' Allow custom recovery hooks to substitute a new location without losing the entry.
             If LenB(newEntry) > 0 Then
                 updatedEntries.Add newEntry
                 changed = True

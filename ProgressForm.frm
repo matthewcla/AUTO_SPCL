@@ -1,4 +1,13 @@
 Option Explicit
+'-------------------------------------------------------------------------------
+' Form: ProgressForm
+' Role   : Modeless status window orchestrated by modProgressUI to visualize the
+'          record review pipeline, surface logs, and allow pause/cancel control.
+' Coordinates:
+'   - Receives updates and lifecycle events from MainMod.A_Record_Review via modProgressUI.
+'   - Launches EmailForm when review work finishes so drafting can begin immediately.
+'   - Relies on modUIHelpers for title bar suppression and shared button state helpers.
+'-------------------------------------------------------------------------------
 
 #Const DEBUG_PAUSE_WAIT = False
 

@@ -24,6 +24,15 @@ Private mWaitCursorDepth As Long
 Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
 
+'-------------------------------------------------------------------------------
+' Procedure: SetCursorWait
+' Purpose  : Display the wait cursor during long-running operations, nesting safely.
+' Parameters: None.
+' Returns  : None.
+' Side Effects:
+'   Increments the wait cursor depth counter and switches Application.Cursor to xlWait
+'   when transitioning from idle to busy state.
+'-------------------------------------------------------------------------------
 Public Sub SetCursorWait()
     On Error Resume Next
     mWaitCursorDepth = mWaitCursorDepth + 1
@@ -33,6 +42,15 @@ Public Sub SetCursorWait()
     On Error GoTo 0
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: SetCursorDefault
+' Purpose  : Restore the standard cursor once all nested wait scopes have completed.
+' Parameters: None.
+' Returns  : None.
+' Side Effects:
+'   Decrements the depth counter and resets Application.Cursor to xlDefault when depth
+'   reaches zero.
+'-------------------------------------------------------------------------------
 Public Sub SetCursorDefault()
     On Error Resume Next
     If mWaitCursorDepth > 0 Then
@@ -44,6 +62,17 @@ Public Sub SetCursorDefault()
     On Error GoTo 0
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: HideUserFormTitleBar
+' Purpose  : Remove the standard Windows title bar from a userform to present a clean UI.
+' Parameters:
+'   targetForm - The userform instance to modify.
+'   titleBarHiddenFlag - Boolean flag that tracks whether the form has already been hidden.
+'   captionPrefix - Optional prefix used to reliably identify the window handle.
+' Returns  : None.
+' Side Effects:
+'   Adjusts the form's window style using Win32 APIs and updates the tracking flag.
+'-------------------------------------------------------------------------------
 Public Sub HideUserFormTitleBar(ByVal targetForm As Object, _
                                 ByRef titleBarHiddenFlag As Boolean, _
                                 Optional ByVal captionPrefix As String = "form")
@@ -80,10 +109,30 @@ Public Sub HideUserFormTitleBar(ByVal targetForm As Object, _
     titleBarHiddenFlag = True
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: SetControlsEnabled
+' Purpose  : Apply a consistent enabled/disabled state to one or more controls.
+' Parameters:
+'   controls - Individual control, array, or collection of controls to update.
+'   enabled - Target Boolean enabled state.
+' Returns  : None.
+' Side Effects:
+'   Calls CallByName on each control to set the Enabled property.
+'-------------------------------------------------------------------------------
 Public Sub SetControlsEnabled(ByVal controls As Variant, ByVal enabled As Boolean)
     ApplyControlBooleanProperty controls, "Enabled", enabled
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: SetControlsVisible
+' Purpose  : Apply a consistent visibility state to one or more controls.
+' Parameters:
+'   controls - Individual control, array, or collection of controls to update.
+'   isVisible - Target Boolean visibility state.
+' Returns  : None.
+' Side Effects:
+'   Calls CallByName on each control to set the Visible property.
+'-------------------------------------------------------------------------------
 Public Sub SetControlsVisible(ByVal controls As Variant, ByVal isVisible As Boolean)
     ApplyControlBooleanProperty controls, "Visible", isVisible
 End Sub

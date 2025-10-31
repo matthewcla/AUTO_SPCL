@@ -28,6 +28,7 @@ Public Sub UpdateProgressButtonStates(ByRef btnCancel As MSForms.CommandButton, 
     If btnCancel Is Nothing Then Exit Sub
 
     If isCancelled Then
+        ' Lock the UI while cancellation completes so the user cannot trigger duplicate requests.
         SetButtonCaptionIfDifferent btnCancel, "Cancelling..."
         modUIHelpers.SetControlsEnabled btnCancel, False
         modUIHelpers.SetControlsVisible btnPause, False
@@ -37,9 +38,11 @@ Public Sub UpdateProgressButtonStates(ByRef btnCancel As MSForms.CommandButton, 
     modUIHelpers.SetControlsEnabled btnCancel, True
 
     If isComplete Then
+        ' Once work is finished, convert the cancel button into "Next" to advance flows (e.g. EmailForm).
         SetButtonCaptionIfDifferent btnCancel, "Next"
         modUIHelpers.SetControlsVisible btnPause, False
     Else
+        ' Keep pause visible only during active processing to avoid confusing idle users.
         SetButtonCaptionIfDifferent btnCancel, "Cancel"
         modUIHelpers.SetControlsVisible btnPause, True
     End If

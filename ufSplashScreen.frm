@@ -14,6 +14,16 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
+'-------------------------------------------------------------------------------
+' Form: ufSplashScreen
+' Role   : Non-modal splash experience that warms up OAIS connectivity and animates
+'          launch progress before transferring control to StartupForm.
+' Coordinates:
+'   - Uses modUIHelpers for cursor handling and form centering while assets load.
+'   - Calls modStartupForm.HandleSplashComplete once initialization is complete so the
+'     StartupForm dashboard can appear.
+'   - Shares connection status with StartupForm via OAISConnect helper routines.
+'-------------------------------------------------------------------------------
 '--- Global Variables ---
 Dim progress As Integer
 Dim progressText(5) As String
