@@ -108,8 +108,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     BoardType = ""
     processed = 0
     total = 0
-    cancelled = False
-    paused = False
+    modProgressUI.IsCancellationRequested = False
     m_StartupShownOnce = False
     g_SuspendStartupAutoShow = False
     m_SplashScreenShown = False

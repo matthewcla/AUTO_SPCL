@@ -5,9 +5,8 @@ Option Explicit
 Public Const PROGRESS_LOG_STARTED As String = "Record Review Started"
 Public Const PROGRESS_LOG_CONCLUDED As String = "Record Review Concluded"
 
-Public progressForm As progressForm
-Public paused As Boolean
-Public cancelled As Boolean
+Public ProgressFormView As ProgressForm
+Public IsCancellationRequested As Boolean
 Public CurrentRecordName As String
 Public CurrentRecordSSN As String
 
@@ -22,12 +21,12 @@ Private mNextTick As Date
 
 Public Sub UpdateProgressButtonStates(ByRef btnCancel As MSForms.CommandButton, _
                                       ByRef btnPause As MSForms.CommandButton, _
-                                      ByVal isCancelled As Boolean, _
+                                      ByVal isCancellationRequested As Boolean, _
                                       ByVal isComplete As Boolean)
 
     If btnCancel Is Nothing Then Exit Sub
 
-    If isCancelled Then
+    If isCancellationRequested Then
         ' Lock the UI while cancellation completes so the user cannot trigger duplicate requests.
         SetButtonCaptionIfDifferent btnCancel, "Cancelling..."
         modUIHelpers.SetControlsEnabled btnCancel, False
@@ -78,15 +77,15 @@ Public Sub Progress_Show(ByVal totalCount As Long, Optional ByVal title As Strin
     On Error GoTo HandleError
 
     Progress_ResetTimerState
-    Set progressForm = New ProgressForm
-    cancelled = False
+    Set ProgressFormView = New ProgressForm
+    IsCancellationRequested = False
     CurrentRecordName = vbNullString
     CurrentRecordSSN = vbNullString
     mTotalCount = totalCount
     mCompletedCount = 0
     mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
-    progressForm.Show vbModeless
-    progressForm.Init totalCount, title
+    ProgressFormView.Show vbModeless
+    ProgressFormView.Init totalCount, title
     Exit Sub
 
 HandleError:
@@ -95,8 +94,8 @@ HandleError:
 End Sub
 
 Public Sub Progress_Log(ByVal msg As String)
-    If Not progressForm Is Nothing Then
-        progressForm.LogLine msg
+    If Not ProgressFormView Is Nothing Then
+        ProgressFormView.LogLine msg
     End If
 End Sub
 
@@ -195,9 +194,9 @@ Public Sub Progress_TimerTick()
     On Error GoTo CleanExit
 
     If Not IsFormLoaded("ProgressForm") Then GoTo CleanExit
-    If progressForm Is Nothing Then GoTo CleanExit
+    If ProgressFormView Is Nothing Then GoTo CleanExit
 
-    progressForm.Tick_OneSecond
+    ProgressFormView.Tick_OneSecond
 
 CleanExit:
     mInTick = False
@@ -208,8 +207,8 @@ End Sub
 
 Public Sub ProgressForm_TimerTick()
     On Error Resume Next
-    If Not progressForm Is Nothing Then
-        progressForm.Tick_OneSecond
+    If Not ProgressFormView Is Nothing Then
+        ProgressFormView.Tick_OneSecond
     End If
 
     mTimerScheduled = False
@@ -217,14 +216,14 @@ Public Sub ProgressForm_TimerTick()
 End Sub
 
 Public Sub Progress_Pulse()
-    If progressForm Is Nothing Then Exit Sub
+    If ProgressFormView Is Nothing Then Exit Sub
     If Not IsFormLoaded("ProgressForm") Then Exit Sub
     If mInTick Then Exit Sub
 
     mInTick = True
     On Error GoTo CleanExit
 
-    progressForm.Tick_OneSecond
+    ProgressFormView.Tick_OneSecond
 
 CleanExit:
     mInTick = False
@@ -259,6 +258,7 @@ Public Sub Progress_StopTimer()
     mInTick = False
 End Sub
 
+' Reset any pending timer callbacks and mark the timer as disabled.
 Public Sub Progress_ResetTimerState()
     Progress_StopTimer
 End Sub
@@ -284,37 +284,39 @@ FailedSchedule:
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
-Public Sub Progress_Update(ByVal done As Long, ByVal totalCount As Long, Optional ByVal status As String = "")
-    If Not progressForm Is Nothing Then
-        progressForm.UpdateProgress done, totalCount, status
+Public Sub Progress_Update(ByVal recordsCompleted As Long, _
+                          ByVal recordsTotal As Long, _
+                          Optional ByVal statusMessage As String = "")
+    If Not ProgressFormView Is Nothing Then
+        ProgressFormView.UpdateProgress recordsCompleted, recordsTotal, statusMessage
     End If
 
-    mCompletedCount = done
-    mTotalCount = totalCount
+    mCompletedCount = recordsCompleted
+    mTotalCount = recordsTotal
     mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
 End Sub
 
 Public Function Progress_WaitIfPaused() As Boolean
-    If Not progressForm Is Nothing Then
-        Progress_WaitIfPaused = progressForm.WaitIfPaused
+    If Not ProgressFormView Is Nothing Then
+        Progress_WaitIfPaused = ProgressFormView.WaitIfPaused
     Else
         Progress_WaitIfPaused = False
     End If
 End Function
 
 Public Function Progress_Cancelled() As Boolean
-    If progressForm Is Nothing Then
-        Progress_Cancelled = cancelled
+    If ProgressFormView Is Nothing Then
+        Progress_Cancelled = IsCancellationRequested
         Exit Function
     End If
 
     On Error Resume Next
-    Progress_Cancelled = progressForm.Cancelled
+    Progress_Cancelled = ProgressFormView.IsCancelled
     If Err.Number <> 0 Then
         Err.Clear
-        Progress_Cancelled = cancelled
+        Progress_Cancelled = IsCancellationRequested
     Else
-        cancelled = Progress_Cancelled
+        IsCancellationRequested = Progress_Cancelled
     End If
     On Error GoTo 0
 End Function
@@ -322,11 +324,11 @@ End Function
 Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVal keepOpen As Boolean = False)
     Progress_StopTimer
 
-    If Not progressForm Is Nothing Then
+    If Not ProgressFormView Is Nothing Then
         On Error Resume Next
-        mCompletedCount = progressForm.CompletedCount
-        mTotalCount = progressForm.TotalCount
-        mProgressRunComplete = progressForm.ProgressComplete
+        mCompletedCount = ProgressFormView.CompletedCount
+        mTotalCount = ProgressFormView.TotalCount
+        mProgressRunComplete = ProgressFormView.ProgressComplete
         If Err.Number <> 0 Then
             Err.Clear
             mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
@@ -336,19 +338,19 @@ Public Sub Progress_Close(Optional ByVal finalNote As String = "", Optional ByVa
         mProgressRunComplete = (mTotalCount > 0 And mCompletedCount >= mTotalCount)
     End If
 
-    If cancelled Then
+    If IsCancellationRequested Then
         mProgressRunComplete = True
     End If
 
-    If Not progressForm Is Nothing Then
+    If Not ProgressFormView Is Nothing Then
         On Error Resume Next
         If Len(finalNote) > 0 Then
-            progressForm.LogLine finalNote
+            ProgressFormView.LogLine finalNote
         End If
-        progressForm.ShutdownTimer
+        ProgressFormView.ShutdownTimer
         If Not keepOpen Then
-            Unload progressForm
-            Set progressForm = Nothing
+            Unload ProgressFormView
+            Set ProgressFormView = Nothing
             Progress_ResetTimerState
         End If
         On Error GoTo 0
