@@ -14,14 +14,15 @@ Private Const EMAIL_ROW_USER_ATTACHMENT_PATHS As Long = 12
 Private Const EMAIL_ROW_GREETING As Long = 6
 Private Const EMAIL_ROW_SIGNATURE As Long = 7
 Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
+Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
-Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
-                                 ByRef txtTO As MSForms.TextBox, _
-                                 ByRef txtCC As MSForms.TextBox, _
-                                 ByRef lstAT As MSForms.ListBox, _
-                                 ByRef txtSubj As MSForms.TextBox, _
-                                 ByRef txtBody As MSForms.TextBox, _
-                                 ByRef txtSignature As MSForms.TextBox)
+Public Function LoadEmailTemplateData(ByVal templateKey As String, _
+                                      ByRef txtTO As MSForms.TextBox, _
+                                      ByRef txtCC As MSForms.TextBox, _
+                                      ByRef lstAT As MSForms.ListBox, _
+                                      ByRef txtSubj As MSForms.TextBox, _
+                                      ByRef txtBody As MSForms.TextBox, _
+                                      ByRef txtSignature As MSForms.TextBox) As Boolean
     Dim ws As Worksheet
     Dim lastCol As Long
     Dim colIndex As Long
@@ -38,15 +39,15 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     Dim userAttachmentEntries As Collection
     Dim combinedAttachments As Collection
 
-    If LenB(templateKey) = 0 Then Exit Sub
+    If LenB(templateKey) = 0 Then Exit Function
 
     Set ws = ResolveTemplateWorksheet()
-    If ws Is Nothing Then Exit Sub
+    If ws Is Nothing Then Exit Function
 
     ClearTemplateControls txtTO, txtCC, lstAT, txtSubj, txtBody, txtSignature
 
     lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < 1 Then Exit Sub
+    If lastCol < 1 Then Exit Function
 
     For colIndex = 1 To lastCol
         headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
@@ -58,7 +59,7 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
         End If
     Next colIndex
 
-    If templateColumn = 0 Then Exit Sub
+    If templateColumn = 0 Then Exit Function
 
     toValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_TO, templateColumn).Value))
     ccValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_CC, templateColumn).Value))
@@ -77,7 +78,11 @@ Public Sub LoadEmailTemplateData(ByVal templateKey As String, _
     AssignTextBoxValue txtSignature, signatureValue
     AssignAttachmentList lstAT, combinedAttachments
     AssignTextBoxValue txtBody, BuildBodyValue(greetingValue, bodyValue)
-End Sub
+
+    TraceTemplateLoad templateKey, toValue, ccValue, subjValue, bodyValue, signatureValue, combinedAttachments
+
+    LoadEmailTemplateData = True
+End Function
 
 Private Function ResolveTemplateWorksheet() As Worksheet
     On Error Resume Next
@@ -136,6 +141,28 @@ Private Sub AssignListBoxItems(ByRef target As MSForms.ListBox, ByVal entries As
     Next entry
 End Sub
 
+Private Sub TraceTemplateLoad(ByVal templateKey As String, _
+                              ByVal toValue As String, _
+                              ByVal ccValue As String, _
+                              ByVal subjValue As String, _
+                              ByVal bodyValue As String, _
+                              ByVal signatureValue As String, _
+                              ByVal attachments As Collection)
+    Dim attachmentCount As Long
+
+    If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
+
+    If Not attachments Is Nothing Then
+        On Error Resume Next
+        attachmentCount = attachments.Count
+        On Error GoTo 0
+    End If
+
+    Debug.Print "[TemplateLoad] Key='" & templateKey & "' To='" & toValue & "' CC='" & ccValue & _
+                "' Subject='" & subjValue & "' Attachments=" & attachmentCount & _
+                " BodyLen=" & Len(bodyValue) & " SignatureLen=" & Len(signatureValue)
+End Sub
+
 Private Function CombineAttachmentCollections(ByVal templateEntries As Collection, _
                                               ByVal userEntries As Collection) As Collection
     Dim combined As Collection
@@ -156,6 +183,41 @@ Private Function CombineAttachmentCollections(ByVal templateEntries As Collectio
     End If
 
     Set CombineAttachmentCollections = combined
+End Function
+
+Public Function GetAvailableTemplateKeys() As Collection
+    Dim ws As Worksheet
+    Dim lastCol As Long
+    Dim colIndex As Long
+    Dim headerValue As String
+    Dim keys As Collection
+    Dim seen As Object
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    If lastCol < 1 Then Exit Function
+
+    Set keys = New Collection
+    On Error Resume Next
+    Set seen = CreateObject("Scripting.Dictionary")
+    If Not seen Is Nothing Then seen.CompareMode = vbTextCompare
+    On Error GoTo 0
+
+    For colIndex = 1 To lastCol
+        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
+        If LenB(headerValue) > 0 Then
+            If seen Is Nothing Then
+                keys.Add headerValue
+            ElseIf Not seen.Exists(headerValue) Then
+                keys.Add headerValue
+                seen(headerValue) = True
+            End If
+        End If
+    Next colIndex
+
+    If keys.Count > 0 Then Set GetAvailableTemplateKeys = keys
 End Function
 
 Private Function BuildBodyValue(ByVal greetingValue As String, _
