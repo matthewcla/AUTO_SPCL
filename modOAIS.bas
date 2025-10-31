@@ -97,7 +97,7 @@ Dim deskMatchFlg As Boolean
         iCS.SendKeys "s"
         HitF6
     Else
-        MsgBox "Couldn't Find Desk match, stopping the program"
+        modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't find the requested desk '" & newDesk & "'. Review the DSEL screen and try again."
         End
     End If
 

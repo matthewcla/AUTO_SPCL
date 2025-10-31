@@ -187,9 +187,19 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
     Dim providedUserEntries As Collection
     Dim storedUserEntries As Collection
     Dim attachmentPath As Variant
-    
+    Dim progressTotal As Long
+    Dim progressProcessed As Long
+    Dim progressActive As Boolean
+    Dim progressClosed As Boolean
+    Dim cancelledByUser As Boolean
+    Dim progressLabel As String
+    Dim progressOutcome As String
+    Dim summary As String
+    Dim finalNote As String
+    Dim screenUpdatingSuspended As Boolean
+
     On Error GoTo CleanFail
-    
+
     Set wsID = ThisWorkbook.Worksheets("ID")
     Set wsElig = ThisWorkbook.Worksheets("Eligibles RED Board")
 
@@ -197,21 +207,33 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         Set whitelist = NormalizeDraftWhitelist(allowedMembers)
         hasWhitelist = Not whitelist Is Nothing
     End If
-    
+
     lastRow = wsID.Cells(wsID.Rows.Count, "B").End(xlUp).row
     If lastRow < 2 Then
-        MsgBox "No data rows found on 'ID' (need names in column B).", vbExclamation
-        Exit Sub
+        modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't find any member rows on 'ID'. Add member names to column B, then try again."
+        GoTo CleanExit
     End If
-    
+
+    progressTotal = lastRow - 1
+    If progressTotal > 0 Then
+        modProgressUI.Progress_Show progressTotal, "Creating Outlook Drafts"
+        modProgressUI.Progress_Log "Preparing Outlook session..."
+        progressActive = True
+    End If
+
     ' Get or start Outlook
     On Error Resume Next
     Set olApp = GetObject(Class:="Outlook.Application")
     If olApp Is Nothing Then Set olApp = CreateObject("Outlook.Application")
     On Error GoTo CleanFail
     If olApp Is Nothing Then
-        MsgBox "Unable to start Outlook.", vbCritical
-        Exit Sub
+        If progressActive Then
+            modProgressUI.Progress_Close "Unable to connect to Outlook."
+            progressClosed = True
+            progressActive = False
+        End If
+        modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't connect to Outlook. Start Outlook and run draft creation again."
+        GoTo CleanExit
     End If
 
     If Not IsMissing(templateAttachmentEntries) Then
@@ -253,32 +275,53 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         End If
     End If
 
+    If progressActive Then
+        modProgressUI.Progress_Log "Attachment lists prepared."
+    End If
+
     Application.ScreenUpdating = False
+    screenUpdatingSuspended = True
 
     For r = 2 To lastRow
         memberIndex = r - 1
         personName = Trim$(wsID.Cells(r, "B").Value)
+        progressLabel = ResolveDraftProgressLabel(personName, memberIndex)
+        progressOutcome = "Skipped"
+
+        If progressActive Then
+            If Not modProgressUI.Progress_WaitIfPaused() Then
+                cancelledByUser = True
+                Exit For
+            End If
+            If modProgressUI.Progress_Cancelled() Then
+                cancelledByUser = True
+                Exit For
+            End If
+        End If
 
         If hasWhitelist Then
             If Not DraftWhitelistAllowsMember(memberIndex, personName, whitelist) Then
                 skippedCount = skippedCount + 1
+                progressOutcome = "Skipped (not marked Draft)"
                 GoTo nextRow
             End If
         End If
 
         If Len(personName) = 0 Then
             skippedCount = skippedCount + 1
+            progressOutcome = "Skipped (missing name)"
             GoTo nextRow
         End If
-        
+
         ' Build To: from columns C:F (semicolon-separated)
         toList = BuildEmailList(wsID, r, "C", "F")
         If Len(toList) = 0 Then
             ' No valid email addresses found for this row
             skippedCount = skippedCount + 1
+            progressOutcome = "Skipped (no email addresses)"
             GoTo nextRow
         End If
-        
+
         ' Lookup note from Eligibles col A -> take col C
         eligNote = GetEligiblesNote(wsElig, personName)
         
@@ -313,20 +356,94 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
             ' .Display       ' (intentionally NOT displayed to keep it hidden)
         End With
         createdCount = createdCount + 1
+        progressOutcome = "Draft created"
 nextRow:
+        If progressActive Then
+            progressProcessed = progressProcessed + 1
+            modProgressUI.Progress_Update progressProcessed, progressTotal, _
+                                          FormatDraftProgressStatus(progressLabel, progressOutcome)
+            modProgressUI.Progress_Log FormatDraftProgressStatus(progressLabel, progressOutcome)
+        End If
     Next r
-    
+
     Application.ScreenUpdating = True
-    If hasWhitelist Then skipNote = " (including members not marked as Draft)"
-    MsgBox "Draft creation complete." & vbCrLf & _
-           "Created: " & createdCount & vbCrLf & _
-           "Skipped (no name, no emails, or filtered out): " & skippedCount & skipNote, vbInformation
-    Exit Sub
-    
+    screenUpdatingSuspended = False
+
+    If hasWhitelist Then skipNote = " (includes members not marked as Draft)"
+    summary = BuildDraftSummary(createdCount, skippedCount, skipNote)
+
+    If progressActive And Not progressClosed Then
+        If cancelledByUser Then
+            finalNote = "Draft creation cancelled." & vbCrLf & summary
+        Else
+            finalNote = "Draft creation complete." & vbCrLf & summary
+        End If
+        modProgressUI.Progress_Close finalNote
+        progressClosed = True
+    End If
+
+    If cancelledByUser Then
+        modUIHelpers.ShowWarningMessage "Draft creation was cancelled." & vbCrLf & summary
+    Else
+        modUIHelpers.ShowInfoMessage "Draft creation complete." & vbCrLf & summary
+    End If
+    GoTo CleanExit
+
 CleanFail:
-    Application.ScreenUpdating = True
-    MsgBox "Error: " & Err.Number & " - " & Err.Description, vbCritical
+    If screenUpdatingSuspended Then
+        Application.ScreenUpdating = True
+        screenUpdatingSuspended = False
+    End If
+    If progressActive And Not progressClosed Then
+        modProgressUI.Progress_Close "Draft creation failed."
+        progressClosed = True
+    End If
+    modUIHelpers.ShowErrorMessage "Draft creation failed (" & Err.Number & "): " & Err.Description
+
+CleanExit:
+    If screenUpdatingSuspended Then
+        Application.ScreenUpdating = True
+        screenUpdatingSuspended = False
+    End If
+    If progressActive And Not progressClosed Then
+        modProgressUI.Progress_Close
+        progressClosed = True
+    End If
 End Sub
+
+Private Function ResolveDraftProgressLabel(ByVal personName As String, _
+                                           ByVal memberIndex As Long) As String
+    Dim trimmedName As String
+
+    trimmedName = Trim$(personName)
+    If LenB(trimmedName) > 0 Then
+        ResolveDraftProgressLabel = trimmedName
+    ElseIf memberIndex > 0 Then
+        ResolveDraftProgressLabel = "Row " & CStr(memberIndex)
+    Else
+        ResolveDraftProgressLabel = "Row ?"
+    End If
+End Function
+
+Private Function FormatDraftProgressStatus(ByVal label As String, _
+                                           ByVal outcome As String) As String
+    label = Trim$(label)
+    If LenB(label) = 0 Then label = "Current member"
+
+    outcome = Trim$(outcome)
+    If LenB(outcome) > 0 Then
+        FormatDraftProgressStatus = label & " - " & outcome
+    Else
+        FormatDraftProgressStatus = label
+    End If
+End Function
+
+Private Function BuildDraftSummary(ByVal createdCount As Long, _
+                                   ByVal skippedCount As Long, _
+                                   ByVal skipNote As String) As String
+    BuildDraftSummary = "Created: " & createdCount & vbCrLf & _
+                        "Skipped (no name, no emails, or filtered out): " & skippedCount & skipNote
+End Function
 
 ' Build a semicolon-separated list of valid emails from columns startCol to endCol on a given row.
 Private Function BuildEmailList(ws As Worksheet, ByVal rowNum As Long, ByVal startCol As String, ByVal endCol As String) As String

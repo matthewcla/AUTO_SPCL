@@ -96,8 +96,9 @@ Private Function EnsureRequiredControls() As Boolean
     EnsureRequiredControls = missing.Count = 0
 
     If Not EnsureRequiredControls Then
-        MsgBox "Progress form is missing required controls:" & vbCrLf & " - " & _
-               JoinCollectionItems(missing, vbCrLf & " - "), vbCritical
+        modUIHelpers.ShowErrorMessage "AUTO_SPCL can't display the progress tracker because these controls are missing:" & _
+                                      vbCrLf & " - " & JoinCollectionItems(missing, vbCrLf & " - ") & vbCrLf & _
+                                      "Please contact the workbook administrator to restore them."
     End If
 End Function
 
