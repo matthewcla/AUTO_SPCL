@@ -18,7 +18,6 @@ Private Const DEFAULT_ELIG_NOTE_TEXT As String = "(no note found)"
 '   txtCc - Text box that collects the carbon copy recipients.
 '   txtSubject - Text box containing the email subject.
 '   txtBody - Text box containing the email body template.
-'   txtSignature - Text box that holds the saved signature block.
 '   lstAttachments - Optional list box showing the current attachments.
 '   btnRemoveAttachment - Optional button used to remove selected attachments.
 ' Returns  : None.
@@ -29,7 +28,6 @@ Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
                             ByRef txtCc As MSForms.TextBox, _
                             ByRef txtSubject As MSForms.TextBox, _
                             ByRef txtBody As MSForms.TextBox, _
-                            ByRef txtSignature As MSForms.TextBox, _
                             Optional ByRef lstAttachments As MSForms.ListBox, _
                             Optional ByRef btnRemoveAttachment As MSForms.CommandButton)
 
@@ -37,7 +35,6 @@ Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
     AssignTextBoxValue txtCc, vbNullString
     AssignTextBoxValue txtSubject, vbNullString
     AssignTextBoxValue txtBody, vbNullString
-    AssignTextBoxValue txtSignature, vbNullString
 
     If Not lstAttachments Is Nothing Then
         On Error Resume Next
@@ -559,10 +556,7 @@ Private Sub ResolveDraftTemplateContent(ByVal templateKey As String, _
                                         ByRef bodyTemplate As String)
     Dim templateCc As String
     Dim templateSubject As String
-    Dim templateGreeting As String
     Dim templateBody As String
-    Dim templateSignature As String
-    Dim combinedBody As String
 
     ccList = DEFAULT_CC_LIST
     subjectTemplate = DEFAULT_SUBJECT_TEMPLATE
@@ -570,45 +564,12 @@ Private Sub ResolveDraftTemplateContent(ByVal templateKey As String, _
 
     If LenB(templateKey) = 0 Then Exit Sub
 
-    If modEmailTemplates.TryGetTemplateDraftContent(templateKey, templateCc, templateSubject, _
-                                                   templateGreeting, templateBody, templateSignature) Then
-        combinedBody = CombineDraftBodyTemplate(templateGreeting, templateBody, templateSignature)
-
+    If modEmailTemplates.TryGetTemplateDraftContent(templateKey, templateCc, templateSubject, templateBody) Then
         If LenB(templateCc) > 0 Then ccList = templateCc
         If LenB(templateSubject) > 0 Then subjectTemplate = templateSubject
-        If LenB(combinedBody) > 0 Then
-            bodyTemplate = combinedBody
-        ElseIf LenB(templateBody) > 0 Then
-            bodyTemplate = templateBody
-        End If
+        If LenB(templateBody) > 0 Then bodyTemplate = templateBody
     End If
 End Sub
-
-Private Function CombineDraftBodyTemplate(ByVal greetingValue As String, _
-                                          ByVal bodyValue As String, _
-                                          ByVal signatureValue As String) As String
-    Dim builder As String
-
-    greetingValue = Trim$(greetingValue)
-    bodyValue = Trim$(bodyValue)
-    signatureValue = Trim$(signatureValue)
-
-    If LenB(greetingValue) > 0 Then
-        builder = greetingValue
-    End If
-
-    If LenB(bodyValue) > 0 Then
-        If LenB(builder) > 0 Then builder = builder & vbCrLf & vbCrLf
-        builder = builder & bodyValue
-    End If
-
-    If LenB(signatureValue) > 0 Then
-        If LenB(builder) > 0 Then builder = builder & vbCrLf & vbCrLf
-        builder = builder & signatureValue
-    End If
-
-    CombineDraftBodyTemplate = builder
-End Function
 
 Private Function NormalizeDraftWhitelist(ByVal allowedMembers As Variant) As Object
     Dim dict As Object
