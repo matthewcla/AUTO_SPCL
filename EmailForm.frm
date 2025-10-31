@@ -110,6 +110,39 @@ Private Function TryGetButton(ByVal controlName As String) As MSForms.CommandBut
     If TypeOf ctrl Is MSForms.CommandButton Then Set TryGetButton = ctrl
 End Function
 
+Private Function TryGetLabel(ByVal controlName As String) As MSForms.Label
+    Dim ctrl As MSForms.Control
+
+    Set ctrl = TryGetControl(controlName)
+    If ctrl Is Nothing Then Exit Function
+    If TypeOf ctrl Is MSForms.Label Then Set TryGetLabel = ctrl
+End Function
+
+Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.Label
+    Dim labelName As String
+
+    labelName = "lblL" & CStr(displayIndex)
+    Set GetLabelByDisplayIndex = TryGetLabel(labelName)
+End Function
+
+Private Sub HandleLabelMouseMoveByIndex(ByVal displayIndex As Long)
+    Dim target As MSForms.Label
+
+    Set target = GetLabelByDisplayIndex(displayIndex)
+    If target Is Nothing Then Exit Sub
+
+    HandleLabelMouseMove target
+End Sub
+
+Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
+    Dim memberIndex As Long
+
+    memberIndex = DisplayIndexToMemberIndex(displayIndex)
+    If memberIndex = 0 Then Exit Sub
+
+    HandleEmailToggleClick memberIndex
+End Sub
+
 Private Function EnsureRequiredControls() As Boolean
     Dim missing As Collection
 
@@ -1224,10 +1257,32 @@ End Function
 Private Function GetAttachmentListCount() As Long
     If mLstAttachments Is Nothing Then Exit Function
 
-    On Error Resume Next
+    On Error GoTo CleanFail
     GetAttachmentListCount = mLstAttachments.ListCount
     On Error GoTo 0
+    Exit Function
+
+CleanFail:
+    Err.Clear
+    On Error GoTo 0
 End Function
+
+Private Sub PopulateLookupFromEntries(ByVal entries As Collection, ByVal lookup As Object)
+    Dim entry As Variant
+    Dim normalizedKey As String
+
+    If lookup Is Nothing Then Exit Sub
+    If entries Is Nothing Then Exit Sub
+
+    For Each entry In entries
+        normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
+        If LenB(normalizedKey) > 0 Then
+            If Not lookup.Exists(normalizedKey) Then
+                lookup(normalizedKey) = True
+            End If
+        End If
+    Next entry
+End Sub
 
 Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
                                       ByVal entries As Collection)
@@ -1245,9 +1300,6 @@ Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
 End Sub
 
 Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
-    Dim entry As Variant
-    Dim normalizedKey As String
-
     mCurrentTemplateKey = templateKey
 
     Set mTemplateAttachmentEntries = GetTemplateAttachmentEntriesForKey(templateKey)
@@ -1263,27 +1315,8 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
     Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
 
-    If Not mTemplateAttachmentLookup Is Nothing Then
-        For Each entry In mTemplateAttachmentEntries
-            normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
-            If LenB(normalizedKey) = 0 Then GoTo NextTemplateEntry
-            If Not mTemplateAttachmentLookup.Exists(normalizedKey) Then
-                mTemplateAttachmentLookup(normalizedKey) = True
-            End If
-NextTemplateEntry:
-        Next entry
-    End If
-
-    If Not mUserAttachmentLookup Is Nothing Then
-        For Each entry In mUserAttachmentEntries
-            normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
-            If LenB(normalizedKey) = 0 Then GoTo NextUserEntry
-            If Not mUserAttachmentLookup.Exists(normalizedKey) Then
-                mUserAttachmentLookup(normalizedKey) = True
-            End If
-NextUserEntry:
-        Next entry
-    End If
+    PopulateLookupFromEntries mTemplateAttachmentEntries, mTemplateAttachmentLookup
+    PopulateLookupFromEntries mUserAttachmentEntries, mUserAttachmentLookup
 
     RefreshAttachmentListDisplay
 End Sub
@@ -1294,31 +1327,28 @@ Private Function GetAttachmentEntriesFromListBox(ByRef listBox As MSForms.ListBo
     Dim entryText As String
 
     Set entries = New Collection
+    If listBox Is Nothing Then GoTo CleanExit
+    If listBox.ListCount = 0 Then GoTo CleanExit
 
-    If listBox Is Nothing Then
-        Set GetAttachmentEntriesFromListBox = entries
-        Exit Function
-    End If
-
-    If listBox.ListCount = 0 Then
-        Set GetAttachmentEntriesFromListBox = entries
-        Exit Function
-    End If
+    On Error GoTo EntryError
 
     For idx = 0 To listBox.ListCount - 1
-        On Error Resume Next
         entryText = Trim$(CStr(listBox.List(idx)))
-        If Err.Number <> 0 Then
-            entryText = vbNullString
-            Err.Clear
-        End If
-        On Error GoTo 0
         If LenB(entryText) > 0 Then
             entries.Add entryText
         End If
     Next idx
 
+    On Error GoTo 0
+
+CleanExit:
     Set GetAttachmentEntriesFromListBox = entries
+    Exit Function
+
+EntryError:
+    entryText = vbNullString
+    Err.Clear
+    Resume Next
 End Function
 
 Private Sub EnsureAttachmentTracking(ByVal templateKey As String)
@@ -1378,20 +1408,7 @@ Private Sub RefreshTemplateAttachmentTrackingFromWorksheet(ByVal templateKey As 
 End Sub
 
 Private Sub RebuildLookupFromCollection(ByRef dict As Object, ByVal entries As Collection)
-    Dim entry As Variant
-    Dim normalizedKey As String
-
-    If dict Is Nothing Then Exit Sub
-    If entries Is Nothing Then Exit Sub
-
-    For Each entry In entries
-        normalizedKey = NormalizeTemplateAttachmentEntry(CStr(entry))
-        If LenB(normalizedKey) > 0 Then
-            If Not dict.Exists(normalizedKey) Then
-                dict(normalizedKey) = True
-            End If
-        End If
-    Next entry
+    PopulateLookupFromEntries entries, dict
 End Sub
 
 Private Function CreateCaseInsensitiveDictionary() As Object
@@ -1666,8 +1683,13 @@ Private Sub PersistUserAttachmentsToWorksheet(ByVal templateKey As String)
 
     If LenB(activeTemplateKey) = 0 Then Exit Sub
 
-    On Error Resume Next
+    On Error GoTo WriteFail
     WriteUserAttachmentEntries activeTemplateKey, mUserAttachmentEntries
+    On Error GoTo 0
+    Exit Sub
+
+WriteFail:
+    Err.Clear
     On Error GoTo 0
 End Sub
 
@@ -2017,107 +2039,67 @@ Private Sub bBE_Click()
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL1
+    HandleLabelMouseMoveByIndex 1
 End Sub
 
 Private Sub lblL1_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(1)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL2
+    HandleLabelMouseMoveByIndex 2
 End Sub
 
 Private Sub lblL2_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(2)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL3
+    HandleLabelMouseMoveByIndex 3
 End Sub
 
 Private Sub lblL3_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(3)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL4
+    HandleLabelMouseMoveByIndex 4
 End Sub
 
 Private Sub lblL4_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(4)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL5
+    HandleLabelMouseMoveByIndex 5
 End Sub
 
 Private Sub lblL5_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(5)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL6
+    HandleLabelMouseMoveByIndex 6
 End Sub
 
 Private Sub lblL6_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(6)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL7
+    HandleLabelMouseMoveByIndex 7
 End Sub
 
 Private Sub lblL7_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(7)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    HandleLabelMouseMove Me.lblL8
+    HandleLabelMouseMoveByIndex 8
 End Sub
 
 Private Sub lblL8_Click()
-    Dim memberIndex As Long
-
-    memberIndex = DisplayIndexToMemberIndex(8)
-    If memberIndex = 0 Then Exit Sub
-
-    HandleEmailToggleClick memberIndex
+    HandleLabelClickByIndex 8
 End Sub
 
 
