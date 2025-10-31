@@ -191,7 +191,7 @@ Public Sub Init(totalCount As Long, Optional captionText As String = "Reviewing 
     Me.TotalCount = totalCount
     Me.CompletedCount = 0
 
-    modReflectionsMonitor.PushCurrentStatus
+    PushCurrentStatus
     modProgressUI.Progress_StartTimer
 End Sub
 
@@ -520,7 +520,7 @@ Private Sub UserForm_Initialize()
     Me.txtLog.ControlSource = ""
     lblOAIS.Caption = ""
 
-    modReflectionsMonitor.RegisterReflectionsListener Me.Name
+    RegisterReflectionsListener TypeName(Me)
 
     Dim isConnected As Boolean
     isConnected = EnsureReflectionsConnectionAlive(True)
@@ -567,7 +567,7 @@ Private Sub UserForm_Terminate()
     SetCursorWait
 
     On Error Resume Next
-    modReflectionsMonitor.UnregisterReflectionsListener Me.Name
+    UnregisterReflectionsListener TypeName(Me)
     On Error GoTo CleanFail
 
     Dim targetForm As String
