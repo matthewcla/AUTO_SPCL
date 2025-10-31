@@ -557,7 +557,7 @@ Private Sub UserForm_Initialize()
     End If
     lblOAIS.Caption = ""
 
-    RegisterReflectionsListener TypeName(Me)
+    modReflectionsMonitor.RegisterReflectionsListener TypeName(Me)
 
     Dim isConnected As Boolean
     isConnected = EnsureReflectionsConnectionAlive(True)
@@ -605,7 +605,7 @@ Private Sub UserForm_Terminate()
     SetCursorWait
 
     On Error Resume Next
-    UnregisterReflectionsListener TypeName(Me)
+    modReflectionsMonitor.UnregisterReflectionsListener TypeName(Me)
     On Error GoTo CleanFail
 
     Dim targetForm As String

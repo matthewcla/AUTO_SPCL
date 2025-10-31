@@ -38,7 +38,7 @@ Private Sub UserForm_Initialize()
         InitializeOAISSession bOAIS
     End If
 
-    RegisterReflectionsListener TypeName(Me)
+    modReflectionsMonitor.RegisterReflectionsListener TypeName(Me)
 
 CleanExit:
     SetCursorDefault
@@ -63,7 +63,7 @@ Private Sub UserForm_Terminate()
     SetCursorWait
 
     On Error Resume Next
-    UnregisterReflectionsListener TypeName(Me)
+    modReflectionsMonitor.UnregisterReflectionsListener TypeName(Me)
     On Error GoTo CleanFail
 
 CleanExit:
