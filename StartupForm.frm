@@ -5,7 +5,7 @@ Option Explicit
 ' Role   : Launchpad that validates OAIS connectivity, surfaces board metadata, and
 '          routes the user into record review or export workflows.
 ' Coordinates:
-'   - Registers with modReflectionsMonitor and modUIHelpers to reflect live connection status.
+'   - Registers with modKeepAlive and modUIHelpers to reflect live connection status.
 '   - Starts MainMod.A_Record_Review (and thus ProgressForm) when "Radiate" processing begins.
 '   - Leaves the workspace prepared for EmailForm once review runs are complete.
 '-------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ Private Sub UserForm_Initialize()
         InitializeOAISSession bOAIS
     End If
 
-    modReflectionsMonitor.RegisterReflectionsListener TypeName(Me)
+    modKeepAlive.RegisterReflectionsListener TypeName(Me)
 
 CleanExit:
     SetCursorDefault
@@ -63,7 +63,7 @@ Private Sub UserForm_Terminate()
     SetCursorWait
 
     On Error Resume Next
-    modReflectionsMonitor.UnregisterReflectionsListener TypeName(Me)
+    modKeepAlive.UnregisterReflectionsListener TypeName(Me)
     On Error GoTo CleanFail
 
 CleanExit:
