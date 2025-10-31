@@ -1,5 +1,14 @@
 '==== UserForm: StartupForm ====
 Option Explicit
+'-------------------------------------------------------------------------------
+' Form: StartupForm
+' Role   : Launchpad that validates OAIS connectivity, surfaces board metadata, and
+'          routes the user into record review or export workflows.
+' Coordinates:
+'   - Registers with modReflectionsMonitor and modUIHelpers to reflect live connection status.
+'   - Starts MainMod.A_Record_Review (and thus ProgressForm) when "Radiate" processing begins.
+'   - Leaves the workspace prepared for EmailForm once review runs are complete.
+'-------------------------------------------------------------------------------
 
 Private mTitleBarHidden As Boolean
 

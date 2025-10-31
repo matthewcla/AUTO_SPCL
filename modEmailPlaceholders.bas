@@ -1,10 +1,31 @@
 Attribute VB_Name = "modEmailPlaceholders"
 Option Explicit
 
+'-------------------------------------------------------------------------------
+' Procedure: ReplacePlaceholders
+' Purpose  : Substitute placeholder tokens within a template string using supplied
+'            name/value pairs.
+' Parameters:
+'   template - Source text containing placeholder tokens such as {Name}.
+'   placeholderPairs - ParamArray of alternating placeholder names and values.
+' Returns  : String with placeholders replaced; returns template when no replacements apply.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function ReplacePlaceholders(ByVal template As String, ParamArray placeholderPairs()) As String
     ReplacePlaceholders = ReplacePlaceholdersArray(template, placeholderPairs)
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: ReplacePlaceholdersArray
+' Purpose  : Perform placeholder substitution using a caller-provided array of values.
+' Parameters:
+'   template - Source text containing placeholder tokens.
+'   placeholderPairs - Array containing alternating placeholder names and values.
+' Returns  : String with placeholders replaced; returns template when no replacements apply.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function ReplacePlaceholdersArray(ByVal template As String, ByRef placeholderPairs As Variant) As String
     Dim result As String
     Dim lower As Long

@@ -13,6 +13,16 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
+'-------------------------------------------------------------------------------
+' Form: EmailForm
+' Role   : Primary workspace for reviewing member records and composing outbound
+'          messages. Provides template selection, body preview, and attachment
+'          management before drafts are created.
+' Coordinates:
+'   - Uses modEmailTemplates to load template content and persisted attachments.
+'   - Calls modEmail helpers to clear fields, sync attachments, and create Outlook drafts.
+'   - Receives hand-off from ProgressForm once the record review pipeline completes.
+'-------------------------------------------------------------------------------
 
 Private Const MSO_FILE_DIALOG_FILE_PICKER As Long = 3
 

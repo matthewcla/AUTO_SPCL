@@ -1,6 +1,21 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
+'-------------------------------------------------------------------------------
+' Procedure: ClearEmailFields
+' Purpose  : Reset the outbound email form so the next draft starts from a clean state.
+' Parameters:
+'   txtTo - Text box that collects the primary recipients.
+'   txtCc - Text box that collects the carbon copy recipients.
+'   txtSubject - Text box containing the email subject.
+'   txtBody - Text box containing the email body template.
+'   txtSignature - Text box that holds the saved signature block.
+'   lstAttachments - Optional list box showing the current attachments.
+'   btnRemoveAttachment - Optional button used to remove selected attachments.
+' Returns  : None.
+' Side Effects:
+'   Clears UI controls and hides/disables the remove-attachment button when no files remain.
+'-------------------------------------------------------------------------------
 Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
                             ByRef txtCc As MSForms.TextBox, _
                             ByRef txtSubject As MSForms.TextBox, _
@@ -24,6 +39,16 @@ Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
     UpdateAttachmentRemoveButton btnRemoveAttachment, Nothing
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: BuildAttachmentDisplayList
+' Purpose  : Combine template-specified and user-specified attachment entries for display.
+' Parameters:
+'   templateEntries - Collection of attachment descriptors defined by the template.
+'   userEntries - Collection of attachment descriptors added by the user.
+' Returns  : Collection containing the concatenated attachment descriptors as strings.
+' Side Effects:
+'   None.
+'-------------------------------------------------------------------------------
 Public Function BuildAttachmentDisplayList(ByVal templateEntries As Collection, _
                                            ByVal userEntries As Collection) As Collection
     Dim combined As Collection
@@ -46,6 +71,18 @@ Public Function BuildAttachmentDisplayList(ByVal templateEntries As Collection, 
     Set BuildAttachmentDisplayList = combined
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: SyncAttachmentList
+' Purpose  : Refresh the attachment list UI and button state based on current sources.
+' Parameters:
+'   lstAttachments - List box displaying attachment summaries.
+'   btnRemoveAttachment - Button that removes the selected attachment.
+'   templateEntries - Template-level attachment entries to include.
+'   userEntries - User-level attachment entries to include.
+' Returns  : Collection representing the combined attachments currently shown.
+' Side Effects:
+'   Updates list box items and remove button enabled/visible flags.
+'-------------------------------------------------------------------------------
 Public Function SyncAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
                                    ByRef btnRemoveAttachment As MSForms.CommandButton, _
                                    ByVal templateEntries As Collection, _
@@ -59,6 +96,16 @@ Public Function SyncAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
     Set SyncAttachmentList = combined
 End Function
 
+'-------------------------------------------------------------------------------
+' Procedure: UpdateAttachmentRemoveButton
+' Purpose  : Toggle the remove-attachment button so it mirrors whether files are present.
+' Parameters:
+'   btnRemoveAttachment - Button control used to remove attachments.
+'   attachments - Collection of attachment entries currently available.
+' Returns  : None.
+' Side Effects:
+'   Shows/hides and enables/disables the button through the MSForms API.
+'-------------------------------------------------------------------------------
 Public Sub UpdateAttachmentRemoveButton(ByRef btnRemoveAttachment As MSForms.CommandButton, _
                                         ByVal attachments As Collection)
     Dim hasAttachments As Boolean
@@ -67,6 +114,7 @@ Public Sub UpdateAttachmentRemoveButton(ByRef btnRemoveAttachment As MSForms.Com
 
     If btnRemoveAttachment Is Nothing Then Exit Sub
 
+    ' Only expose the remove button when at least one attachment is available to act on.
     On Error Resume Next
     btnRemoveAttachment.Visible = hasAttachments
     btnRemoveAttachment.Enabled = hasAttachments
@@ -107,6 +155,19 @@ Private Sub AssignTextBoxValue(ByRef target As MSForms.TextBox, ByVal value As S
     target.Value = value
 End Sub
 
+'-------------------------------------------------------------------------------
+' Procedure: CreateDraftsFromID
+' Purpose  : Generate hidden Outlook draft messages for members listed on the ID sheet.
+' Parameters:
+'   allowedMembers - Optional whitelist of member indexes or names to restrict processing.
+'   templateKey - Optional template identifier to pre-populate content and attachments.
+'   templateAttachmentEntries - Optional pre-resolved template attachment entries.
+'   userAttachmentEntries - Optional pre-resolved user attachment entries.
+' Returns  : None.
+' Side Effects:
+'   Starts Outlook if necessary, reads workbook data, creates Outlook draft items, and
+'   shows modal messages summarizing success/failure counts.
+'-------------------------------------------------------------------------------
 Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
                               Optional ByVal templateKey As String = vbNullString, _
                               Optional ByVal templateAttachmentEntries As Variant, _
