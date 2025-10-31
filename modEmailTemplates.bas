@@ -43,10 +43,7 @@ Public Function PopulateEmailTemplateControls(ByVal templateKey As String, _
                                       ByRef txtBody As MSForms.TextBox, _
                                       ByRef txtSignature As MSForms.TextBox) As Boolean
     Dim ws As Worksheet
-    Dim lastCol As Long
-    Dim colIndex As Long
     Dim templateColumn As Long
-    Dim headerValue As String
     Dim toValue As String
     Dim ccValue As String
     Dim subjValue As String
@@ -65,20 +62,7 @@ Public Function PopulateEmailTemplateControls(ByVal templateKey As String, _
 
     ClearTemplateControls txtTO, txtCC, lstAT, txtSubj, txtBody, txtSignature
 
-    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-    If lastCol < 1 Then Exit Function
-
-    For colIndex = 1 To lastCol
-        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
-        If LenB(headerValue) > 0 Then
-            ' Match against the requested key so we only load the intended template column.
-            If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
-                templateColumn = colIndex
-                Exit For
-            End If
-        End If
-    Next colIndex
-
+    templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
     If templateColumn = 0 Then Exit Function
 
     toValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_TO, templateColumn).Value))
@@ -137,6 +121,55 @@ Private Function ResolveTemplateWorksheet() As Worksheet
     Next candidate
 
     Set ResolveTemplateWorksheet = mTemplateWorksheet
+End Function
+
+Private Function ResolveTemplateColumnIndex(ByRef ws As Worksheet, _
+                                            ByVal templateKey As String) As Long
+    Dim lastCol As Long
+    Dim colIndex As Long
+    Dim headerValue As String
+
+    If ws Is Nothing Then Exit Function
+    If LenB(templateKey) = 0 Then Exit Function
+
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    If lastCol < 1 Then Exit Function
+
+    For colIndex = 1 To lastCol
+        headerValue = Trim$(CStrSafe(ws.Cells(1, colIndex).Value))
+        If LenB(headerValue) > 0 Then
+            If StrComp(headerValue, templateKey, vbTextCompare) = 0 Then
+                ResolveTemplateColumnIndex = colIndex
+                Exit Function
+            End If
+        End If
+    Next colIndex
+End Function
+
+Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
+                                           ByRef ccValue As String, _
+                                           ByRef subjectValue As String, _
+                                           ByRef greetingValue As String, _
+                                           ByRef bodyValue As String, _
+                                           ByRef signatureValue As String) As Boolean
+    Dim ws As Worksheet
+    Dim templateColumn As Long
+
+    If LenB(templateKey) = 0 Then Exit Function
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
+    If templateColumn = 0 Then Exit Function
+
+    ccValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_CC, templateColumn).Value))
+    subjectValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SUBJECT, templateColumn).Value))
+    greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
+    bodyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_BODY, templateColumn).Value))
+    signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
+
+    TryGetTemplateDraftContent = True
 End Function
 
 Private Function GetAttachmentExistsCache() As Object

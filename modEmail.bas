@@ -1,6 +1,15 @@
 Attribute VB_Name = "modEmail"
 Option Explicit
 
+Private Const DEFAULT_CC_LIST As String = vbNullString
+Private Const DEFAULT_SUBJECT_TEMPLATE As String = "{Name} - AUTO_SPCL Draft"
+Private Const DEFAULT_BODY_TEMPLATE As String = _
+        "Dear {Name}," & vbCrLf & vbCrLf & _
+        "Eligibility note: {EligiblesNote}" & vbCrLf & vbCrLf & _
+        "Respectfully," & vbCrLf & _
+        "AUTO_SPCL Team"
+Private Const DEFAULT_ELIG_NOTE_TEXT As String = "(no note found)"
+
 '-------------------------------------------------------------------------------
 ' Procedure: ClearEmailFields
 ' Purpose  : Reset the outbound email form so the next draft starts from a clean state.
@@ -197,6 +206,11 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
     Dim summary As String
     Dim finalNote As String
     Dim screenUpdatingSuspended As Boolean
+    Dim ccList As String
+    Dim subjectTemplate As String
+    Dim bodyTemplate As String
+    Dim mailSubject As String
+    Dim mailBody As String
 
     On Error GoTo CleanFail
 
@@ -279,6 +293,8 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
         modProgressUI.Progress_Log "Attachment lists prepared."
     End If
 
+    ResolveDraftTemplateContent templateKey, ccList, subjectTemplate, bodyTemplate
+
     Application.ScreenUpdating = False
     screenUpdatingSuspended = True
 
@@ -324,14 +340,17 @@ Public Sub CreateDraftsFromID(Optional ByVal allowedMembers As Variant, _
 
         ' Lookup note from Eligibles col A -> take col C
         eligNote = GetEligiblesNote(wsElig, personName)
-        
+
+        mailSubject = BuildSubject(personName, eligNote, subjectTemplate)
+        mailBody = BuildBody(personName, eligNote, bodyTemplate)
+
         ' Create the draft (hidden; saved to Drafts)
         Set olMail = olApp.CreateItem(0) ' olMailItem = 0
         With olMail
             .To = toList
-            .CC = CC_LIST  ' hard-coded CCs (modify above)
-            .Subject = Replace(SUBJECT_TEMPLATE, "{Name}", personName)
-            .Body = BuildBody(personName, eligNote)
+            .CC = ccList
+            .Subject = mailSubject
+            .Body = mailBody
             If Not templateAttachmentPaths Is Nothing Then
                 For Each attachmentPath In templateAttachmentPaths
                     If LenB(Trim$(CStr(attachmentPath))) > 0 Then
@@ -486,29 +505,109 @@ Private Function GetEligiblesNote(wsElig As Worksheet, ByVal personName As Strin
     GetEligiblesNote = ""
 End Function
 
-' Build the email body by replacing placeholders in BODY_TEMPLATE.
-Private Function BuildBody(ByVal personName As String, ByVal eligNote As String) As String
-    Dim bodyText As String
-    Dim noteText As String
+' Build the email body by replacing placeholders in the supplied template text.
+Private Function BuildBody(ByVal personName As String, _
+                           ByVal eligNote As String, _
+                           ByVal bodyTemplate As String) As String
     Dim replacements As Variant
 
-    bodyText = BODY_TEMPLATE
+    If LenB(bodyTemplate) = 0 Then bodyTemplate = DEFAULT_BODY_TEMPLATE
 
-    If LenB(eligNote) > 0 Then
-        noteText = eligNote
-    Else
-        noteText = "(no note found)"
-    End If
+    replacements = BuildDraftPlaceholderReplacements(personName, eligNote)
+    BuildBody = modEmailPlaceholders.ReplacePlaceholdersArray(bodyTemplate, replacements)
+End Function
 
-    replacements = Array( _
+Private Function BuildSubject(ByVal personName As String, _
+                              ByVal eligNote As String, _
+                              ByVal subjectTemplate As String) As String
+    Dim replacements As Variant
+
+    If LenB(subjectTemplate) = 0 Then subjectTemplate = DEFAULT_SUBJECT_TEMPLATE
+
+    replacements = BuildDraftPlaceholderReplacements(personName, eligNote)
+    BuildSubject = modEmailPlaceholders.ReplacePlaceholdersArray(subjectTemplate, replacements)
+End Function
+
+Private Function BuildDraftPlaceholderReplacements(ByVal personName As String, _
+                                                   ByVal eligNote As String) As Variant
+    Dim noteText As String
+
+    noteText = ResolveEligibilityNote(eligNote)
+
+    BuildDraftPlaceholderReplacements = Array( _
         "Name", personName, _
         "EligiblesNote", noteText, _
         "ISSUES", noteText, _
         "ISSUE", noteText _
     )
+End Function
 
-    bodyText = modEmailPlaceholders.ReplacePlaceholdersArray(bodyText, replacements)
-    BuildBody = bodyText
+Private Function ResolveEligibilityNote(ByVal eligNote As String) As String
+    Dim trimmedNote As String
+
+    trimmedNote = Trim$(eligNote)
+    If LenB(trimmedNote) > 0 Then
+        ResolveEligibilityNote = trimmedNote
+    Else
+        ResolveEligibilityNote = DEFAULT_ELIG_NOTE_TEXT
+    End If
+End Function
+
+Private Sub ResolveDraftTemplateContent(ByVal templateKey As String, _
+                                        ByRef ccList As String, _
+                                        ByRef subjectTemplate As String, _
+                                        ByRef bodyTemplate As String)
+    Dim templateCc As String
+    Dim templateSubject As String
+    Dim templateGreeting As String
+    Dim templateBody As String
+    Dim templateSignature As String
+    Dim combinedBody As String
+
+    ccList = DEFAULT_CC_LIST
+    subjectTemplate = DEFAULT_SUBJECT_TEMPLATE
+    bodyTemplate = DEFAULT_BODY_TEMPLATE
+
+    If LenB(templateKey) = 0 Then Exit Sub
+
+    If modEmailTemplates.TryGetTemplateDraftContent(templateKey, templateCc, templateSubject, _
+                                                   templateGreeting, templateBody, templateSignature) Then
+        combinedBody = CombineDraftBodyTemplate(templateGreeting, templateBody, templateSignature)
+
+        If LenB(templateCc) > 0 Then ccList = templateCc
+        If LenB(templateSubject) > 0 Then subjectTemplate = templateSubject
+        If LenB(combinedBody) > 0 Then
+            bodyTemplate = combinedBody
+        ElseIf LenB(templateBody) > 0 Then
+            bodyTemplate = templateBody
+        End If
+    End If
+End Sub
+
+Private Function CombineDraftBodyTemplate(ByVal greetingValue As String, _
+                                          ByVal bodyValue As String, _
+                                          ByVal signatureValue As String) As String
+    Dim builder As String
+
+    greetingValue = Trim$(greetingValue)
+    bodyValue = Trim$(bodyValue)
+    signatureValue = Trim$(signatureValue)
+
+    If LenB(greetingValue) > 0 Then
+        builder = greetingValue
+    End If
+
+    If LenB(bodyValue) > 0 Then
+        If LenB(builder) > 0 Then builder = builder & vbCrLf & vbCrLf
+        builder = builder & bodyValue
+    End If
+
+    If LenB(signatureValue) > 0 Then
+        If LenB(builder) > 0 Then builder = builder & vbCrLf & vbCrLf
+        builder = builder & signatureValue
+    End If
+
+    CombineDraftBodyTemplate = builder
 End Function
 
 Private Function NormalizeDraftWhitelist(ByVal allowedMembers As Variant) As Object
