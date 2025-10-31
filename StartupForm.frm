@@ -45,7 +45,7 @@ CleanExit:
     Exit Sub
 
 CleanFail:
-    Debug.Print "StartupForm.Initialize error: "; Err.Number; Err.Description
+    LogStartupDiagnostic "StartupForm.Initialize error: " & Err.Number & ": " & Err.Description
     Resume CleanExit
 End Sub
 
@@ -214,7 +214,7 @@ Private Sub ClearTableColumnsCD(ByVal TableName As String)
     
     ' Exit gracefully if the table has no data rows yet
     If lo.DataBodyRange Is Nothing Then
-        Debug.Print "ClearTableColumnsCD: Table '" & TableName & "' has no data rows to clear."
+        LogStartupDiagnostic "ClearTableColumnsCD: Table '" & TableName & "' has no data rows to clear."
         Exit Sub
     End If
 
@@ -233,7 +233,7 @@ Private Sub ClearTableColumnsCD(ByVal TableName As String)
     Exit Sub
 
 ErrHandler:
-    Debug.Print "ClearTableColumnsCD error (" & Err.Number & "): " & Err.Description
+    LogStartupDiagnostic "ClearTableColumnsCD error (" & Err.Number & "): " & Err.Description
 End Sub
 
 Private Sub bASTABone_Click()
@@ -317,6 +317,16 @@ Private Sub bSettings_Click()
 End Sub
 
 '--- Small utilities ----------------------------------------------------------
+
+Private Sub LogStartupDiagnostic(ByVal message As String)
+    If LenB(message) = 0 Then Exit Sub
+
+    Debug.Print message
+
+    On Error Resume Next
+    modProgressUI.Progress_Log message
+    On Error GoTo 0
+End Sub
 
 Private Function SafeCell(ByVal sheetName As String, ByVal addr As String) As Variant
     On Error GoTo EH
