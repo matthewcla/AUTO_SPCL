@@ -1,9 +1,10 @@
 Attribute VB_Name = "modKeepAlive"
 ' ===========================
-'  Reflections Keep-Alive (VBA)
+'  Reflections Keep-Alive & Monitor (VBA)
 '  - Nudge the session every N seconds (PER1 -> F3)
 '  - Auto-suspend while user runs any priority proc
 '  - Auto-resume when that proc completes
+'  - Surface connection status changes to interested forms
 ' ===========================
 
 Option Explicit
@@ -15,11 +16,14 @@ Private Const KEEPALIVE_SECONDS As Long = 30 '120   ' every 2 minutes
 Private Const ENTER_DELAY_MS     As Long = 250  ' small delay between actions
 
 ' === STATE ===
-Private mNextFire      As Date
-Private mEnabled       As Boolean
-Private mPaused        As Boolean
-Private mInTick        As Boolean
-Private mStarted       As Boolean
+Private mNextFire          As Date
+Private mEnabled           As Boolean
+Private mPaused            As Boolean
+Private mInTick            As Boolean
+Private mStarted           As Boolean
+Private mRegisteredForms   As Collection
+Private mLastKnownStatus   As Variant
+Private mLossMessageShown  As Boolean
 
 ' ========= Public API =========
 
@@ -41,6 +45,8 @@ Public Sub KeepAlive_Stop()
     mPaused = False
     mInTick = False
     mNextFire = 0
+    ResetConnectionState
+    Set mRegisteredForms = Nothing
 End Sub
 
 ' Suspend the loop during a priority task; call KeepAlive_Resume afterward
@@ -54,6 +60,46 @@ Public Sub KeepAlive_Resume()
     If Not mStarted Then Exit Sub
     mPaused = False
     If mEnabled Then KeepAlive_ScheduleNext
+End Sub
+
+' Register a form (by type/name) for periodic connection updates
+Public Sub RegisterReflectionsListener(ByVal formName As String)
+    Dim key As String
+    key = NormalizeKey(formName)
+    If Len(key) = 0 Then Exit Sub
+
+    If mRegisteredForms Is Nothing Then
+        Set mRegisteredForms = New Collection
+    End If
+
+    On Error Resume Next
+    mRegisteredForms.Add key, key
+    On Error GoTo 0
+
+    RefreshConnectionState True, key
+End Sub
+
+' Remove a form from monitoring
+Public Sub UnregisterReflectionsListener(ByVal formName As String)
+    If mRegisteredForms Is Nothing Then Exit Sub
+
+    Dim key As String
+    key = NormalizeKey(formName)
+    If Len(key) = 0 Then Exit Sub
+
+    On Error Resume Next
+    mRegisteredForms.Remove key
+    On Error GoTo 0
+
+    If Not HasRegisteredForms Then
+        ResetConnectionState
+    End If
+End Sub
+
+' Force an immediate status push to listeners (if any)
+Public Sub PushCurrentStatus()
+    If Not HasRegisteredForms Then Exit Sub
+    RefreshConnectionState False, "", True
 End Sub
 
 ' Convenience wrapper to run any procedure "as priority"
@@ -113,8 +159,13 @@ Public Sub KeepAlive_Tick()
     If mInTick Then GoTo Resched              ' re-entrancy guard
     mInTick = True
 
-    ' --- Do the minimal "nudge": PER1 then F3 back to menu ---
-    SafeNudge
+    Dim isConnected As Boolean
+    isConnected = RefreshConnectionState(True)
+
+    If isConnected Then
+        ' --- Do the minimal "nudge": PER1 then F3 back to menu ---
+        SafeNudge
+    End If
 
 Resched:
     mInTick = False
@@ -137,6 +188,103 @@ Private Sub TinyDelay(ByVal ms As Long)
     Do While (Timer - t) * 1000 < ms
         DoEvents
     Loop
+End Sub
+
+' ===== Connection monitoring helpers =====
+
+Private Function RefreshConnectionState(Optional ByVal showLossMessage As Boolean = True, _
+                                        Optional ByVal notifyKey As String = "", _
+                                        Optional ByVal forceNotify As Boolean = False) As Boolean
+    Dim isConnected As Boolean
+    isConnected = EnsureReflectionsConnectionAlive(True)
+
+    Dim haveListeners As Boolean
+    haveListeners = HasRegisteredForms
+
+    If isConnected Then
+        mLossMessageShown = False
+    ElseIf showLossMessage And (Len(notifyKey) > 0 Or haveListeners) Then
+        If Not mLossMessageShown Then
+            ShowConnectionLostMessage
+            mLossMessageShown = True
+        End If
+    End If
+
+    If Len(notifyKey) > 0 Then
+        NotifySpecific notifyKey, isConnected
+    ElseIf haveListeners Then
+        Dim statusChanged As Boolean
+        If VarType(mLastKnownStatus) = vbBoolean Then
+            statusChanged = (CBool(mLastKnownStatus) <> isConnected)
+        Else
+            statusChanged = True
+        End If
+
+        If forceNotify Or statusChanged Then
+            NotifyAll isConnected
+        End If
+    End If
+
+    mLastKnownStatus = isConnected
+    RefreshConnectionState = isConnected
+End Function
+
+Private Sub ResetConnectionState()
+    mLastKnownStatus = Empty
+    mLossMessageShown = False
+End Sub
+
+Private Function HasRegisteredForms() As Boolean
+    HasRegisteredForms = Not (mRegisteredForms Is Nothing) And mRegisteredForms.Count > 0
+End Function
+
+Private Sub NotifyAll(ByVal isConnected As Boolean)
+    Dim formObj As Object
+    Dim key As String
+
+    For Each formObj In VBA.UserForms
+        key = NormalizeKey(TypeName(formObj))
+        If ListenerRegistered(key) Then
+            On Error Resume Next
+            CallByName formObj, "HandleReflectionsConnection", VbMethod, isConnected
+            On Error GoTo 0
+        End If
+    Next formObj
+End Sub
+
+Private Sub NotifySpecific(ByVal key As String, ByVal isConnected As Boolean)
+    Dim formObj As Object
+    For Each formObj In VBA.UserForms
+        If NormalizeKey(TypeName(formObj)) = key Then
+            On Error Resume Next
+            CallByName formObj, "HandleReflectionsConnection", VbMethod, isConnected
+            On Error GoTo 0
+            Exit For
+        End If
+    Next formObj
+End Sub
+
+Private Function ListenerRegistered(ByVal key As String) As Boolean
+    On Error GoTo NotFound
+    Dim tmp As String
+    tmp = mRegisteredForms(key)
+    ListenerRegistered = True
+    Exit Function
+NotFound:
+    ListenerRegistered = False
+    Err.Clear
+End Function
+
+Private Function NormalizeKey(ByVal formName As String) As String
+    NormalizeKey = UCase$(Trim$(formName))
+End Function
+
+Private Sub ShowConnectionLostMessage()
+    Dim prompt As String
+    prompt = "Excel is unable to detect an active Reflections/OAIS session." & vbCrLf & _
+             "Please make sure the Reflections window is running and connected." & vbCrLf & _
+             "If the session is restored, the form will reconnect automatically."
+    modUIHelpers.ShowWarningMessage prompt, "Reflections Connection"
 End Sub
 
 ' ========= Optional boot hook =========
