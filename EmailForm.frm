@@ -128,6 +128,32 @@ Private Function TryGetLabel(ByVal controlName As String) As MSForms.Label
     If TypeOf ctrl Is MSForms.Label Then Set TryGetLabel = ctrl
 End Function
 
+Private Sub FocusTemplateSelector()
+    If Not mCboTemplate Is Nothing Then
+        modUIHelpers.FocusControl mCboTemplate
+    ElseIf Not mTxtTemplateKey Is Nothing Then
+        modUIHelpers.FocusControl mTxtTemplateKey
+    Else
+        modUIHelpers.EnsureFormFocus Me
+    End If
+End Sub
+
+Private Sub FocusAttachmentList()
+    If Not mLstAttachments Is Nothing Then
+        modUIHelpers.FocusControl mLstAttachments
+    Else
+        modUIHelpers.EnsureFormFocus Me
+    End If
+End Sub
+
+Private Sub FocusComposerField()
+    If Not mTxtTo Is Nothing Then
+        modUIHelpers.FocusControl mTxtTo
+    Else
+        modUIHelpers.EnsureFormFocus Me
+    End If
+End Sub
+
 Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.Label
     Dim labelName As String
 
@@ -171,8 +197,9 @@ Private Function EnsureRequiredControls() As Boolean
     EnsureRequiredControls = missing.Count = 0
 
     If Not EnsureRequiredControls Then
-        MsgBox "The Email form is missing required controls:" & vbCrLf & " - " & _
-               JoinCollectionString(missing, vbCrLf & " - "), vbCritical
+        modUIHelpers.ShowErrorMessage "AUTO_SPCL can't open the email workspace because these controls are missing:" & _
+                                      vbCrLf & " - " & JoinCollectionString(missing, vbCrLf & " - ") & vbCrLf & _
+                                      "Please restore the workbook or contact the administrator."
     End If
 End Function
 
@@ -324,6 +351,13 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
     Dim bodyValue As String
     Dim signatureValue As String
     Dim attachmentCount As Long
+    Dim previousStatus As Variant
+    Dim statusActive As Boolean
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
 
     normalizedKey = Trim$(templateKey)
 
@@ -335,7 +369,15 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
         SetTextBoxText mTxtTemplateKey, vbNullString
         If syncCombo Then SetComboValue mCboTemplate, vbNullString
         TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString, vbNullString, 0
-        Exit Sub
+        GoTo CleanExit
+    End If
+
+    previousStatus = Application.StatusBar
+    Application.StatusBar = "Loading template '" & normalizedKey & "'..."
+    statusActive = True
+    modUIHelpers.SetCursorWait
+    If modProgressUI.IsFormLoaded("ProgressForm") Then
+        modProgressUI.Progress_Log "Loading template '" & normalizedKey & "'..."
     End If
 
     loadSucceeded = LoadEmailTemplateData(normalizedKey, _
@@ -360,7 +402,7 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
         mCurrentTemplateKey = vbNullString
         SetTextBoxText mTxtTemplateKey, vbNullString
         If syncCombo Then SetComboValue mCboTemplate, vbNullString
-        Exit Sub
+        GoTo CleanExit
     End If
 
     InitializeAttachmentTracking normalizedKey
@@ -369,8 +411,26 @@ Private Sub LoadTemplate(ByVal templateKey As String, Optional ByVal syncCombo A
     SetTextBoxText mTxtTemplateKey, normalizedKey
     If syncCombo Then SetComboValue mCboTemplate, normalizedKey
 
+    If modProgressUI.IsFormLoaded("ProgressForm") Then
+        modProgressUI.Progress_Log "Template '" & normalizedKey & "' loaded."
+    End If
+
     ValidateLoadedTemplateFields normalizedKey
     TraceEmailFieldState "LoadTemplate", normalizedKey
+
+CleanExit:
+    If statusActive Then
+        Application.StatusBar = previousStatus
+    End If
+    modUIHelpers.SetCursorDefault
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 End Sub
 
 Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Collection)
@@ -395,8 +455,8 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
         SetTextBoxText mTxtTemplateKey, vbNullString
         mCurrentTemplateKey = vbNullString
         If Not mTemplateAvailabilityWarningShown Then
-            MsgBox "No email templates were found. Please add templates to the Email Templates worksheet before continuing.", _
-                   vbExclamation
+            modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't find any email templates. Add template columns to the Email Templates worksheet, then refresh this form."
+            FocusTemplateSelector
             mTemplateAvailabilityWarningShown = True
         End If
     End If
@@ -523,18 +583,19 @@ Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
         mTemplateFieldWarningsShown.Add warningKey, True
     End If
 
-    warningText = "Template '" & templateKey & "' is missing required fields: " & _
+    warningText = "Template '" & templateKey & "' is missing: " & _
                   JoinCollectionString(warnings, ", ") & "." & vbCrLf & _
-                  "Please update the template metadata before sending emails."
+                  "Update the Email Templates worksheet or complete the highlighted fields before sending."
 
-    MsgBox warningText, vbExclamation
+    modUIHelpers.ShowWarningMessage warningText
+    FocusComposerField
 End Sub
 
 Private Sub ShowTemplateLoadFailure(ByVal templateKey As String)
     If LenB(templateKey) = 0 Then Exit Sub
 
-    MsgBox "Template '" & templateKey & "' could not be found. Please verify the template exists on the Email Templates worksheet.", _
-           vbExclamation
+    modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't find the template column '" & templateKey & "'. Confirm the Email Templates worksheet contains this header, then try again."
+    FocusTemplateSelector
 End Sub
 
 Private Sub UserForm_Initialize()
@@ -1731,7 +1792,8 @@ Private Sub bADD_Click()
     templateKey = ResolveActiveTemplateKey()
 
     If LenB(templateKey) = 0 Then
-        MsgBox "Please select a template before adding attachments.", vbExclamation
+        modUIHelpers.ShowWarningMessage "Select a template before adding attachments."
+        FocusTemplateSelector
         GoTo CleanExit
     End If
 
@@ -1769,12 +1831,13 @@ Private Sub bADD_Click()
 
     If addedCount = 0 Then
         If Not failureReasons Is Nothing Then
-            MsgBox "No attachments were added:" & vbCrLf & " - " & _
-                   JoinCollectionString(failureReasons, vbCrLf & " - "), vbExclamation
+            modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't add any attachments:" & vbCrLf & " - " & _
+                                           JoinCollectionString(failureReasons, vbCrLf & " - ") & vbCrLf & _
+                                           "Review the issues and try again."
         Else
-            MsgBox "No attachments were added. The selected files may already be listed or were unavailable.", _
-                   vbInformation
+            modUIHelpers.ShowInfoMessage "No attachments were added. The selected files may already be listed in this draft or were unavailable."
         End If
+        FocusAttachmentList
         GoTo CleanExit
     End If
 
@@ -1784,8 +1847,10 @@ Private Sub bADD_Click()
     SyncAttachmentList templateKey
 
     If Not failureReasons Is Nothing Then
-        MsgBox "Some files were skipped:" & vbCrLf & " - " & _
-               JoinCollectionString(failureReasons, vbCrLf & " - "), vbInformation
+        modUIHelpers.ShowWarningMessage "Some files were skipped:" & vbCrLf & " - " & _
+                                        JoinCollectionString(failureReasons, vbCrLf & " - ") & vbCrLf & _
+                                        "Those files remain unchanged."
+        FocusAttachmentList
     End If
 
 CleanExit:
@@ -1796,7 +1861,8 @@ CleanExit:
 
 CleanFail:
     If waitApplied Then SetCursorDefault
-    MsgBox "Unable to add attachments: " & Err.Description, vbCritical
+    modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't add attachments: " & Err.Description
+    FocusAttachmentList
     Resume CleanExit
 End Sub
 
@@ -1817,7 +1883,8 @@ Private Sub bSUB_Click()
     templateKey = ResolveActiveTemplateKey()
 
     If LenB(templateKey) = 0 Then
-        MsgBox "Please select a template before removing attachments.", vbExclamation
+        modUIHelpers.ShowWarningMessage "Select a template before removing attachments."
+        FocusTemplateSelector
         GoTo CleanExit
     End If
 
@@ -1825,7 +1892,8 @@ Private Sub bSUB_Click()
 
     Set userPaths = BuildUserAttachmentPaths()
     If userPaths Is Nothing Or userPaths.Count = 0 Then
-        MsgBox "There are no user-added attachments to remove.", vbInformation
+        modUIHelpers.ShowInfoMessage "There are no user-added attachments to remove."
+        FocusAttachmentList
         GoTo CleanExit
     End If
 
@@ -1859,8 +1927,8 @@ NextSelection:
 
     If selectedPaths Is Nothing Then GoTo CleanExit
     If selectedPaths.Count = 0 Then
-        MsgBox "None of the selected files were added by this draft. Template attachments cannot be removed.", _
-               vbInformation
+        modUIHelpers.ShowInfoMessage "None of the selected files were added by this draft. Template attachments cannot be removed."
+        FocusAttachmentList
         GoTo CleanExit
     End If
 
@@ -1871,7 +1939,8 @@ NextSelection:
     Next selectedItem
 
     If removedCount = 0 Then
-        MsgBox "No attachments were removed. They may have already been cleared.", vbInformation
+        modUIHelpers.ShowInfoMessage "No attachments were removed. They may have already been cleared."
+        FocusAttachmentList
         GoTo CleanExit
     End If
 
@@ -1881,8 +1950,8 @@ NextSelection:
     SyncAttachmentList templateKey
 
     If ignoredCount > 0 Then
-        MsgBox "Some selected files were ignored because they belong to the template and cannot be removed.", _
-               vbInformation
+        modUIHelpers.ShowInfoMessage "Some selected files were ignored because they belong to the template and cannot be removed."
+        FocusAttachmentList
     End If
 
 CleanExit:
@@ -1893,7 +1962,8 @@ CleanExit:
 
 CleanFail:
     If waitApplied Then SetCursorDefault
-    MsgBox "Unable to remove attachments: " & Err.Description, vbCritical
+    modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't remove attachments: " & Err.Description
+    FocusAttachmentList
     Resume CleanExit
 End Sub
 
@@ -1918,7 +1988,8 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    MsgBox "Unable to cancel email creation: " & errDescription, vbCritical
+    modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't close the email workspace: " & errDescription
+    modUIHelpers.EnsureFormFocus Me
     Resume CleanExit
 End Sub
 
@@ -1939,15 +2010,16 @@ Private Sub bCFC_Click()
 
     If whitelist Is Nothing Then
         SetCursorDefault
-        MsgBox "All members are currently marked as Cancel. There are no Draft emails to create.", _
-               vbInformation
+        modUIHelpers.ShowInfoMessage "All members are marked as Cancel. Mark at least one member as Draft, then try again."
+        modUIHelpers.EnsureFormFocus Me
         GoTo CleanExit
     End If
 
     templateKey = ResolveActiveTemplateKey()
     If LenB(templateKey) = 0 Then
         SetCursorDefault
-        MsgBox "Please select a template before creating drafts.", vbExclamation
+        modUIHelpers.ShowWarningMessage "Select a template before creating drafts."
+        FocusTemplateSelector
         GoTo CleanExit
     End If
 
@@ -1957,9 +2029,11 @@ Private Sub bCFC_Click()
     Set userEntries = mUserAttachmentEntries
 
     CreateDraftsFromID whitelist, templateKey, templateEntries, userEntries
+    modUIHelpers.EnsureFormFocus Me, mCboTemplate
 
 CleanExit:
     SetCursorDefault
+    modUIHelpers.EnsureFormFocus Me, mCboTemplate
     If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
     Exit Sub
 
@@ -1967,7 +2041,8 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    MsgBox "Unable to finalize drafts: " & errDescription, vbCritical
+    modUIHelpers.ShowErrorMessage "AUTO_SPCL couldn't create Outlook drafts: " & errDescription
+    modUIHelpers.EnsureFormFocus Me, mCboTemplate
     errNumber = 0
     Resume CleanExit
 End Sub

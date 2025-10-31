@@ -16,6 +16,9 @@ Private Const EMAIL_ROW_SIGNATURE As Long = 7
 Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
 Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
+Private mTemplateWorksheet As Worksheet
+Private mAttachmentExistsCache As Object
+
 '-------------------------------------------------------------------------------
 ' Procedure: LoadEmailTemplateData
 ' Purpose  : Populate the email composition controls with content pulled from the
@@ -102,16 +105,67 @@ Public Function LoadEmailTemplateData(ByVal templateKey As String, _
 End Function
 
 Private Function ResolveTemplateWorksheet() As Worksheet
+    Dim candidateNames As Variant
+    Dim candidate As Variant
+    Dim ws As Worksheet
+
     On Error Resume Next
-    Set ResolveTemplateWorksheet = ThisWorkbook.Worksheets(TEMPLATE_SHEET_NAME_PRIMARY)
-    If ResolveTemplateWorksheet Is Nothing Then
-        Set ResolveTemplateWorksheet = ThisWorkbook.Worksheets(TEMPLATE_SHEET_NAME_ALT)
-    End If
-    If ResolveTemplateWorksheet Is Nothing Then
-        Set ResolveTemplateWorksheet = ThisWorkbook.Worksheets(TEMPLATE_SHEET_NAME_ALT2)
+    If Not mTemplateWorksheet Is Nothing Then
+        Dim tmpName As String
+        tmpName = mTemplateWorksheet.Name
+        If Err.Number = 0 Then
+            Set ResolveTemplateWorksheet = mTemplateWorksheet
+            On Error GoTo 0
+            Exit Function
+        End If
+        Err.Clear
+        Set mTemplateWorksheet = Nothing
     End If
     On Error GoTo 0
+
+    candidateNames = Array(TEMPLATE_SHEET_NAME_PRIMARY, TEMPLATE_SHEET_NAME_ALT, TEMPLATE_SHEET_NAME_ALT2)
+
+    For Each candidate In candidateNames
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets(CStr(candidate))
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            Set mTemplateWorksheet = ws
+            Exit For
+        End If
+    Next candidate
+
+    Set ResolveTemplateWorksheet = mTemplateWorksheet
 End Function
+
+Private Function GetAttachmentExistsCache() As Object
+    If mAttachmentExistsCache Is Nothing Then
+        On Error Resume Next
+        Set mAttachmentExistsCache = CreateObject("Scripting.Dictionary")
+        If Err.Number = 0 Then
+            mAttachmentExistsCache.CompareMode = vbTextCompare
+        Else
+            Set mAttachmentExistsCache = Nothing
+            Err.Clear
+        End If
+        On Error GoTo 0
+    End If
+
+    Set GetAttachmentExistsCache = mAttachmentExistsCache
+End Function
+
+Private Sub ClearAttachmentExistenceCache()
+    If mAttachmentExistsCache Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    mAttachmentExistsCache.RemoveAll
+    If Err.Number <> 0 Then
+        Set mAttachmentExistsCache = Nothing
+        Err.Clear
+    End If
+    On Error GoTo 0
+End Sub
 
 Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
                                   ByRef txtCC As MSForms.TextBox, _
@@ -347,6 +401,7 @@ NextSelection:
 
     AppendTemplateAttachments = JoinAttachmentEntries(resultEntries)
     ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = AppendTemplateAttachments
+    ClearAttachmentExistenceCache
 End Function
 
 '-------------------------------------------------------------------------------
@@ -493,6 +548,7 @@ Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
 
     ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(fileNames)
     ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(filePaths)
+    ClearAttachmentExistenceCache
 End Sub
 
 '-------------------------------------------------------------------------------
@@ -532,6 +588,7 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
     End If
 
     ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = finalValue
+    ClearAttachmentExistenceCache
     WriteTemplateAttachmentEntries = finalValue
 End Function
 
@@ -1164,15 +1221,36 @@ End Function
 
 Private Function AttachmentFileExists(ByVal filePath As String) As Boolean
     Dim resolvedPath As String
+    Dim normalizedPath As String
+    Dim cache As Object
 
     filePath = Trim$(filePath)
     If LenB(filePath) = 0 Then Exit Function
+
+    normalizedPath = NormalizeAttachmentPath(filePath)
+    Set cache = GetAttachmentExistsCache()
+
+    If Not cache Is Nothing Then
+        On Error Resume Next
+        If cache.Exists(normalizedPath) Then
+            AttachmentFileExists = CBool(cache(normalizedPath))
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    End If
 
     On Error Resume Next
     resolvedPath = Dir(filePath, vbNormal Or vbReadOnly Or vbHidden Or vbSystem Or vbArchive)
     On Error GoTo 0
 
     AttachmentFileExists = LenB(resolvedPath) > 0
+
+    If Not cache Is Nothing Then
+        On Error Resume Next
+        cache(normalizedPath) = AttachmentFileExists
+        On Error GoTo 0
+    End If
 End Function
 
 Private Function ResolveActiveTemplateKeyFromForm() As String
@@ -1357,6 +1435,10 @@ NextEntry:
         ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(updatedNameValues)
         ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(updatedPathValues)
     End If
+
+    If templateUpdated Or userUpdated Then
+        ClearAttachmentExistenceCache
+    End If
 End Sub
 
 Private Function HandleMissingAttachment(ByVal missingPath As String, _
@@ -1367,11 +1449,11 @@ Private Function HandleMissingAttachment(ByVal missingPath As String, _
 
     replacementEntry = vbNullString
 
-    response = MsgBox("The attachment '" & missingPath & "' could not be found." & _
-                      vbCrLf & vbCrLf & _
-                      "Would you like to locate the file?" & vbCrLf & _
-                      "Click Yes to find the file or No to remove it from the template.", _
-                      vbYesNo + vbQuestion, "Attachment Not Found")
+    response = modUIHelpers.ShowDecisionMessage( _
+        "AUTO_SPCL couldn't find the attachment '" & missingPath & "'." & vbCrLf & vbCrLf & _
+        "Select Yes to locate the file or No to remove it from the template.", _
+        vbYesNo + vbQuestion, _
+        "Attachment Not Found")
 
     If response = vbYes Then
         On Error Resume Next

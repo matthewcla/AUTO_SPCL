@@ -183,7 +183,7 @@ CleanExit:
     On Error GoTo 0
 
     If hasError Then
-        MsgBox "Radiate encountered an error (" & errNumber & "): " & errDescription, vbExclamation, "Radiate"
+        modUIHelpers.ShowErrorMessage "Radiate encountered an error (" & errNumber & "): " & errDescription, "Radiate"
     End If
 
     ' Progress UI is managed within A_Record_Review; no separate show call is needed here.
@@ -264,14 +264,14 @@ Private Sub bASTABone_Click()
         Application.DisplayAlerts = True
         
         '--- Notify user
-        MsgBox "Export complete!" & vbCrLf & _
-               "File saved as:" & vbCrLf & strPath & strFileName, vbInformation, "Export Successful"
+        modUIHelpers.ShowInfoMessage "Export complete!" & vbCrLf & _
+                                   "File saved as:" & vbCrLf & strPath & strFileName, "Export Successful"
     
         Exit Sub
 
 ErrHandler:
     Application.DisplayAlerts = True
-    MsgBox "An error occurred during export: " & Err.Description, vbExclamation, "Export Failed"
+    modUIHelpers.ShowErrorMessage "An error occurred during export: " & Err.Description, "Export Failed"
 End Sub
 
 Private Sub bASTABtwo_Click()
@@ -302,14 +302,14 @@ Private Sub bASTABtwo_Click()
     Application.DisplayAlerts = True
     
     '--- Notify user
-    MsgBox "Export complete!" & vbCrLf & _
-           "File saved as:" & vbCrLf & strPath & strFileName, vbInformation, "Export Successful"
+    modUIHelpers.ShowInfoMessage "Export complete!" & vbCrLf & _
+                               "File saved as:" & vbCrLf & strPath & strFileName, "Export Successful"
 
     Exit Sub
 
 ErrHandler:
     Application.DisplayAlerts = True
-    MsgBox "An error occurred during export: " & Err.Description, vbExclamation, "Export Failed"
+    modUIHelpers.ShowErrorMessage "An error occurred during export: " & Err.Description, "Export Failed"
 End Sub
 
 Private Sub bSettings_Click()

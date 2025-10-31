@@ -180,5 +180,5 @@ Private Sub ShowConnectionLostMessage()
     prompt = "Excel is unable to detect an active Reflections/OAIS session." & vbCrLf & _
              "Please make sure the Reflections window is running and connected." & vbCrLf & _
              "If the session is restored, the form will reconnect automatically."
-    MsgBox prompt, vbExclamation, "Reflections Connection"
+    modUIHelpers.ShowWarningMessage prompt, "Reflections Connection"
 End Sub

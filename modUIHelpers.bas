@@ -2,6 +2,7 @@ Attribute VB_Name = "modUIHelpers"
 Option Explicit
 
 Private mWaitCursorDepth As Long
+Private Const DEFAULT_MESSAGE_TITLE As String = "AUTO_SPCL"
 
 #If VBA7 Then
     Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
@@ -58,6 +59,79 @@ Public Sub SetCursorDefault()
     End If
     If mWaitCursorDepth = 0 Then
         Application.Cursor = xlDefault
+    End If
+    On Error GoTo 0
+End Sub
+
+'-------------------------------------------------------------------------------
+' Procedure: ShowInfoMessage
+' Purpose  : Present a consistent informational message dialog to the user.
+'-------------------------------------------------------------------------------
+Public Function ShowInfoMessage(ByVal message As String, _
+                                Optional ByVal title As String = DEFAULT_MESSAGE_TITLE) As VbMsgBoxResult
+    ShowInfoMessage = MsgBox(message, vbInformation + vbOKOnly, title)
+End Function
+
+'-------------------------------------------------------------------------------
+' Procedure: ShowWarningMessage
+' Purpose  : Present a consistent warning dialog to the user.
+'-------------------------------------------------------------------------------
+Public Function ShowWarningMessage(ByVal message As String, _
+                                   Optional ByVal title As String = DEFAULT_MESSAGE_TITLE) As VbMsgBoxResult
+    ShowWarningMessage = MsgBox(message, vbExclamation + vbOKOnly, title)
+End Function
+
+'-------------------------------------------------------------------------------
+' Procedure: ShowErrorMessage
+' Purpose  : Present a consistent critical-error dialog to the user.
+'-------------------------------------------------------------------------------
+Public Function ShowErrorMessage(ByVal message As String, _
+                                 Optional ByVal title As String = DEFAULT_MESSAGE_TITLE) As VbMsgBoxResult
+    ShowErrorMessage = MsgBox(message, vbCritical + vbOKOnly, title)
+End Function
+
+'-------------------------------------------------------------------------------
+' Procedure: ShowDecisionMessage
+' Purpose  : Present a consistent yes/no style decision dialog to the user.
+'-------------------------------------------------------------------------------
+Public Function ShowDecisionMessage(ByVal message As String, _
+                                    Optional ByVal buttons As VbMsgBoxStyle = vbYesNo, _
+                                    Optional ByVal title As String = DEFAULT_MESSAGE_TITLE) As VbMsgBoxResult
+    ShowDecisionMessage = MsgBox(message, buttons, title)
+End Function
+
+'-------------------------------------------------------------------------------
+' Procedure: FocusControl
+' Purpose  : Safely attempt to move focus to the supplied control.
+'-------------------------------------------------------------------------------
+Public Sub FocusControl(ByVal control As Object)
+    If control Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    CallByName control, "SetFocus", VbMethod
+    If Err.Number <> 0 Then
+        Err.Clear
+        CallByName control, "Activate", VbMethod
+    End If
+    On Error GoTo 0
+End Sub
+
+'-------------------------------------------------------------------------------
+' Procedure: EnsureFormFocus
+' Purpose  : Bring a form back to the foreground, optionally targeting a control.
+'-------------------------------------------------------------------------------
+Public Sub EnsureFormFocus(ByVal form As Object, Optional ByVal fallbackControl As Object)
+    If Not fallbackControl Is Nothing Then
+        FocusControl fallbackControl
+    End If
+
+    If form Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    CallByName form, "SetFocus", VbMethod
+    If Err.Number <> 0 Then
+        Err.Clear
+        CallByName form, "Activate", VbMethod
     End If
     On Error GoTo 0
 End Sub

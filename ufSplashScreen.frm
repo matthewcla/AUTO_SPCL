@@ -199,7 +199,8 @@ Private Sub StartProgress()
     ' Manually set to 100% since the loop stops at 99
     lblProgressBar.Width = totalProgressBarWidth
     lblProgressBar.Caption = "100%"
-    lblSubTitle.Caption = progressText(5) ' Set the final message
+    lblSubTitle.ForeColor = originalSubTitleForeColor
+    lblSubTitle.Caption = progressText(5)
     DoEvents ' Ensure the form redraws at 100%
     ' -----------------------
     
