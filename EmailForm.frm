@@ -288,7 +288,7 @@ Private Function PopulateTemplateDropdown() As Collection
     priorSelection = GetComboValue(mCboTemplate, False)
 
     On Error Resume Next
-    Set keys = GetAvailableTemplateKeys()
+    Set keys = modEmailTemplates.GetAvailableTemplateKeys()
     On Error GoTo 0
 
     mSuppressTemplateEvents = mSuppressTemplateEvents + 1
