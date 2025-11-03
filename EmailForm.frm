@@ -559,6 +559,8 @@ Private Sub UserForm_Initialize()
         RenderMemberPage
     End If
 
+    CenterUserFormOnActiveMonitor Me
+
 CleanExit:
     SetCursorDefault
     If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
