@@ -34,6 +34,7 @@ Private mTemplateAttachmentLookup As Object
 Private mUserAttachmentEntries As Collection
 Private mUserAttachmentLookup As Object
 Private mCurrentTemplateKey As String
+Private mActiveHoverLabel As MSForms.Label
 
 Private mTxtTemplateKey As MSForms.TextBox
 Private mTxtTo As MSForms.TextBox
@@ -602,6 +603,10 @@ Private Sub UserForm_Click()
 
 End Sub
 
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ClearActiveHoverLabel
+End Sub
+
 Public Property Get SelectedMemberIndex() As Long
     SelectedMemberIndex = mSelectedMemberIndex
 End Property
@@ -685,6 +690,8 @@ Private Sub RenderMemberPage()
     Dim nameLabel As MSForms.Label
     Dim ssnLabel As MSForms.Label
     Dim statusLabel As MSForms.Label
+
+    ClearActiveHoverLabel
 
     EnsureMemberRecordsLoaded
 
@@ -1171,13 +1178,37 @@ End Function
 Private Sub HandleLabelMouseMove(ByVal target As MSForms.Label)
     If target Is Nothing Then Exit Sub
 
-    target.BorderStyle = fmBorderStyleSingle
+    UpdateHoverLabel target
+End Sub
 
-    If target.BorderStyle = fmBorderStyleSingle Then
-        target.BorderColor = vbWhite
-    Else
-        target.BorderColor = vbRed
+Private Sub UpdateHoverLabel(ByVal target As MSForms.Label)
+    If target Is Nothing Then Exit Sub
+
+    If Not mActiveHoverLabel Is Nothing Then
+        If Not target Is mActiveHoverLabel Then
+            ResetHoverLabel mActiveHoverLabel
+        End If
     End If
+
+    Set mActiveHoverLabel = target
+
+    target.BorderStyle = fmBorderStyleSingle
+    If target.BorderColor <> vbRed Then
+        target.BorderColor = vbWhite
+    End If
+End Sub
+
+Private Sub ResetHoverLabel(ByVal target As MSForms.Label)
+    If target Is Nothing Then Exit Sub
+
+    target.BorderStyle = fmBorderStyleNone
+End Sub
+
+Private Sub ClearActiveHoverLabel()
+    If mActiveHoverLabel Is Nothing Then Exit Sub
+
+    ResetHoverLabel mActiveHoverLabel
+    Set mActiveHoverLabel = Nothing
 End Sub
 
 Private Sub lblUP_Click()
