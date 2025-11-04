@@ -1,3 +1,18 @@
+VERSION 5.00
+Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} StartupForm 
+   ClientHeight    =   2580
+   ClientLeft      =   120
+   ClientTop       =   465
+   ClientWidth     =   15345
+   OleObjectBlob   =   "StartupForm.frx":0000
+   ShowModal       =   0   'False
+   StartUpPosition =   1  'CenterOwner
+End
+Attribute VB_Name = "StartupForm"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
 '==== UserForm: StartupForm ====
 Option Explicit
 '-------------------------------------------------------------------------------
@@ -25,8 +40,8 @@ Private Sub UserForm_Initialize()
     SetOAISStatus bOAIS, isConnected
 
     ' === 2. Load board info safely ===
-    lblBoardType.Caption = CStr(SafeCell("ID", "H4")) & " Board"
-    lblBoardNum.Caption = "#  " & CStr(SafeCell("ID", "H2"))
+    lblBoardType.caption = CStr(SafeCell("ID", "H4")) & " Board"
+    lblBoardNum.caption = "#  " & CStr(SafeCell("ID", "H2"))
 
     ' === 3. Center form on the active monitor ===
     On Error Resume Next
@@ -260,7 +275,7 @@ Private Sub bASTABone_Click()
         
         '--- Save the new workbook
         Application.DisplayAlerts = False
-        wbNew.SaveAs Filename:=strPath & strFileName, FileFormat:=xlOpenXMLWorkbook ' .xlsx format
+        wbNew.SaveAs fileName:=strPath & strFileName, FileFormat:=xlOpenXMLWorkbook ' .xlsx format
         Application.DisplayAlerts = True
         
         '--- Notify user
@@ -298,7 +313,7 @@ Private Sub bASTABtwo_Click()
     
     '--- Save the new workbook
     Application.DisplayAlerts = False
-    wbNew.SaveAs Filename:=strPath & strFileName, FileFormat:=xlOpenXMLWorkbook ' .xlsx format
+    wbNew.SaveAs fileName:=strPath & strFileName, FileFormat:=xlOpenXMLWorkbook ' .xlsx format
     Application.DisplayAlerts = True
     
     '--- Notify user
@@ -343,4 +358,5 @@ Private Sub SafePause(ByVal seconds As Double)
         DoEvents
     Loop
 End Sub
+
 
