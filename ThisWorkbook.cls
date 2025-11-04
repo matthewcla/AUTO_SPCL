@@ -96,6 +96,8 @@ End Sub
 Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean, Optional ByVal isMaintenance As Boolean = False)
     Dim frm As Object
     Dim prevDisplayAlerts As Boolean
+    Dim prevSavedState As Boolean
+    Dim shouldRestoreSavedState As Boolean
 
     On Error GoTo Fail
 
@@ -106,6 +108,8 @@ Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean, Optional ByVal 
 
     ' Ensure no save prompts are shown and discard any unsaved changes
     Application.DisplayAlerts = False
+    prevSavedState = ThisWorkbook.Saved
+    shouldRestoreSavedState = True
     ThisWorkbook.Saved = True
 
     ' Stop background tasks and clear temporary state
@@ -144,6 +148,9 @@ CleanExit:
     Application.ScreenUpdating = True
     Application.DisplayAlerts = prevDisplayAlerts
     If cancelClose Or isMaintenance Then
+        If shouldRestoreSavedState Then
+            ThisWorkbook.Saved = prevSavedState
+        End If
         m_IsShuttingDown = False
     End If
     Exit Sub
@@ -151,6 +158,9 @@ CleanExit:
 Fail:
     Application.ScreenUpdating = True
     Application.DisplayAlerts = prevDisplayAlerts
+    If shouldRestoreSavedState Then
+        ThisWorkbook.Saved = prevSavedState
+    End If
     MsgBox "An error occurred while closing the workbook: " & Err.Description, vbCritical
     cancelClose = True
     m_IsShuttingDown = False
