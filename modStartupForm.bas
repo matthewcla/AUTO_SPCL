@@ -75,7 +75,7 @@ Public Sub ShowStartupFormOnce(Optional ByVal forceShow As Boolean = False)
         Set uf = GetLoadedStartupForm
         If Not uf Is Nothing Then
             If uf.Visible = False Then uf.Show vbModeless
-            uf.ZOrder 0
+            modUIHelpers.EnsureFormFocus uf
         End If
         Exit Sub
     End If
