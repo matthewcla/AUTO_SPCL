@@ -14,6 +14,15 @@ Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
 Private Const TEMPLATE_COLUMN_INDEX As Long = 2
 Private Const DEFAULT_TEMPLATE_KEY As String = "Default"
 
+Public Type EmailTemplate
+    TemplateName As String
+    Cc As String
+    Subject As String
+    Body As String
+    AttachmentFilenames As String
+    AttachmentPaths As String
+End Type
+
 Private Const EMAIL_ROW_TO As Long = 2
 Private Const EMAIL_ROW_CC As Long = 3
 Private Const EMAIL_ROW_SUBJECT As Long = 4
@@ -27,6 +36,19 @@ Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
 Private mTemplateWorksheet As Worksheet
 Private mAttachmentExistsCache As Object
+
+Public Function GetEmailTemplatesSheet() As Worksheet
+    On Error Resume Next
+    Set GetEmailTemplatesSheet = ThisWorkbook.Worksheets("EmailTemplates")
+    If Err.Number <> 0 Then
+        Debug.Print "EmailTemplates not found"
+        Err.Clear
+        Set GetEmailTemplatesSheet = Nothing
+    ElseIf GetEmailTemplatesSheet Is Nothing Then
+        Debug.Print "EmailTemplates not found"
+    End If
+    On Error GoTo 0
+End Function
 
 Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     Dim headerMap As Object
