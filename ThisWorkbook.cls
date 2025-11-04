@@ -5,6 +5,7 @@ Private m_SavedWindowState As XlWindowState
 Private m_HasSavedWindowState As Boolean
 Private m_SplashScreenShown As Boolean
 Private m_IsShuttingDown As Boolean
+Private m_ForceCloseWithoutPrompt As Boolean
 
 Private Sub Workbook_Open()
     Dim routineSucceeded As Boolean
@@ -60,14 +61,18 @@ CleanUp:
         m_HasSavedWindowState = False
     End If
     Application.ScreenUpdating = True
+    If m_ForceCloseWithoutPrompt Then
+        m_ForceCloseWithoutPrompt = False
+        ThisWorkbook.Close SaveChanges:=False
+    End If
     Exit Sub
 EH:
     Debug.Print "Workbook_Open error: "; Err.Number; Err.Description
     Resume CleanUp
 EH2:
     MsgBox "OAIS Session not found. Open OAIS and try opening AUTO_SPCL again.", vbCritical
+    m_ForceCloseWithoutPrompt = True
     Resume CleanUp
-    ThisWorkbook.Close
 End Sub
 
 Private Sub MaintenanceMode()
@@ -89,29 +94,23 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
 End Sub
 
 Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean, Optional ByVal isMaintenance As Boolean = False)
-    Dim response As VbMsgBoxResult
     Dim frm As Object
+    Dim prevDisplayAlerts As Boolean
+    Dim prevSavedState As Boolean
+    Dim shouldRestoreSavedState As Boolean
 
     On Error GoTo Fail
+
+    prevDisplayAlerts = Application.DisplayAlerts
 
     Application.ScreenUpdating = False
     m_IsShuttingDown = True
 
-    ' Prompt to save changes (allow cancel)
-    If Not ThisWorkbook.Saved Then
-        response = MsgBox("Do you want to save changes before closing?", vbYesNoCancel + vbQuestion, ThisWorkbook.Name)
-        Select Case response
-            Case vbYes
-                On Error GoTo SaveError
-                ThisWorkbook.Save
-                On Error GoTo Fail
-            Case vbNo
-                ' continue with close
-            Case Else
-                cancelClose = True
-                GoTo CleanExit
-        End Select
-    End If
+    ' Ensure no save prompts are shown and discard any unsaved changes
+    Application.DisplayAlerts = False
+    prevSavedState = ThisWorkbook.Saved
+    shouldRestoreSavedState = True
+    ThisWorkbook.Saved = True
 
     ' Stop background tasks and clear temporary state
     On Error Resume Next
@@ -147,19 +146,21 @@ Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean, Optional ByVal 
 
 CleanExit:
     Application.ScreenUpdating = True
+    Application.DisplayAlerts = prevDisplayAlerts
     If cancelClose Or isMaintenance Then
+        If shouldRestoreSavedState Then
+            ThisWorkbook.Saved = prevSavedState
+        End If
         m_IsShuttingDown = False
     End If
     Exit Sub
 
-SaveError:
-    MsgBox "Unable to save changes: " & Err.Description, vbCritical
-    cancelClose = True
-    On Error GoTo Fail
-    GoTo CleanExit
-
 Fail:
     Application.ScreenUpdating = True
+    Application.DisplayAlerts = prevDisplayAlerts
+    If shouldRestoreSavedState Then
+        ThisWorkbook.Saved = prevSavedState
+    End If
     MsgBox "An error occurred while closing the workbook: " & Err.Description, vbCritical
     cancelClose = True
     m_IsShuttingDown = False
