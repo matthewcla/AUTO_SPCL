@@ -66,6 +66,7 @@ End Sub
 
 Public Sub ShowStartupFormOnce(Optional ByVal forceShow As Boolean = False)
     Dim uf As Object
+    If ThisWorkbook.IsShuttingDown Then Exit Sub
     If Not forceShow Then
         If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
     End If
