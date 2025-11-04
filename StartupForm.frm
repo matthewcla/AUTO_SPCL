@@ -128,6 +128,7 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
 
     lblASTABone.ForeColor = vbWhite
     lblASTABtwo.ForeColor = vbWhite
+    lblEmail.ForeColor = vbWhite
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -148,6 +149,10 @@ End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     lblASTABtwo.ForeColor = vbRed
+End Sub
+
+Private Sub bEmail_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    lblEmail.ForeColor = vbRed
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
