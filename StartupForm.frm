@@ -356,6 +356,11 @@ ErrHandler:
     modUIHelpers.ShowErrorMessage "An error occurred during export: " & Err.Description, "Export Failed"
 End Sub
 
+Private Sub bEmail_Click()
+    Me.Hide
+    EmailForm.Show
+End Sub
+
 Private Sub bSettings_Click()
     ToggleThisWorkbookVisibility
 End Sub
