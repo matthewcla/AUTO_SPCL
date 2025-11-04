@@ -1,6 +1,13 @@
 Attribute VB_Name = "modEmailTemplates"
 Option Explicit
 
+Public Const HDR_TEMPLATE_NAME As String = "TEMPLATE NAME"
+Public Const HDR_CC As String = "CC"
+Public Const HDR_SUBJECT As String = "SUBJECT"
+Public Const HDR_BODY As String = "BODY"
+Public Const HDR_ATTACHMENT_FILENAMES As String = "ATTACHMENT FILENAMES"
+Public Const HDR_ATTACHMENT_PATHS As String = "ATTACHMENT PATHS"
+
 Private Const TEMPLATE_SHEET_NAME_PRIMARY As String = "EmailTemplate"
 Private Const TEMPLATE_SHEET_NAME_ALT As String = "EmailTemplates"
 Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
@@ -20,6 +27,66 @@ Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
 Private mTemplateWorksheet As Worksheet
 Private mAttachmentExistsCache As Object
+
+Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
+    Dim headerMap As Object
+    Dim headerTargets As Variant
+    Dim headerColumn As Range
+    Dim cell As Range
+    Dim lastRow As Long
+    Dim headerText As String
+    Dim targetName As Variant
+    Dim hasValues As Boolean
+
+    'Create a late-bound dictionary so no project reference is required.
+    Set headerMap = CreateObject("Scripting.Dictionary")
+    On Error Resume Next
+    headerMap.CompareMode = vbTextCompare
+    On Error GoTo 0
+
+    headerTargets = Array(HDR_TEMPLATE_NAME, HDR_CC, HDR_SUBJECT, HDR_BODY, _
+                          HDR_ATTACHMENT_FILENAMES, HDR_ATTACHMENT_PATHS)
+
+    If Not ws Is Nothing Then
+        'Limit the scan to column 1 and intersect with the used range to avoid unnecessary rows.
+        On Error Resume Next
+        Set headerColumn = Intersect(ws.Columns(1), ws.UsedRange)
+        On Error GoTo 0
+
+        If headerColumn Is Nothing Then
+            'If UsedRange is empty, fall back to the last populated row in column 1.
+            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            hasValues = Application.WorksheetFunction.CountA(ws.Columns(1)) > 0
+            If hasValues And lastRow >= 1 Then
+                Set headerColumn = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, 1))
+            End If
+        End If
+
+        'Inspect each cell in the header column, matching the required header titles case-insensitively.
+        If Not headerColumn Is Nothing Then
+            For Each cell In headerColumn.Cells
+                headerText = Trim$(CStrSafe(cell.Value))
+                If LenB(headerText) > 0 Then
+                    For Each targetName In headerTargets
+                        If StrComp(headerText, CStr(targetName), vbTextCompare) = 0 Then
+                            headerMap(CStr(targetName)) = cell.Row
+                            Exit For
+                        End If
+                    Next targetName
+                End If
+            Next cell
+        End If
+    End If
+
+    'Emit debug information for any headers that could not be resolved.
+    For Each targetName In headerTargets
+        If Not headerMap.Exists(CStr(targetName)) Then
+            Debug.Print "Missing header: " & CStr(targetName)
+        End If
+    Next targetName
+
+    Set GetEmailTemplateHeaderMap = headerMap
+End Function
 
 '-------------------------------------------------------------------------------
 ' Procedure: LoadEmailTemplateIntoControls
