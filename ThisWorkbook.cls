@@ -4,6 +4,7 @@ Option Explicit
 Private m_SavedWindowState As XlWindowState
 Private m_HasSavedWindowState As Boolean
 Private m_SplashScreenShown As Boolean
+Private m_IsShuttingDown As Boolean
 
 Private Sub Workbook_Open()
     Dim routineSucceeded As Boolean
@@ -72,10 +73,11 @@ End Sub
 Private Sub MaintenanceMode()
     Dim cancelRequest As Boolean
 
-    HandleWorkbookShutdown cancelRequest
+    HandleWorkbookShutdown cancelRequest, True
 End Sub
 
 Private Sub Workbook_Activate()
+    If m_IsShuttingDown Then Exit Sub
     ShowSplashScreenWhenVisible
     If Not g_SuspendStartupAutoShow Then
         ShowStartupFormOnce
@@ -86,13 +88,14 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     HandleWorkbookShutdown Cancel
 End Sub
 
-Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean)
+Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean, Optional ByVal isMaintenance As Boolean = False)
     Dim response As VbMsgBoxResult
     Dim frm As Object
 
     On Error GoTo Fail
 
     Application.ScreenUpdating = False
+    m_IsShuttingDown = True
 
     ' Prompt to save changes (allow cancel)
     If Not ThisWorkbook.Saved Then
@@ -144,6 +147,9 @@ Private Sub HandleWorkbookShutdown(ByRef cancelClose As Boolean)
 
 CleanExit:
     Application.ScreenUpdating = True
+    If cancelClose Or isMaintenance Then
+        m_IsShuttingDown = False
+    End If
     Exit Sub
 
 SaveError:
@@ -156,6 +162,7 @@ Fail:
     Application.ScreenUpdating = True
     MsgBox "An error occurred while closing the workbook: " & Err.Description, vbCritical
     cancelClose = True
+    m_IsShuttingDown = False
 End Sub
 
 ' --- Called from Workbook_Open to guard one-time autoshow intent ---
@@ -166,12 +173,17 @@ Private Sub ShowStartupOnceOnOpen()
 End Sub
 ' --- Called from Workbook_Open to guard one-time splash intent ---
 Private Sub ShowSplashScreenWhenVisible()
+    If m_IsShuttingDown Then Exit Sub
     If m_SplashScreenShown Then Exit Sub
     If Not IsWorkbookVisible(ThisWorkbook) Then Exit Sub
 
     ufSplashScreen.Show vbModeless
     m_SplashScreenShown = True
 End Sub
+
+Friend Property Get IsShuttingDown() As Boolean
+    IsShuttingDown = m_IsShuttingDown
+End Property
 
 Private Function SplashScreenLoaded() As Boolean
     Dim uf As Object
