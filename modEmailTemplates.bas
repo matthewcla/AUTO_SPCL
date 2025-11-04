@@ -2,9 +2,13 @@ Attribute VB_Name = "modEmailTemplates"
 Option Explicit
 
 Public Const HDR_TEMPLATE_NAME As String = "TEMPLATE NAME"
+Public Const HDR_TO As String = "TO"
 Public Const HDR_CC As String = "CC"
 Public Const HDR_SUBJECT As String = "SUBJECT"
 Public Const HDR_BODY As String = "BODY"
+Public Const HDR_GREETING As String = "GREETING"
+Public Const HDR_SIGNATURE As String = "SIGNATURE"
+Public Const HDR_ATTACHMENTS As String = "ATTACHMENTS"
 Public Const HDR_ATTACHMENT_FILENAMES As String = "ATTACHMENT FILENAMES"
 Public Const HDR_ATTACHMENT_PATHS As String = "ATTACHMENT PATHS"
 
@@ -23,15 +27,15 @@ Public Type EmailTemplate
     AttachmentPaths As String
 End Type
 
-Private Const EMAIL_ROW_TO As Long = 2
-Private Const EMAIL_ROW_CC As Long = 3
-Private Const EMAIL_ROW_SUBJECT As Long = 4
-Private Const EMAIL_ROW_BODY As Long = 5
-Private Const EMAIL_ROW_USER_ATTACHMENT_NAMES As Long = 11
-Private Const EMAIL_ROW_USER_ATTACHMENT_PATHS As Long = 12
-Private Const EMAIL_ROW_GREETING As Long = 6
-Private Const EMAIL_ROW_SIGNATURE As Long = 7
-Private Const EMAIL_ROW_ATTACHMENTS As Long = 9
+Private Const EMAIL_ROW_TO As Long = 3
+Private Const EMAIL_ROW_CC As Long = 4
+Private Const EMAIL_ROW_SUBJECT As Long = 5
+Private Const EMAIL_ROW_BODY As Long = 6
+Private Const EMAIL_ROW_USER_ATTACHMENT_NAMES As Long = 12
+Private Const EMAIL_ROW_USER_ATTACHMENT_PATHS As Long = 13
+Private Const EMAIL_ROW_GREETING As Long = 7
+Private Const EMAIL_ROW_SIGNATURE As Long = 8
+Private Const EMAIL_ROW_ATTACHMENTS As Long = 10
 Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
 Private mTemplateWorksheet As Worksheet
@@ -66,7 +70,8 @@ Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     headerMap.CompareMode = vbTextCompare
     On Error GoTo 0
 
-    headerTargets = Array(HDR_TEMPLATE_NAME, HDR_CC, HDR_SUBJECT, HDR_BODY, _
+    headerTargets = Array(HDR_TEMPLATE_NAME, HDR_TO, HDR_CC, HDR_SUBJECT, _
+                          HDR_GREETING, HDR_BODY, HDR_SIGNATURE, HDR_ATTACHMENTS, _
                           HDR_ATTACHMENT_FILENAMES, HDR_ATTACHMENT_PATHS)
 
     If Not ws Is Nothing Then
@@ -110,6 +115,57 @@ Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     Set GetEmailTemplateHeaderMap = headerMap
 End Function
 
+Private Function NormalizeHeaderKey(ByVal value As String) As String
+    Dim normalized As String
+
+    normalized = Trim$(UCase$(value))
+    normalized = Replace$(normalized, " ", vbNullString)
+    normalized = Replace$(normalized, ":", vbNullString)
+    normalized = Replace$(normalized, "-", vbNullString)
+    NormalizeHeaderKey = normalized
+End Function
+
+Private Function ResolveTemplateRowFromMap(ByVal headerMap As Object, _
+                                           ByVal fallbackRow As Long, _
+                                           ByVal headerName As String) As Long
+    Dim resolvedRow As Long
+    Dim candidate As Variant
+    Dim key As Variant
+    Dim normalizedTarget As String
+
+    resolvedRow = fallbackRow
+
+    If Not headerMap Is Nothing Then
+        If LenB(headerName) > 0 Then
+            If headerMap.Exists(CStr(headerName)) Then
+                candidate = headerMap(CStr(headerName))
+                If IsNumeric(candidate) Then
+                    resolvedRow = CLng(candidate)
+                End If
+            Else
+                normalizedTarget = NormalizeHeaderKey(CStr(headerName))
+                If LenB(normalizedTarget) > 0 Then
+                    For Each key In headerMap.Keys
+                        If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
+                            candidate = headerMap(CStr(key))
+                            If IsNumeric(candidate) Then
+                                resolvedRow = CLng(candidate)
+                            End If
+                            Exit For
+                        End If
+                    Next key
+                End If
+            End If
+        End If
+    End If
+
+    If resolvedRow <= 0 Then
+        resolvedRow = fallbackRow
+    End If
+
+    ResolveTemplateRowFromMap = resolvedRow
+End Function
+
 '-------------------------------------------------------------------------------
 ' Procedure: LoadEmailTemplateIntoControls
 ' Purpose  : Populate the email composition controls with content pulled from the
@@ -145,6 +201,14 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     Dim attachmentEntries As Collection
     Dim userAttachmentEntries As Collection
     Dim combinedAttachments As Collection
+    Dim headerMap As Object
+    Dim rowTo As Long
+    Dim rowCc As Long
+    Dim rowSubject As Long
+    Dim rowBody As Long
+    Dim rowGreeting As Long
+    Dim rowSignature As Long
+    Dim rowAttachments As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
@@ -156,13 +220,23 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
     If templateColumn = 0 Then Exit Function
 
-    toValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_TO, templateColumn).Value))
-    ccValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_CC, templateColumn).Value))
-    subjValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SUBJECT, templateColumn).Value))
-    bodyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_BODY, templateColumn).Value))
-    greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
-    signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
-    attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+
+    rowTo = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_TO, HDR_TO)
+    rowCc = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_CC, HDR_CC)
+    rowSubject = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_SUBJECT, HDR_SUBJECT)
+    rowBody = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_BODY, HDR_BODY)
+    rowGreeting = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_GREETING, HDR_GREETING)
+    rowSignature = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_SIGNATURE, HDR_SIGNATURE)
+    rowAttachments = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+
+    toValue = Trim$(CStrSafe(ws.Cells(rowTo, templateColumn).Value))
+    ccValue = Trim$(CStrSafe(ws.Cells(rowCc, templateColumn).Value))
+    subjValue = Trim$(CStrSafe(ws.Cells(rowSubject, templateColumn).Value))
+    bodyValue = Trim$(CStrSafe(ws.Cells(rowBody, templateColumn).Value))
+    greetingValue = Trim$(CStrSafe(ws.Cells(rowGreeting, templateColumn).Value))
+    signatureValue = Trim$(CStrSafe(ws.Cells(rowSignature, templateColumn).Value))
+    attachmentValue = Trim$(CStrSafe(ws.Cells(rowAttachments, templateColumn).Value))
     Set attachmentEntries = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
     Set userAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
     Set combinedAttachments = CombineAttachmentCollections(attachmentEntries, userAttachmentEntries)
@@ -300,6 +374,12 @@ Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
     Dim greetingValue As String
     Dim coreBodyValue As String
     Dim signatureValue As String
+    Dim headerMap As Object
+    Dim rowCc As Long
+    Dim rowSubject As Long
+    Dim rowGreeting As Long
+    Dim rowBody As Long
+    Dim rowSignature As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
@@ -309,11 +389,19 @@ Public Function TryGetTemplateDraftContent(ByVal templateKey As String, _
     templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
     If templateColumn = 0 Then Exit Function
 
-    ccValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_CC, templateColumn).Value))
-    subjectValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SUBJECT, templateColumn).Value))
-    greetingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_GREETING, templateColumn).Value))
-    coreBodyValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_BODY, templateColumn).Value))
-    signatureValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_SIGNATURE, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+
+    rowCc = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_CC, HDR_CC)
+    rowSubject = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_SUBJECT, HDR_SUBJECT)
+    rowGreeting = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_GREETING, HDR_GREETING)
+    rowBody = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_BODY, HDR_BODY)
+    rowSignature = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_SIGNATURE, HDR_SIGNATURE)
+
+    ccValue = Trim$(CStrSafe(ws.Cells(rowCc, templateColumn).Value))
+    subjectValue = Trim$(CStrSafe(ws.Cells(rowSubject, templateColumn).Value))
+    greetingValue = Trim$(CStrSafe(ws.Cells(rowGreeting, templateColumn).Value))
+    coreBodyValue = Trim$(CStrSafe(ws.Cells(rowBody, templateColumn).Value))
+    signatureValue = Trim$(CStrSafe(ws.Cells(rowSignature, templateColumn).Value))
 
     bodyValue = BuildBodyValue(greetingValue, coreBodyValue, signatureValue)
 
@@ -504,6 +592,8 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
     Dim newEntry As String
     Dim resolvedPath As String
     Dim displayName As String
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then
@@ -519,7 +609,10 @@ Public Function AppendTemplateAttachments(ByVal templateKey As String, _
                   "The selected template could not be found on the EmailTemplate worksheet."
     End If
 
-    existingValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+
+    existingValue = Trim$(CStrSafe(ws.Cells(attachmentsRow, templateColumn).Value))
 
     Set existingEntries = ParseAttachmentEntries(existingValue)
     Set resultEntries = New Collection
@@ -566,7 +659,7 @@ NextSelection:
     End If
 
     AppendTemplateAttachments = JoinAttachmentEntries(resultEntries)
-    ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = AppendTemplateAttachments
+    ws.Cells(attachmentsRow, templateColumn).Value = AppendTemplateAttachments
     ClearAttachmentExistenceCache
 End Function
 
@@ -648,6 +741,8 @@ Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) 
     Dim ws As Worksheet
     Dim templateColumn As Long
     Dim attachmentValue As String
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
@@ -657,7 +752,10 @@ Public Function GetTemplateAttachmentEntriesForKey(ByVal templateKey As String) 
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Function
 
-    attachmentValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+
+    attachmentValue = Trim$(CStrSafe(ws.Cells(attachmentsRow, templateColumn).Value))
     Set GetTemplateAttachmentEntriesForKey = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
 End Function
 
@@ -701,6 +799,9 @@ Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
     Dim templateColumn As Long
     Dim fileNames As Collection
     Dim filePaths As Collection
+    Dim headerMap As Object
+    Dim rowNames As Long
+    Dim rowPaths As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Sub
@@ -712,8 +813,12 @@ Public Sub WriteUserAttachmentEntries(ByVal templateKey As String, _
 
     AppendAttachmentComponentCollections userEntries, fileNames, filePaths
 
-    ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(fileNames)
-    ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(filePaths)
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    rowNames = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_NAMES, HDR_ATTACHMENT_FILENAMES)
+    rowPaths = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_PATHS, HDR_ATTACHMENT_PATHS)
+
+    ws.Cells(rowNames, templateColumn).Value = JoinCollectionValues(fileNames)
+    ws.Cells(rowPaths, templateColumn).Value = JoinCollectionValues(filePaths)
     ClearAttachmentExistenceCache
 End Sub
 
@@ -733,6 +838,8 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
     Dim ws As Worksheet
     Dim templateColumn As Long
     Dim finalValue As String
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
 
     finalValue = JoinAttachmentEntries(attachmentEntries)
 
@@ -750,7 +857,10 @@ Public Function WriteTemplateAttachmentEntries(ByVal templateKey As String, _
                   "The selected template could not be found on the EmailTemplate worksheet."
     End If
 
-    ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = finalValue
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+
+    ws.Cells(attachmentsRow, templateColumn).Value = finalValue
     ClearAttachmentExistenceCache
     WriteTemplateAttachmentEntries = finalValue
 End Function
@@ -780,6 +890,8 @@ Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String)
     Dim finalValue As String
     Dim attachmentExists As Boolean
     Dim changed As Boolean
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
 
     Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
@@ -789,7 +901,10 @@ Public Function GetValidatedTemplateAttachmentPaths(ByVal templateKey As String)
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Function
 
-    originalValue = Trim$(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+
+    originalValue = Trim$(CStrSafe(ws.Cells(attachmentsRow, templateColumn).Value))
     If LenB(originalValue) = 0 Then Exit Function
 
     Set entries = ParseAttachmentEntries(originalValue)
@@ -845,7 +960,7 @@ NextEntry:
     End If
 
     If changed Or StrComp(originalValue, finalValue, vbBinaryCompare) <> 0 Then
-        ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = finalValue
+        ws.Cells(attachmentsRow, templateColumn).Value = finalValue
     End If
 
     If attachments.Count > 0 Then
@@ -998,12 +1113,19 @@ Private Function ReadUserAttachmentEntriesFromWorksheet(ByVal ws As Worksheet, _
     Dim entry As String
     Dim maxCount As Long
     Dim idx As Long
+    Dim headerMap As Object
+    Dim rowNames As Long
+    Dim rowPaths As Long
 
     If ws Is Nothing Then Exit Function
     If templateColumn <= 0 Then Exit Function
 
-    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value))
-    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value))
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    rowNames = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_NAMES, HDR_ATTACHMENT_FILENAMES)
+    rowPaths = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_PATHS, HDR_ATTACHMENT_PATHS)
+
+    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(rowNames, templateColumn).Value))
+    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(rowPaths, templateColumn).Value))
 
     maxCount = pathValues.Count
     If nameValues.Count > maxCount Then
@@ -1326,6 +1448,8 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
     Dim newEntry As String
     Dim resultValue As String
     Dim changed As Boolean
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
 
     Set entries = ParseAttachmentEntries(rawValue)
     If entries Is Nothing Then Exit Function
@@ -1358,7 +1482,9 @@ Private Function ValidateTemplateAttachmentPaths(ByVal ws As Worksheet, _
     End If
 
     If changed Or StrComp(resultValue, rawValue, vbBinaryCompare) <> 0 Then
-        ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = resultValue
+        Set headerMap = GetEmailTemplateHeaderMap(ws)
+        attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+        ws.Cells(attachmentsRow, templateColumn).Value = resultValue
     End If
 
     Set ValidateTemplateAttachmentPaths = updatedEntries
@@ -1495,6 +1621,10 @@ Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String
     Dim idx As Long
     Dim entryName As String
     Dim userUpdated As Boolean
+    Dim headerMap As Object
+    Dim attachmentsRow As Long
+    Dim rowNames As Long
+    Dim rowPaths As Long
 
     replacementPath = Trim$(replacementPath)
     If LenB(replacementPath) = 0 Then Exit Sub
@@ -1509,6 +1639,11 @@ Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String
     templateColumn = ResolveTemplateColumn(ws, templateKey)
     If templateColumn = 0 Then Exit Sub
 
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    attachmentsRow = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
+    rowNames = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_NAMES, HDR_ATTACHMENT_FILENAMES)
+    rowPaths = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_USER_ATTACHMENT_PATHS, HDR_ATTACHMENT_PATHS)
+
     normalizedMissing = NormalizeAttachmentPath(missingPath)
     If LenB(normalizedMissing) = 0 Then Exit Sub
 
@@ -1517,7 +1652,7 @@ Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String
         replacementName = replacementPath
     End If
 
-    Set attachmentEntries = ParseAttachmentEntries(CStrSafe(ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value))
+    Set attachmentEntries = ParseAttachmentEntries(CStrSafe(ws.Cells(attachmentsRow, templateColumn).Value))
     If Not attachmentEntries Is Nothing Then
         If attachmentEntries.Count > 0 Then
             Set updatedEntries = New Collection
@@ -1537,13 +1672,13 @@ Private Sub UpdateWorksheetAttachmentsForReplacement(ByVal missingPath As String
                 End If
             Next entry
             If templateUpdated Then
-                ws.Cells(EMAIL_ROW_ATTACHMENTS, templateColumn).Value = JoinAttachmentEntries(updatedEntries)
+                ws.Cells(attachmentsRow, templateColumn).Value = JoinAttachmentEntries(updatedEntries)
             End If
         End If
     End If
 
-    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value))
-    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value))
+    Set nameValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(rowNames, templateColumn).Value))
+    Set pathValues = CollectTemplateAttachmentValues(CStrSafe(ws.Cells(rowPaths, templateColumn).Value))
 
     maxCount = pathValues.Count
     If nameValues.Count > maxCount Then
@@ -1587,8 +1722,8 @@ NextEntry:
     Next idx
 
     If userUpdated Then
-        ws.Cells(EMAIL_ROW_USER_ATTACHMENT_NAMES, templateColumn).Value = JoinCollectionValues(updatedNameValues)
-        ws.Cells(EMAIL_ROW_USER_ATTACHMENT_PATHS, templateColumn).Value = JoinCollectionValues(updatedPathValues)
+        ws.Cells(rowNames, templateColumn).Value = JoinCollectionValues(updatedNameValues)
+        ws.Cells(rowPaths, templateColumn).Value = JoinCollectionValues(updatedPathValues)
     End If
 
     If templateUpdated Or userUpdated Then
