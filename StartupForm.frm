@@ -26,6 +26,7 @@ Option Explicit
 '-------------------------------------------------------------------------------
 
 Private mTitleBarHidden As Boolean
+Private mCurrentHover As String
 
 Private Sub UserForm_Initialize()
     On Error GoTo CleanFail
@@ -121,38 +122,61 @@ End Sub
 '--- Mouse-over visuals (kept simple; fixed vbWhite typo) ---------------------
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    StartupForm.MousePointer = fmMousePointerDefault
-    lblNew.ForeColor = vbWhite
-    lblRadiate.ForeColor = vbWhite
-    bOAIS.ForeColor = vbBlack
-
-    lblASTABone.ForeColor = vbWhite
-    lblASTABtwo.ForeColor = vbWhite
-    lblEmail.ForeColor = vbWhite
+    UpdateHoverVisuals ""
 End Sub
 
 Private Sub bRadiate_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblRadiate.ForeColor = vbRed
+    UpdateHoverVisuals "Radiate"
 End Sub
 
 Private Sub bOAIS_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    If bOAIS.BackColor <> vbGreen Then bOAIS.ForeColor = vbRed
+    UpdateHoverVisuals "OAIS"
 End Sub
 
 Private Sub bNew_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblNew.ForeColor = vbRed
+    UpdateHoverVisuals "New"
 End Sub
 
 Private Sub bastabone_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABone.ForeColor = vbRed
+    UpdateHoverVisuals "ASTABone"
 End Sub
 
 Private Sub bastabtwo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblASTABtwo.ForeColor = vbRed
+    UpdateHoverVisuals "ASTABtwo"
 End Sub
 
 Private Sub bEmail_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    lblEmail.ForeColor = vbRed
+    UpdateHoverVisuals "Email"
+End Sub
+
+Private Sub UpdateHoverVisuals(ByVal target As String)
+    If target = mCurrentHover Then Exit Sub
+
+    mCurrentHover = target
+
+    StartupForm.MousePointer = fmMousePointerDefault
+
+    lblNew.ForeColor = vbWhite
+    lblRadiate.ForeColor = vbWhite
+    bOAIS.ForeColor = vbBlack
+    lblASTABone.ForeColor = vbWhite
+    lblASTABtwo.ForeColor = vbWhite
+    lblEmail.ForeColor = vbWhite
+
+    Select Case target
+        Case "Radiate"
+            lblRadiate.ForeColor = vbRed
+        Case "OAIS"
+            If bOAIS.BackColor <> vbGreen Then bOAIS.ForeColor = vbRed
+        Case "New"
+            lblNew.ForeColor = vbRed
+        Case "ASTABone"
+            lblASTABone.ForeColor = vbRed
+        Case "ASTABtwo"
+            lblASTABtwo.ForeColor = vbRed
+        Case "Email"
+            lblEmail.ForeColor = vbRed
+    End Select
 End Sub
 
 '--- Click handlers -----------------------------------------------------------
