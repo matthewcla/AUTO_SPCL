@@ -31,9 +31,9 @@ Private mAttachmentExistsCache As Object
 Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     Dim headerMap As Object
     Dim headerTargets As Variant
-    Dim headerRow As Range
+    Dim headerColumn As Range
     Dim cell As Range
-    Dim lastCol As Long
+    Dim lastRow As Long
     Dim headerText As String
     Dim targetName As Variant
     Dim hasValues As Boolean
@@ -48,28 +48,28 @@ Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
                           HDR_ATTACHMENT_FILENAMES, HDR_ATTACHMENT_PATHS)
 
     If Not ws Is Nothing Then
-        'Limit the scan to row 1 and intersect with the used range to avoid unnecessary columns.
+        'Limit the scan to column 1 and intersect with the used range to avoid unnecessary rows.
         On Error Resume Next
-        Set headerRow = Intersect(ws.Rows(1), ws.UsedRange)
+        Set headerColumn = Intersect(ws.Columns(1), ws.UsedRange)
         On Error GoTo 0
 
-        If headerRow Is Nothing Then
-            'If UsedRange is empty, fall back to the last populated column in row 1.
-            lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
-            hasValues = Application.WorksheetFunction.CountA(ws.Rows(1)) > 0
-            If hasValues And lastCol >= 1 Then
-                Set headerRow = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastCol))
+        If headerColumn Is Nothing Then
+            'If UsedRange is empty, fall back to the last populated row in column 1.
+            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            hasValues = Application.WorksheetFunction.CountA(ws.Columns(1)) > 0
+            If hasValues And lastRow >= 1 Then
+                Set headerColumn = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, 1))
             End If
         End If
 
-        'Inspect each cell in the header row, matching the required header titles case-insensitively.
-        If Not headerRow Is Nothing Then
-            For Each cell In headerRow.Cells
+        'Inspect each cell in the header column, matching the required header titles case-insensitively.
+        If Not headerColumn Is Nothing Then
+            For Each cell In headerColumn.Cells
                 headerText = Trim$(CStrSafe(cell.Value))
                 If LenB(headerText) > 0 Then
                     For Each targetName In headerTargets
                         If StrComp(headerText, CStr(targetName), vbTextCompare) = 0 Then
-                            headerMap(CStr(targetName)) = cell.Column
+                            headerMap(CStr(targetName)) = cell.Row
                             Exit For
                         End If
                     Next targetName
