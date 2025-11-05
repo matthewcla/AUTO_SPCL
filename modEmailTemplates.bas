@@ -21,6 +21,20 @@ Public Type EmailTemplate
     Body As String
 End Type
 
+Public Sub DebugPrintTemplate(ByVal label As String, ByVal tpl As EmailTemplate)
+    Dim prefix As String
+
+    prefix = "[EmailTemplate]"
+    If LenB(Trim$(label)) > 0 Then
+        prefix = prefix & " " & Trim$(label)
+    End If
+
+    Debug.Print prefix & " TemplateName='" & tpl.TemplateName & "'"
+    Debug.Print prefix & " Cc='" & tpl.Cc & "'"
+    Debug.Print prefix & " Subject='" & tpl.Subject & "'"
+    Debug.Print prefix & " Body='" & tpl.Body & "'"
+End Sub
+
 Public Type AttachmentItem
     FileName As String
     FullPath As String
