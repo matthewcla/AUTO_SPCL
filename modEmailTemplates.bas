@@ -26,6 +26,7 @@ Private Const TEMPLATE_SHEET_NAME_ALT As String = "EmailTemplates"
 Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
 Private Const TEMPLATE_COLUMN_INDEX As Long = 2
 Private Const DEFAULT_TEMPLATE_KEY As String = "Default"
+Private Const DEFAULT_ROW_INDEX As Long = 2
 
 
 Private Const EMAIL_ROW_TO As Long = 3
@@ -246,8 +247,6 @@ NextRow:
 End Function
 
 Public Function ReadDefaultEmailTemplate() As EmailTemplate
-    Const DEFAULT_ROW_INDEX As Long = 2
-
     Dim template As EmailTemplate
     Dim ws As Worksheet
     Dim headerMap As Object
@@ -921,19 +920,62 @@ End Function
 '-------------------------------------------------------------------------------
 Public Function GetAvailableTemplateKeys() As Collection
     Dim ws As Worksheet
+    Dim headerMap As Object
     Dim keys As Collection
-    Dim headerValue As String
-
-    Set ws = ResolveTemplateWorksheet()
-    If ws Is Nothing Then Exit Function
+    Dim templateColumn As Long
+    Dim startRow As Long
+    Dim lastRow As Long
+    Dim rowIndex As Long
+    Dim templateName As String
 
     Set keys = New Collection
 
-    headerValue = ResolveTemplateColumnHeader(ws)
+    Set ws = GetEmailTemplatesSheet()
+    If ws Is Nothing Then
+        Debug.Print "GetAvailableTemplateKeys: Email template worksheet not found."
+        GoTo EnsureDefault
+    End If
 
-    If LenB(headerValue) > 0 Then
-        keys.Add headerValue
-    Else
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+    If headerMap Is Nothing Then
+        Debug.Print "GetAvailableTemplateKeys: Header map unavailable."
+        GoTo EnsureDefault
+    End If
+
+    If Not headerMap.Exists(HDR_TEMPLATE_NAME) Then
+        Debug.Print "GetAvailableTemplateKeys: '" & HDR_TEMPLATE_NAME & "' header missing."
+        GoTo EnsureDefault
+    End If
+
+    templateColumn = TEMPLATE_COLUMN_INDEX
+    If templateColumn < 1 Or templateColumn > ws.Columns.Count Then
+        Debug.Print "GetAvailableTemplateKeys: Template name column index out of range (" & templateColumn & ")."
+        GoTo EnsureDefault
+    End If
+
+    startRow = ResolveTemplateRowFromMap(headerMap, DEFAULT_ROW_INDEX, HDR_TEMPLATE_NAME)
+    If startRow < DEFAULT_ROW_INDEX Then
+        startRow = DEFAULT_ROW_INDEX
+    ElseIf startRow > ws.Rows.Count Then
+        Debug.Print "GetAvailableTemplateKeys: Resolved template name row exceeds worksheet bounds."
+        GoTo EnsureDefault
+    End If
+
+    lastRow = ws.Cells(ws.Rows.Count, templateColumn).End(xlUp).Row
+    If lastRow < startRow Then
+        Debug.Print "GetAvailableTemplateKeys: Template name column contains no entries."
+        GoTo EnsureDefault
+    End If
+
+    For rowIndex = startRow To lastRow
+        templateName = Trim$(CStrSafe(ws.Cells(rowIndex, templateColumn).Value))
+        If LenB(templateName) > 0 Then
+            keys.Add templateName
+        End If
+    Next rowIndex
+
+EnsureDefault:
+    If keys.Count = 0 Then
         keys.Add DEFAULT_TEMPLATE_KEY
     End If
 
