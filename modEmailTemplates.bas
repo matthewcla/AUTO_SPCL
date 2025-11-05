@@ -27,6 +27,69 @@ Public Type EmailTemplate
     AttachmentPaths As String
 End Type
 
+Public Function ReadDefaultEmailTemplate() As EmailTemplate
+    Const DEFAULT_ROW_INDEX As Long = 2
+
+    Dim template As EmailTemplate
+    Dim ws As Worksheet
+    Dim headerMap As Object
+
+    template.TemplateName = DEFAULT_TEMPLATE_KEY
+
+    Set ws = GetEmailTemplatesSheet()
+    If ws Is Nothing Then
+        Debug.Print "Using blank default (sheet missing)"
+        ReadDefaultEmailTemplate = template
+        Exit Function
+    End If
+
+    Set headerMap = GetEmailTemplateHeaderMap(ws)
+
+    template.TemplateName = ReadDefaultTemplateValue(ws, headerMap, HDR_TEMPLATE_NAME, DEFAULT_ROW_INDEX, DEFAULT_TEMPLATE_KEY)
+    template.Cc = ReadDefaultTemplateValue(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
+    template.Subject = ReadDefaultTemplateValue(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
+    template.Body = ReadDefaultTemplateValue(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+    template.AttachmentFilenames = ReadDefaultTemplateValue(ws, headerMap, HDR_ATTACHMENT_FILENAMES, DEFAULT_ROW_INDEX)
+    template.AttachmentPaths = ReadDefaultTemplateValue(ws, headerMap, HDR_ATTACHMENT_PATHS, DEFAULT_ROW_INDEX)
+
+    If LenB(template.TemplateName) = 0 Then
+        template.TemplateName = DEFAULT_TEMPLATE_KEY
+    End If
+
+    ReadDefaultEmailTemplate = template
+End Function
+
+Private Function ReadDefaultTemplateValue(ByVal ws As Worksheet, _
+                                          ByVal headerMap As Object, _
+                                          ByVal headerName As String, _
+                                          ByVal rowIndex As Long, _
+                                          Optional ByVal fallback As String = vbNullString) As String
+    Dim columnIndex As Long
+    Dim candidate As Variant
+
+    If ws Is Nothing Then Exit Function
+    If rowIndex <= 0 Then Exit Function
+
+    If Not headerMap Is Nothing Then
+        If headerMap.Exists(CStr(headerName)) Then
+            candidate = headerMap(CStr(headerName))
+            If IsNumeric(candidate) Then
+                columnIndex = CLng(candidate)
+                If columnIndex >= 1 And columnIndex <= ws.Columns.Count Then
+                    ReadDefaultTemplateValue = Trim$(CStrSafe(ws.Cells(rowIndex, columnIndex).Value))
+                    If LenB(ReadDefaultTemplateValue) = 0 Then
+                        ReadDefaultTemplateValue = fallback
+                    End If
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    Debug.Print "Missing header: " & CStr(headerName)
+    ReadDefaultTemplateValue = fallback
+End Function
+
 Private Const EMAIL_ROW_TO As Long = 3
 Private Const EMAIL_ROW_CC As Long = 4
 Private Const EMAIL_ROW_SUBJECT As Long = 5
