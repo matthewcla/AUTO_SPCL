@@ -332,7 +332,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
 
     loadSucceeded = LoadEmailTemplateIntoControls(normalizedKey, _
                                                   mTxtTo, mTxtCc, mLstAttachments, _
-                                                  mTxtSubject, mTxtBody, Nothing)
+                                                  mTxtSubject, mTxtBody)
 
     toValue = GetTextBoxText(mTxtTo, False)
     ccValue = GetTextBoxText(mTxtCc, False)
@@ -524,7 +524,8 @@ End Sub
 Private Sub ShowTemplateLoadFailure(ByVal templateKey As String)
     If LenB(templateKey) = 0 Then Exit Sub
 
-    modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't find the template column '" & templateKey & "'. Confirm the Email Templates worksheet contains this header, then try again."
+    'Ref: Template load prompts removed per template cleanup requirements.
+    Debug.Print "EmailForm.ShowTemplateLoadFailure: Template column '" & templateKey & "' not found."
     FocusTemplateSelector
 End Sub
 
@@ -540,14 +541,13 @@ Private Sub UserForm_Initialize()
     Dim templateKey As String
     Dim templateKeys As Collection
     Dim tpl As modEmailTemplates.EmailTemplate
-    Dim attachments As Collection
-    Dim attachmentVariant As Variant
-    Dim attachmentItem As modEmailTemplates.AttachmentItem
+    Dim templateEntries As Collection
+    Dim entryVariant As Variant
+    Dim entryValue As String
     Dim resolvedTemplateKey As String
     Dim requestedTemplateKey As String
     Dim displayName As String
     Dim fullPath As String
-    Dim attachmentEntry As String
     Dim listIndex As Long
     Dim attachmentCount As Long
     Dim combinedAttachments As Collection
@@ -600,8 +600,8 @@ Private Sub UserForm_Initialize()
     mCurrentTemplateKey = resolvedTemplateKey
     SetTextBoxText mTxtTemplateKey, resolvedTemplateKey
 
-    Set attachments = modEmailTemplates.ParseAttachments(tpl.AttachmentFilenames, _
-                                                         tpl.AttachmentPaths)
+    'Ref: Template field cleanup - load serialized attachments directly from template entries.
+    Set templateEntries = modEmailTemplates.GetTemplateAttachmentEntriesForKey(resolvedTemplateKey)
 
     If Not mLstAttachments Is Nothing Then
         On Error Resume Next
@@ -613,20 +613,19 @@ Private Sub UserForm_Initialize()
 
     Set mTemplateAttachmentEntries = New Collection
 
-    If Not attachments Is Nothing Then
-        For Each attachmentVariant In attachments
-            attachmentItem = attachmentVariant
-            displayName = Trim$(attachmentItem.FileName)
-            fullPath = Trim$(attachmentItem.FullPath)
+    If Not templateEntries Is Nothing Then
+        For Each entryVariant In templateEntries
+            entryValue = CStr(entryVariant)
+            displayName = Trim$(modEmailTemplates.GetAttachmentEntryName(entryValue))
+            fullPath = Trim$(modEmailTemplates.GetAttachmentEntryPath(entryValue))
 
             If LenB(displayName) = 0 Then displayName = fullPath
 
             If LenB(fullPath) = 0 Then
                 Debug.Print "UserForm_Initialize: Attachment path missing for '" & displayName & "'."
             Else
-                attachmentEntry = modEmailTemplates.BuildAttachmentEntryFromComponents(displayName, fullPath)
-                If LenB(attachmentEntry) > 0 Then
-                    mTemplateAttachmentEntries.Add attachmentEntry
+                If LenB(entryValue) > 0 Then
+                    mTemplateAttachmentEntries.Add entryValue
                 End If
             End If
 
@@ -644,7 +643,7 @@ Private Sub UserForm_Initialize()
                 End If
                 On Error GoTo 0
             End If
-        Next attachmentVariant
+        Next entryVariant
     End If
 
     If mTemplateAttachmentEntries Is Nothing Then
