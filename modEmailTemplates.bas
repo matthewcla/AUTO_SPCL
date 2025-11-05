@@ -27,6 +27,106 @@ Public Type EmailTemplate
     AttachmentPaths As String
 End Type
 
+Public Type AttachmentItem
+    FileName As String
+    FullPath As String
+End Type
+
+Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As String) As Collection
+    Dim attachments As Collection
+    Dim fileValues As Collection
+    Dim pathValues As Collection
+    Dim fileParts As Variant
+    Dim pathParts As Variant
+    Dim part As Variant
+    Dim fileCount As Long
+    Dim pathCount As Long
+    Dim pairCount As Long
+    Dim idx As Long
+    Dim idxSeparator As Long
+    Dim fileName As String
+    Dim pathPart As String
+    Dim normalizedPath As String
+    Dim separator As String
+    Dim attachment As AttachmentItem
+    Dim lastChar As String
+
+    Set attachments = New Collection
+    Set fileValues = New Collection
+    Set pathValues = New Collection
+
+    If LenB(filenamesCsv) > 0 Then
+        fileParts = Split(filenamesCsv, ",")
+        For Each part In fileParts
+            fileValues.Add Trim$(CStr(part))
+        Next part
+    End If
+
+    If LenB(pathsCsv) > 0 Then
+        pathParts = Split(pathsCsv, ",")
+        For Each part In pathParts
+            pathValues.Add Trim$(CStr(part))
+        Next part
+    End If
+
+    fileCount = fileValues.Count
+    pathCount = pathValues.Count
+
+    pairCount = fileCount
+    If pathCount < pairCount Then pairCount = pathCount
+
+    If fileCount <> pathCount Then
+        Debug.Print "ParseAttachments: Filename/path count mismatch (" & fileCount & " vs " & pathCount & ")."
+    End If
+
+    For idx = 1 To pairCount
+        fileName = vbNullString
+        pathPart = vbNullString
+
+        If idx <= fileCount Then fileName = CStr(fileValues(idx))
+        If idx <= pathCount Then pathPart = CStr(pathValues(idx))
+
+        If LenB(fileName) = 0 And LenB(pathPart) = 0 Then GoTo NextPair
+
+        attachment.FileName = vbNullString
+        attachment.FullPath = vbNullString
+        attachment.FileName = fileName
+
+        If LenB(pathPart) = 0 Then
+            attachment.FullPath = fileName
+        Else
+            normalizedPath = pathPart
+            Do While LenB(normalizedPath) > 0 And (Right$(normalizedPath, 1) = "\\" Or Right$(normalizedPath, 1) = "/")
+                normalizedPath = Left$(normalizedPath, Len(normalizedPath) - 1)
+            Loop
+
+            separator = Application.PathSeparator
+            For idxSeparator = Len(pathPart) To 1 Step -1
+                lastChar = Mid$(pathPart, idxSeparator, 1)
+                If lastChar = "\\" Or lastChar = "/" Then
+                    separator = lastChar
+                    Exit For
+                End If
+            Next idxSeparator
+
+            If LenB(normalizedPath) = 0 Then
+                attachment.FullPath = fileName
+            ElseIf LenB(fileName) = 0 Then
+                attachment.FullPath = normalizedPath
+            Else
+                attachment.FullPath = normalizedPath & separator & fileName
+            End If
+        End If
+
+        If LenB(attachment.FileName) = 0 And LenB(attachment.FullPath) = 0 Then GoTo NextPair
+
+        attachments.Add attachment
+NextPair:
+    Next idx
+
+    Set ParseAttachments = attachments
+End Function
+
 Public Function ReadTemplateByName(ByVal templateName As String) As EmailTemplate
     Dim ws As Worksheet
     Dim headerMap As Object
