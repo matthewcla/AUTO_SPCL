@@ -67,9 +67,9 @@ Private Sub InitializeControlReferences()
     Set mTxtTemplateKey = TryGetTextBox("txtTEMP")
     Set mTxtTo = TryGetTextBox("txtTO")
     Set mTxtCc = TryGetTextBox("txtCC")
-    Set mTxtSubject = TryGetTextBox("txtSubj")
+    Set mTxtSubject = TryGetTextBox("txtSubject")
     Set mTxtBody = TryGetTextBox("txtBody")
-    Set mLstAttachments = TryGetListBox("lstAT")
+    Set mLstAttachments = TryGetListBox("lstAttachments")
     Set mBtnAddAttachment = TryGetButton("bADD")
     Set mBtnRemoveAttachment = TryGetButton("bSUB")
 End Sub
@@ -173,9 +173,9 @@ Private Function EnsureRequiredControls() As Boolean
     If mTxtTemplateKey Is Nothing Then missing.Add "txtTEMP (TextBox)"
     If mTxtTo Is Nothing Then missing.Add "txtTO (TextBox)"
     If mTxtCc Is Nothing Then missing.Add "txtCC (TextBox)"
-    If mTxtSubject Is Nothing Then missing.Add "txtSubj (TextBox)"
+    If mTxtSubject Is Nothing Then missing.Add "txtSubject (TextBox)"
     If mTxtBody Is Nothing Then missing.Add "txtBody (TextBox)"
-    If mLstAttachments Is Nothing Then missing.Add "lstAT (ListBox)"
+    If mLstAttachments Is Nothing Then missing.Add "lstAttachments (ListBox)"
     If mBtnAddAttachment Is Nothing Then missing.Add "bADD (CommandButton)"
     If mBtnRemoveAttachment Is Nothing Then missing.Add "bSUB (CommandButton)"
 
@@ -307,6 +307,9 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim requestedTemplateKey As String
+    Dim resolvedTemplateKey As Variant
+    Dim fallbackUsed As Boolean
 
     On Error GoTo CleanFail
 
@@ -330,9 +333,23 @@ Private Sub LoadTemplate(ByVal templateKey As String)
         modProgressUI.Progress_Log "Loading template '" & normalizedKey & "'..."
     End If
 
+    requestedTemplateKey = normalizedKey
+    resolvedTemplateKey = vbNullString
     loadSucceeded = LoadEmailTemplateIntoControls(normalizedKey, _
                                                   mTxtTo, mTxtCc, mLstAttachments, _
-                                                  mTxtSubject, mTxtBody)
+                                                  mTxtSubject, mTxtBody, _
+                                                  resolvedTemplateKey)
+
+    If loadSucceeded Then
+        If VarType(resolvedTemplateKey) = vbString Then
+            If LenB(CStr(resolvedTemplateKey)) > 0 Then
+                If StrComp(requestedTemplateKey, CStr(resolvedTemplateKey), vbTextCompare) <> 0 Then
+                    fallbackUsed = True
+                End If
+                normalizedKey = CStr(resolvedTemplateKey)
+            End If
+        End If
+    End If
 
     toValue = GetTextBoxText(mTxtTo, False)
     ccValue = GetTextBoxText(mTxtCc, False)
@@ -344,7 +361,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     TraceTemplateSelection normalizedKey, loadSucceeded, toValue, ccValue, subjectValue, bodyValue, attachmentCount
 
     If Not loadSucceeded Then
-        ShowTemplateLoadFailure normalizedKey
+        ShowTemplateLoadFailure requestedTemplateKey
         modEmail.ClearEmailFields mTxtTo, mTxtCc, mTxtSubject, mTxtBody, _
                                   mLstAttachments, mBtnRemoveAttachment
         mOriginalBodyTemplate = vbNullString
@@ -357,6 +374,12 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     mOriginalBodyTemplate = GetTextBoxText(mTxtBody, False)
     mCurrentTemplateKey = normalizedKey
     SetTextBoxText mTxtTemplateKey, normalizedKey
+
+    If fallbackUsed Then
+        Debug.Print "[EmailForm] Template '" & requestedTemplateKey & "' not found. Loaded '" & normalizedKey & "' instead."
+        Application.StatusBar = "Template '" & requestedTemplateKey & "' not found. Default template loaded."
+        statusActive = False
+    End If
 
     If modProgressUI.IsFormLoaded("ProgressForm") Then
         modProgressUI.Progress_Log "Template '" & normalizedKey & "' loaded."
