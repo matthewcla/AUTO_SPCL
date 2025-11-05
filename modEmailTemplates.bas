@@ -21,6 +21,17 @@ Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
 Private Const TEMPLATE_COLUMN_INDEX As Long = 2
 Private Const DEFAULT_TEMPLATE_KEY As String = "Default"
 
+
+Private Const EMAIL_ROW_TO As Long = 3
+Private Const EMAIL_ROW_CC As Long = 4
+Private Const EMAIL_ROW_SUBJECT As Long = 5
+Private Const EMAIL_ROW_BODY As Long = 6
+Private Const EMAIL_ROW_ATTACHMENTS As Long = 10
+Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
+
+Private mTemplateWorksheet As Worksheet
+Private mAttachmentExistsCache As Object
+
 Public Type EmailTemplate
     TemplateName As String
     Cc As String
@@ -369,16 +380,6 @@ Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
         ReadDefaultTemplateField = fallback
     End If
 End Function
-
-Private Const EMAIL_ROW_TO As Long = 3
-Private Const EMAIL_ROW_CC As Long = 4
-Private Const EMAIL_ROW_SUBJECT As Long = 5
-Private Const EMAIL_ROW_BODY As Long = 6
-Private Const EMAIL_ROW_ATTACHMENTS As Long = 10
-Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
-
-Private mTemplateWorksheet As Worksheet
-Private mAttachmentExistsCache As Object
 
 Public Function GetEmailTemplatesSheet() As Worksheet
     On Error Resume Next
