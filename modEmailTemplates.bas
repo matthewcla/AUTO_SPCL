@@ -1,3 +1,10 @@
+'------------------------------------------
+' AUTO_SPCL Variable Declaration Audit
+' Fixed undeclared variables:
+'   EMAIL_ROW_CC → Removed (replaced with DEFAULT_ROW_INDEX)
+'   EMAIL_ROW_SUBJECT → Removed (replaced with DEFAULT_ROW_INDEX)
+'   EMAIL_ROW_BODY → Removed (replaced with DEFAULT_ROW_INDEX)
+'------------------------------------------
 Attribute VB_Name = "modEmailTemplates"
 Option Explicit
 
@@ -239,9 +246,11 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     Set headerMap = GetEmailTemplateHeaderMap(ws)
 
     template.TemplateName = ReadDefaultTemplateField(ws, headerMap, HDR_TEMPLATE_NAME, DEFAULT_ROW_INDEX, DEFAULT_TEMPLATE_KEY)
-    template.Cc = ReadDefaultTemplateField(ws, headerMap, HDR_CC, EMAIL_ROW_CC)
-    template.Subject = ReadDefaultTemplateField(ws, headerMap, HDR_SUBJECT, EMAIL_ROW_SUBJECT)
-    template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, EMAIL_ROW_BODY)
+    template.Cc = ReadDefaultTemplateField(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
+    template.Subject = ReadDefaultTemplateField(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
+    template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+
+    ' All default template fields are sourced from row 2 (DEFAULT_ROW_INDEX).
 
     If LenB(template.TemplateName) = 0 Then
         template.TemplateName = DEFAULT_TEMPLATE_KEY
