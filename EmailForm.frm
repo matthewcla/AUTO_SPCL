@@ -651,6 +651,7 @@ Private Sub UserForm_Initialize()
         Set mTemplateAttachmentEntries = New Collection
     End If
 
+    Set mUserAttachmentEntries = GetUserAttachmentEntries(resolvedTemplateKey)
     If mUserAttachmentEntries Is Nothing Then
         Set mUserAttachmentEntries = New Collection
     End If
