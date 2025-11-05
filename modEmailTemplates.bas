@@ -1888,7 +1888,7 @@ Private Function ResolveEmailFormActiveKey(ByVal frm As Object) As String
     On Error GoTo 0
 
     If LenB(resolved) = 0 Then
-        resolved = TryGetFormControlValue(frm, "txtTEMP")
+        resolved = TryGetFormControlValue(frm, "txttpl")
     End If
 
     ResolveEmailFormActiveKey = resolved
