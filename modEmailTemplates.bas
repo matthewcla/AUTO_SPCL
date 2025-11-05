@@ -272,10 +272,10 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
         Exit Function
     End If
 
-    If ResolveHeaderColumnIndex(headerMap, HDR_TEMPLATE_NAME) = 0 _
-        Or ResolveHeaderColumnIndex(headerMap, HDR_CC) = 0 _
-        Or ResolveHeaderColumnIndex(headerMap, HDR_SUBJECT) = 0 _
-        Or ResolveHeaderColumnIndex(headerMap, HDR_BODY) = 0 Then
+    If Not HeaderLocationAvailable(headerMap, HDR_TEMPLATE_NAME) _
+        Or Not HeaderLocationAvailable(headerMap, HDR_CC) _
+        Or Not HeaderLocationAvailable(headerMap, HDR_SUBJECT) _
+        Or Not HeaderLocationAvailable(headerMap, HDR_BODY) Then
 
         EF_DebugPrint "ReadDefaultEmailTemplate: Required headers missing; returning labelled default."
         ReadDefaultEmailTemplate = template
@@ -396,28 +396,29 @@ Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
     Dim columnIndex As Long
     Dim valueVariant As Variant
 
-    rowIndex = fallbackRow
-    If rowIndex <= 0 Then
-        rowIndex = DEFAULT_ROW_INDEX
-    End If
-
     If ws Is Nothing Then
         EF_DebugPrint "ReadDefaultTemplateField: Worksheet missing while reading '" & headerName & "'."
         ReadDefaultTemplateField = fallback
         Exit Function
     End If
 
-    columnIndex = ResolveHeaderColumnIndex(headerMap, headerName)
-    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then
-        EF_DebugPrint "ReadDefaultTemplateField: Column for '" & headerName & "' not found; using fallback '" & fallback & "'."
-        ReadDefaultTemplateField = fallback
-        Exit Function
-    End If
-
+    rowIndex = ResolveTemplateRowFromMap(headerMap, fallbackRow, headerName)
     If rowIndex < 1 Or rowIndex > ws.Rows.Count Then
         EF_DebugPrint "ReadDefaultTemplateField: Row " & rowIndex & " invalid for '" & headerName & "'."
         ReadDefaultTemplateField = fallback
         Exit Function
+    End If
+
+    columnIndex = ResolveHeaderColumnIndex(headerMap, headerName)
+    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then
+        If TEMPLATE_COLUMN_INDEX >= 1 And TEMPLATE_COLUMN_INDEX <= ws.Columns.Count Then
+            EF_DebugPrint "ReadDefaultTemplateField: Column for '" & headerName & "' not found; using default column " & TEMPLATE_COLUMN_INDEX & "."
+            columnIndex = TEMPLATE_COLUMN_INDEX
+        Else
+            EF_DebugPrint "ReadDefaultTemplateField: Column for '" & headerName & "' not found and default column invalid; using fallback '" & fallback & "'."
+            ReadDefaultTemplateField = fallback
+            Exit Function
+        End If
     End If
 
     valueVariant = ws.Cells(rowIndex, columnIndex).Value
@@ -435,6 +436,69 @@ Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
             EF_DebugPrint "ReadDefaultTemplateField: Blank value for '" & headerName & "'."
         End If
         ReadDefaultTemplateField = fallback
+    End If
+End Function
+
+Private Function HeaderLocationAvailable(ByVal headerMap As Object, ByVal headerName As String) As Boolean
+    Dim entry As Variant
+    Dim location As Object
+    Dim key As Variant
+    Dim normalizedTarget As String
+
+    If headerMap Is Nothing Then Exit Function
+    If LenB(headerName) = 0 Then Exit Function
+
+    If headerMap.Exists(CStr(headerName)) Then
+        entry = headerMap(CStr(headerName))
+        If HeaderLocationEntryAvailable(entry) Then
+            HeaderLocationAvailable = True
+            Exit Function
+        End If
+    End If
+
+    normalizedTarget = NormalizeHeaderKey(CStr(headerName))
+    If LenB(normalizedTarget) = 0 Then Exit Function
+
+    For Each key In headerMap.Keys
+        If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
+            entry = headerMap(CStr(key))
+            If HeaderLocationEntryAvailable(entry) Then
+                HeaderLocationAvailable = True
+                Exit Function
+            End If
+        End If
+    Next key
+End Function
+
+Private Function HeaderLocationEntryAvailable(ByVal entry As Variant) As Boolean
+    Dim location As Object
+    Dim candidate As Variant
+
+    If IsObject(entry) Then
+        Set location = entry
+        If location.Exists("Column") Then
+            candidate = location("Column")
+            If IsNumeric(candidate) Then
+                If CLng(candidate) > 0 Then
+                    HeaderLocationEntryAvailable = True
+                    Exit Function
+                End If
+            End If
+        End If
+
+        If location.Exists("Row") Then
+            candidate = location("Row")
+            If IsNumeric(candidate) Then
+                If CLng(candidate) > 0 Then
+                    HeaderLocationEntryAvailable = True
+                    Exit Function
+                End If
+            End If
+        End If
+    ElseIf IsNumeric(entry) Then
+        If CLng(entry) > 0 Then
+            HeaderLocationEntryAvailable = True
+        End If
     End If
 End Function
 
