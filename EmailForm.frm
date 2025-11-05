@@ -594,6 +594,8 @@ Private Sub UserForm_Initialize()
         resolvedTemplateKey = Trim$(tpl.TemplateName)
     End If
 
+    modEmailTemplates.DebugPrintTemplate "EmailForm.Initialize [" & resolvedTemplateKey & "]", tpl
+
     SetTextBoxText mTxtCc, tpl.Cc
     SetTextBoxText mTxtSubject, tpl.Subject
     SetTextBoxText mTxtBody, tpl.Body
