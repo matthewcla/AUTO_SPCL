@@ -21,6 +21,12 @@ Public Type EmailTemplate
     Body As String
 End Type
 
+
+Public Type AttachmentItem
+    FileName As String
+    FullPath As String
+End Type
+
 ' NOTE: UDT parameters cannot be passed ByVal in VBA; changed to ByRef to fix compile error.
 Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Dim prefix As String
@@ -35,11 +41,6 @@ Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Debug.Print prefix & " Subject='" & tpl.Subject & "'"
     Debug.Print prefix & " Body='" & tpl.Body & "'"
 End Sub
-
-Public Type AttachmentItem
-    FileName As String
-    FullPath As String
-End Type
 
 Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As String) As Collection
     Dim attachments As Collection
