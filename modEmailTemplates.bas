@@ -494,49 +494,102 @@ End Function
 '            template worksheet column matching the provided key.
 ' Parameters:
 '   templateKey - Column header identifying which template to load.
-'   txtTO - Text box receiving the To recipients.
-'   txtCC - Text box receiving the CC recipients.
-'   lstAT - List box that surfaces template and user attachment summaries.
-'   txtSubj - Text box that receives the subject line.
+'   txtTo - Text box receiving the To recipients.
+'   txtCc - Text box receiving the CC recipients.
+'   lstAttachments - List box that surfaces template and user attachment summaries.
+'   txtSubject - Text box that receives the subject line.
 '   txtBody - Text box that receives the body content.
 ' Returns  : True when the template column is found and controls are populated; False otherwise.
 ' Side Effects:
 '   Clears and updates supplied controls; combines template and stored user attachments.
 '-------------------------------------------------------------------------------
 Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
-                                      ByRef txtTO As MSForms.TextBox, _
-                                      ByRef txtCC As MSForms.TextBox, _
-                                      ByRef lstAT As MSForms.ListBox, _
-                                      ByRef txtSubj As MSForms.TextBox, _
-                                      ByRef txtBody As MSForms.TextBox) As Boolean
+                                      ByRef txtTo As MSForms.TextBox, _
+                                      ByRef txtCc As MSForms.TextBox, _
+                                      ByRef lstAttachments As MSForms.ListBox, _
+                                      ByRef txtSubject As MSForms.TextBox, _
+                                      ByRef txtBody As MSForms.TextBox, _
+                                      Optional ByRef resolvedTemplateKey As Variant) As Boolean
     Dim ws As Worksheet
     Dim templateColumn As Long
-    Dim toValue As String
-    Dim ccValue As String
-    Dim subjValue As String
-    Dim bodyValue As String
-    Dim attachmentValue As String
-    Dim attachmentEntries As Collection
-    Dim userAttachmentEntries As Collection
-    Dim combinedAttachments As Collection
+    Dim normalizedKey As String
+    Dim resolvedKey As String
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    normalizedKey = NormaliseTemplateKey(templateKey, ws)
+
+    ClearTemplateControls txtTo, txtCc, lstAttachments, txtSubject, txtBody
+
+    templateColumn = ResolveTemplateColumnIndex(ws, normalizedKey)
+
+    If templateColumn = 0 Then
+        If Not TryPopulateTemplateFromDefaultColumn(ws, txtTo, txtCc, lstAttachments, txtSubject, txtBody, resolvedKey) Then
+            Exit Function
+        End If
+    Else
+        If Not PopulateTemplateControlsFromColumn(ws, templateColumn, txtTo, txtCc, lstAttachments, txtSubject, txtBody, resolvedKey) Then
+            Exit Function
+        End If
+    End If
+
+    LoadEmailTemplateIntoControls = True
+
+    If Not IsMissing(resolvedTemplateKey) Then
+        resolvedTemplateKey = resolvedKey
+    End If
+End Function
+
+Private Function TryPopulateTemplateFromDefaultColumn(ByRef ws As Worksheet, _
+                                                      ByRef txtTo As MSForms.TextBox, _
+                                                      ByRef txtCc As MSForms.TextBox, _
+                                                      ByRef lstAttachments As MSForms.ListBox, _
+                                                      ByRef txtSubject As MSForms.TextBox, _
+                                                      ByRef txtBody As MSForms.TextBox, _
+                                                      ByRef resolvedKey As String) As Boolean
+    Dim defaultColumn As Long
+
+    defaultColumn = TEMPLATE_COLUMN_INDEX
+
+    If defaultColumn < 1 Then Exit Function
+    If ws Is Nothing Then Exit Function
+    If defaultColumn > ws.Columns.Count Then Exit Function
+
+    TryPopulateTemplateFromDefaultColumn = PopulateTemplateControlsFromColumn(ws, defaultColumn, _
+                                                                             txtTo, txtCc, lstAttachments, _
+                                                                             txtSubject, txtBody, resolvedKey)
+End Function
+
+Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
+                                                    ByVal templateColumn As Long, _
+                                                    ByRef txtTo As MSForms.TextBox, _
+                                                    ByRef txtCc As MSForms.TextBox, _
+                                                    ByRef lstAttachments As MSForms.ListBox, _
+                                                    ByRef txtSubject As MSForms.TextBox, _
+                                                    ByRef txtBody As MSForms.TextBox, _
+                                                    ByRef resolvedKey As String) As Boolean
     Dim headerMap As Object
     Dim rowTo As Long
     Dim rowCc As Long
     Dim rowSubject As Long
     Dim rowBody As Long
     Dim rowAttachments As Long
+    Dim toValue As String
+    Dim ccValue As String
+    Dim subjectValue As String
+    Dim bodyValue As String
+    Dim attachmentValue As String
+    Dim attachmentEntries As Collection
+    Dim userAttachmentEntries As Collection
+    Dim combinedAttachments As Collection
 
-    Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then Exit Function
-
-    templateKey = NormaliseTemplateKey(templateKey, ws)
-
-    ClearTemplateControls txtTO, txtCC, lstAT, txtSubj, txtBody
-
-    templateColumn = ResolveTemplateColumnIndex(ws, templateKey)
-    If templateColumn = 0 Then Exit Function
+    If templateColumn < 1 Then Exit Function
+    If templateColumn > ws.Columns.Count Then Exit Function
 
     Set headerMap = GetEmailTemplateHeaderMap(ws)
+    If headerMap Is Nothing Then Exit Function
 
     rowTo = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_TO, HDR_TO)
     rowCc = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_CC, HDR_CC)
@@ -544,24 +597,32 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     rowBody = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_BODY, HDR_BODY)
     rowAttachments = ResolveTemplateRowFromMap(headerMap, EMAIL_ROW_ATTACHMENTS, HDR_ATTACHMENTS)
 
+    If rowTo = 0 Or rowCc = 0 Or rowSubject = 0 Or rowBody = 0 Or rowAttachments = 0 Then Exit Function
+
     toValue = Trim$(CStrSafe(ws.Cells(rowTo, templateColumn).Value))
     ccValue = Trim$(CStrSafe(ws.Cells(rowCc, templateColumn).Value))
-    subjValue = Trim$(CStrSafe(ws.Cells(rowSubject, templateColumn).Value))
+    subjectValue = Trim$(CStrSafe(ws.Cells(rowSubject, templateColumn).Value))
     bodyValue = Trim$(CStrSafe(ws.Cells(rowBody, templateColumn).Value))
     attachmentValue = Trim$(CStrSafe(ws.Cells(rowAttachments, templateColumn).Value))
+
     Set attachmentEntries = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
     Set userAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
     Set combinedAttachments = CombineAttachmentCollections(attachmentEntries, userAttachmentEntries)
 
-    AssignTemplateTextBoxValue txtTO, toValue
-    AssignTemplateTextBoxValue txtCC, ccValue
-    AssignTemplateTextBoxValue txtSubj, subjValue
-    AssignAttachmentList lstAT, combinedAttachments
+    AssignTemplateTextBoxValue txtTo, toValue
+    AssignTemplateTextBoxValue txtCc, ccValue
+    AssignTemplateTextBoxValue txtSubject, subjectValue
+    AssignAttachmentList lstAttachments, combinedAttachments
     AssignTemplateTextBoxValue txtBody, BuildBodyValue(bodyValue)
 
-    TraceTemplateLoad templateKey, toValue, ccValue, subjValue, bodyValue, combinedAttachments
+    resolvedKey = Trim$(CStrSafe(ws.Cells(1, templateColumn).Value))
+    If LenB(resolvedKey) = 0 Then
+        resolvedKey = DEFAULT_TEMPLATE_KEY
+    End If
 
-    LoadEmailTemplateIntoControls = True
+    TraceTemplateLoad resolvedKey, toValue, ccValue, subjectValue, bodyValue, combinedAttachments
+
+    PopulateTemplateControlsFromColumn = True
 End Function
 
 Private Function ResolveTemplateWorksheet() As Worksheet
@@ -736,15 +797,15 @@ Private Sub ClearAttachmentExistenceCache()
     On Error GoTo 0
 End Sub
 
-Private Sub ClearTemplateControls(ByRef txtTO As MSForms.TextBox, _
-                                  ByRef txtCC As MSForms.TextBox, _
-                                  ByRef lstAT As MSForms.ListBox, _
-                                  ByRef txtSubj As MSForms.TextBox, _
+Private Sub ClearTemplateControls(ByRef txtTo As MSForms.TextBox, _
+                                  ByRef txtCc As MSForms.TextBox, _
+                                  ByRef lstAttachments As MSForms.ListBox, _
+                                  ByRef txtSubject As MSForms.TextBox, _
                                   ByRef txtBody As MSForms.TextBox)
-    AssignTemplateTextBoxValue txtTO, vbNullString
-    AssignTemplateTextBoxValue txtCC, vbNullString
-    ClearListBoxItems lstAT
-    AssignTemplateTextBoxValue txtSubj, vbNullString
+    AssignTemplateTextBoxValue txtTo, vbNullString
+    AssignTemplateTextBoxValue txtCc, vbNullString
+    ClearListBoxItems lstAttachments
+    AssignTemplateTextBoxValue txtSubject, vbNullString
     AssignTemplateTextBoxValue txtBody, vbNullString
 End Sub
 
