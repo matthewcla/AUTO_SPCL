@@ -62,32 +62,60 @@ End Function
 Private Function ReadDefaultTemplateValue(ByVal ws As Worksheet, _
                                           ByVal headerMap As Object, _
                                           ByVal headerName As String, _
-                                          ByVal rowIndex As Long, _
+                                          ByVal fallbackRowIndex As Long, _
                                           Optional ByVal fallback As String = vbNullString) As String
-    Dim columnIndex As Long
+    Dim resolvedRow As Long
     Dim candidate As Variant
+    Dim key As Variant
+    Dim normalizedTarget As String
+    Dim hasHeader As Boolean
+    Const TEMPLATE_COLUMN_INDEX_LOCAL As Long = TEMPLATE_COLUMN_INDEX
 
     If ws Is Nothing Then Exit Function
-    If rowIndex <= 0 Then Exit Function
+    If fallbackRowIndex <= 0 Then Exit Function
 
+    resolvedRow = fallbackRowIndex
     If Not headerMap Is Nothing Then
         If headerMap.Exists(CStr(headerName)) Then
             candidate = headerMap(CStr(headerName))
             If IsNumeric(candidate) Then
-                columnIndex = CLng(candidate)
-                If columnIndex >= 1 And columnIndex <= ws.Columns.Count Then
-                    ReadDefaultTemplateValue = Trim$(CStrSafe(ws.Cells(rowIndex, columnIndex).Value))
-                    If LenB(ReadDefaultTemplateValue) = 0 Then
-                        ReadDefaultTemplateValue = fallback
+                resolvedRow = CLng(candidate)
+            End If
+            hasHeader = True
+        Else
+            normalizedTarget = NormalizeHeaderKey(CStr(headerName))
+            If LenB(normalizedTarget) > 0 Then
+                For Each key In headerMap.Keys
+                    If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
+                        candidate = headerMap(CStr(key))
+                        If IsNumeric(candidate) Then
+                            resolvedRow = CLng(candidate)
+                        End If
+                        hasHeader = True
+                        Exit For
                     End If
-                    Exit Function
-                End If
+                Next key
             End If
         End If
     End If
 
-    Debug.Print "Missing header: " & CStr(headerName)
-    ReadDefaultTemplateValue = fallback
+    If resolvedRow <= 0 Or resolvedRow > ws.Rows.Count Then
+        resolvedRow = fallbackRowIndex
+    End If
+
+    If TEMPLATE_COLUMN_INDEX_LOCAL < 1 Or TEMPLATE_COLUMN_INDEX_LOCAL > ws.Columns.Count Then
+        ReadDefaultTemplateValue = fallback
+        Exit Function
+    End If
+
+    ReadDefaultTemplateValue = Trim$(CStrSafe(ws.Cells(resolvedRow, TEMPLATE_COLUMN_INDEX_LOCAL).Value))
+    If LenB(ReadDefaultTemplateValue) = 0 Then
+        ReadDefaultTemplateValue = fallback
+    End If
+
+    If Not hasHeader Then
+        Debug.Print "Missing header: " & CStr(headerName)
+    End If
 End Function
 
 Private Const EMAIL_ROW_TO As Long = 3
