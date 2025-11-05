@@ -278,6 +278,22 @@ Private Function GetFirstTemplateKey(ByVal templateKeys As Collection) As String
     Next entry
 End Function
 
+Private Function TemplateKeyExists(ByVal templateKey As String, _
+                                   ByVal templateKeys As Collection) As Boolean
+    Dim entry As Variant
+
+    templateKey = Trim$(templateKey)
+    If LenB(templateKey) = 0 Then Exit Function
+    If templateKeys Is Nothing Then Exit Function
+
+    For Each entry In templateKeys
+        If StrComp(Trim$(CStr(entry)), templateKey, vbTextCompare) = 0 Then
+            TemplateKeyExists = True
+            Exit Function
+        End If
+    Next entry
+End Function
+
 Private Sub LoadTemplate(ByVal templateKey As String)
     Dim normalizedKey As String
     Dim loadSucceeded As Boolean
@@ -522,6 +538,21 @@ Private Sub UserForm_Initialize()
     SetCursorWait
 
     Dim templateKey As String
+    Dim templateKeys As Collection
+    Dim tpl As modEmailTemplates.EmailTemplate
+    Dim attachments As Collection
+    Dim attachmentVariant As Variant
+    Dim attachmentItem As modEmailTemplates.AttachmentItem
+    Dim resolvedTemplateKey As String
+    Dim requestedTemplateKey As String
+    Dim displayName As String
+    Dim fullPath As String
+    Dim attachmentEntry As String
+    Dim listIndex As Long
+    Dim attachmentCount As Long
+    Dim combinedAttachments As Collection
+    Dim highlightLabel As MSForms.Label
+    Dim labelIndex As Long
 
     InitializeControlReferences
     EnsureTemplateWarningCache
@@ -540,16 +571,122 @@ Private Sub UserForm_Initialize()
         GoTo CleanExit
     End If
 
-    Dim templateKeys As Collection
     Set templateKeys = PopulateTemplateDropdown()
 
     templateKey = ResolveInitialTemplateKey(templateKeys)
+    requestedTemplateKey = templateKey
 
-    LoadTemplate templateKey
+    If TemplateKeyExists(templateKey, templateKeys) Then
+        tpl = modEmailTemplates.ReadTemplateByName(templateKey)
+        resolvedTemplateKey = Trim$(templateKey)
+    Else
+        tpl = modEmailTemplates.ReadDefaultEmailTemplate()
+        resolvedTemplateKey = Trim$(tpl.TemplateName)
+        If LenB(requestedTemplateKey) > 0 Then
+            Debug.Print "UserForm_Initialize: Template '" & requestedTemplateKey & _
+                        "' not found. Using default template '" & resolvedTemplateKey & "'."
+        End If
+    End If
+
+    If LenB(resolvedTemplateKey) = 0 Then
+        resolvedTemplateKey = Trim$(tpl.TemplateName)
+    End If
+
+    SetTextBoxText mTxtCc, tpl.Cc
+    SetTextBoxText mTxtSubject, tpl.Subject
+    SetTextBoxText mTxtBody, tpl.Body
+
+    mOriginalBodyTemplate = tpl.Body
+    mCurrentTemplateKey = resolvedTemplateKey
+    SetTextBoxText mTxtTemplateKey, resolvedTemplateKey
+
+    Set attachments = modEmailTemplates.ParseAttachments(tpl.AttachmentFilenames, _
+                                                         tpl.AttachmentPaths)
+
+    If Not mLstAttachments Is Nothing Then
+        On Error Resume Next
+        mLstAttachments.Clear
+        mLstAttachments.ColumnCount = 2
+        mLstAttachments.ColumnWidths = CStr(mLstAttachments.Width) & " pt;0 pt"
+        On Error GoTo 0
+    End If
+
+    Set mTemplateAttachmentEntries = New Collection
+
+    If Not attachments Is Nothing Then
+        For Each attachmentVariant In attachments
+            attachmentItem = attachmentVariant
+            displayName = Trim$(attachmentItem.FileName)
+            fullPath = Trim$(attachmentItem.FullPath)
+
+            If LenB(displayName) = 0 Then displayName = fullPath
+
+            If LenB(fullPath) = 0 Then
+                Debug.Print "UserForm_Initialize: Attachment path missing for '" & displayName & "'."
+            Else
+                attachmentEntry = modEmailTemplates.BuildAttachmentEntryFromComponents(displayName, fullPath)
+                If LenB(attachmentEntry) > 0 Then
+                    mTemplateAttachmentEntries.Add attachmentEntry
+                End If
+            End If
+
+            If Not mLstAttachments Is Nothing Then
+                On Error Resume Next
+                mLstAttachments.AddItem displayName
+                If Err.Number = 0 Then
+                    listIndex = mLstAttachments.ListCount - 1
+                    If listIndex >= 0 Then
+                        mLstAttachments.List(listIndex, 1) = fullPath
+                    End If
+                Else
+                    Debug.Print "UserForm_Initialize: Failed to add attachment '" & displayName & "' to lstAttachments."
+                    Err.Clear
+                End If
+                On Error GoTo 0
+            End If
+        Next attachmentVariant
+    End If
+
+    If mTemplateAttachmentEntries Is Nothing Then
+        Set mTemplateAttachmentEntries = New Collection
+    End If
+
+    Set mUserAttachmentEntries = GetUserAttachmentEntries(resolvedTemplateKey)
+    If mUserAttachmentEntries Is Nothing Then
+        Set mUserAttachmentEntries = New Collection
+    End If
+
+    Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
+    PopulateLookupFromEntries mTemplateAttachmentEntries, mTemplateAttachmentLookup
+
+    If mUserAttachmentLookup Is Nothing Then
+        Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
+    Else
+        On Error Resume Next
+        mUserAttachmentLookup.RemoveAll
+        On Error GoTo 0
+    End If
+    RebuildLookupFromCollection mUserAttachmentLookup, mUserAttachmentEntries
+
+    Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
+                                                                 mUserAttachmentEntries)
+    modEmail.UpdateAttachmentRemoveButton mBtnRemoveAttachment, combinedAttachments
+
+    attachmentCount = 0
+    If Not combinedAttachments Is Nothing Then
+        On Error Resume Next
+        attachmentCount = combinedAttachments.Count
+        On Error GoTo 0
+    End If
+
+    TraceTemplateSelection resolvedTemplateKey, True, vbNullString, _
+                           GetTextBoxText(mTxtCc, False), _
+                           GetTextBoxText(mTxtSubject, False), _
+                           GetTextBoxText(mTxtBody, False), attachmentCount
+    ValidateLoadedTemplateFields resolvedTemplateKey
+    TraceEmailFieldState "InitializeTemplate", resolvedTemplateKey
 
     LoadMemberRecords
-
-    mOriginalBodyTemplate = GetTextBoxText(mTxtBody, False)
 
     mFirstVisibleMemberIndex = 1
 
@@ -559,6 +696,24 @@ Private Sub UserForm_Initialize()
         mSelectedMemberIndex = 0
         RenderMemberPage
     End If
+
+    Set highlightLabel = GetLabelByDisplayIndex(1)
+    If Not highlightLabel Is Nothing Then
+        highlightLabel.BorderStyle = fmBorderStyleSingle
+        highlightLabel.BorderColor = vbRed
+    End If
+
+    For labelIndex = 2 To 8
+        Set highlightLabel = GetLabelByDisplayIndex(labelIndex)
+        If highlightLabel Is Nothing Then GoTo NextLabel
+        If Not highlightLabel.Locked Then
+            highlightLabel.BorderStyle = fmBorderStyleNone
+        End If
+NextLabel:
+    Next labelIndex
+
+    ' The first member index represents worksheet row 2 because row 1 stores headers.
+    ' We highlight that row silently so reviewers land on the initial record without prompts.
 
     CenterUserFormOnActiveMonitor Me
 
