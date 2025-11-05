@@ -22,11 +22,6 @@ Public Type EmailTemplate
 End Type
 
 
-Public Type AttachmentItem
-    FileName As String
-    FullPath As String
-End Type
-
 ' NOTE: UDT parameters cannot be passed ByVal in VBA; changed to ByRef to fix compile error.
 Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Dim prefix As String
@@ -42,6 +37,8 @@ Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Debug.Print prefix & " Body='" & tpl.Body & "'"
 End Sub
 
+' NOTE: Collections/Variants cannot safely store UDT instances; AttachmentInfo objects encapsulate attachment metadata.
+' Returns  : Collection of AttachmentInfo objects representing parsed attachments.
 Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As String) As Collection
     Dim attachments As Collection
     Dim fileValues As Collection
@@ -58,7 +55,7 @@ Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As
     Dim pathPart As String
     Dim normalizedPath As String
     Dim separator As String
-    Dim attachment As AttachmentItem
+    Dim attachment As AttachmentInfo
     Dim lastChar As String
 
     Set attachments = New Collection
@@ -98,12 +95,13 @@ Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As
 
         If LenB(fileName) = 0 And LenB(pathPart) = 0 Then GoTo NextPair
 
+        Set attachment = New AttachmentInfo
         attachment.FileName = vbNullString
-        attachment.FullPath = vbNullString
+        attachment.FilePath = vbNullString
         attachment.FileName = fileName
 
         If LenB(pathPart) = 0 Then
-            attachment.FullPath = fileName
+            attachment.FilePath = fileName
         Else
             normalizedPath = pathPart
             Do While LenB(normalizedPath) > 0 And (Right$(normalizedPath, 1) = "\\" Or Right$(normalizedPath, 1) = "/")
@@ -120,18 +118,25 @@ Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As
             Next idxSeparator
 
             If LenB(normalizedPath) = 0 Then
-                attachment.FullPath = fileName
+                attachment.FilePath = fileName
             ElseIf LenB(fileName) = 0 Then
-                attachment.FullPath = normalizedPath
+                attachment.FilePath = normalizedPath
             Else
-                attachment.FullPath = normalizedPath & separator & fileName
+                attachment.FilePath = normalizedPath & separator & fileName
             End If
         End If
 
-        If LenB(attachment.FileName) = 0 And LenB(attachment.FullPath) = 0 Then GoTo NextPair
+        If LenB(attachment.FileName) = 0 And LenB(attachment.FilePath) = 0 Then GoTo NextPair
+
+        If LenB(attachment.FileName) > 0 Then
+            attachment.DisplayName = attachment.FileName
+        Else
+            attachment.DisplayName = attachment.FilePath
+        End If
 
         attachments.Add attachment
 NextPair:
+        Set attachment = Nothing
     Next idx
 
     Set ParseAttachments = attachments
