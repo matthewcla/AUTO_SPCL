@@ -45,7 +45,7 @@ Public Function ReadTemplateByName(ByVal templateName As String) As EmailTemplat
         Exit Function
     End If
 
-    Set ws = GetEmailTemplatesSheet()
+    Set ws = ResolveTemplateWorksheet()
     If ws Is Nothing Then
         Debug.Print "ReadTemplateByName: Email template worksheet not found; using default template."
         ReadTemplateByName = ReadDefaultEmailTemplate()
