@@ -713,6 +713,8 @@ Private Sub UserForm_Initialize()
         RenderMemberPage
     End If
 
+    Debug.Print "[EmailForm] Initialize: set highlightLabel border"
+
     Set highlightLabel = GetLabelByDisplayIndex(1)
     If Not highlightLabel Is Nothing Then
         highlightLabel.BorderStyle = fmBorderStyleSingle
@@ -722,11 +724,11 @@ Private Sub UserForm_Initialize()
     For labelIndex = 2 To 8
         Set highlightLabel = GetLabelByDisplayIndex(labelIndex)
         If highlightLabel Is Nothing Then GoTo NextLabel
-        If Not highlightLabel.Locked Then
-            highlightLabel.BorderStyle = fmBorderStyleNone
-        End If
+        highlightLabel.BorderStyle = fmBorderStyleNone
 NextLabel:
     Next labelIndex
+
+    Debug.Print "[EmailForm] Initialize: highlightLabel border set"
 
     ' The first member index represents worksheet row 2 because row 1 stores headers.
     ' We highlight that row silently so reviewers land on the initial record without prompts.
