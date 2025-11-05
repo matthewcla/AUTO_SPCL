@@ -392,6 +392,7 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
 
     If hasTemplates Then
         mTemplateAvailabilityWarningShown = False
+        Application.StatusBar = False
         Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
                                                                       mUserAttachmentEntries)
         modEmail.UpdateAttachmentRemoveButton mBtnRemoveAttachment, combinedAttachments
@@ -402,8 +403,8 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
         SetTextBoxText mTxtTemplateKey, vbNullString
         mCurrentTemplateKey = vbNullString
         If Not mTemplateAvailabilityWarningShown Then
-            'Ref: Template prompt cleanup - rely on debug output when templates are missing.
-            Debug.Print "[EmailForm] No email templates available; prompting suppressed."
+            Application.StatusBar = "No email templates available. Add template columns on the 'Email Templates' sheet to enable this form."
+            Debug.Print "[EmailForm] No email templates available; user informed via status bar."
             FocusTemplateSelector
             mTemplateAvailabilityWarningShown = True
         End If
