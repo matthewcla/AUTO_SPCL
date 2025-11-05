@@ -73,7 +73,7 @@ Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As
     pathCount = pathValues.Count
 
     pairCount = fileCount
-    If pathCount < pairCount Then pairCount = pathCount
+    If pathCount > pairCount Then pairCount = pathCount
 
     If fileCount <> pathCount Then
         Debug.Print "ParseAttachments: Filename/path count mismatch (" & fileCount & " vs " & pathCount & ")."
