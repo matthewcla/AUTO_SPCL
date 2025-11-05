@@ -39,6 +39,11 @@ Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 Private mTemplateWorksheet As Worksheet
 Private mAttachmentExistsCache As Object
 
+Private Sub EF_DebugPrint(ByVal message As String)
+    If LenB(message) = 0 Then Exit Sub
+    Debug.Print "[EmailTemplates] " & message
+End Sub
+
 Public Type EmailTemplate
     TemplateName As String
     Cc As String
@@ -251,22 +256,43 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     Dim ws As Worksheet
     Dim headerMap As Object
 
+    template.TemplateName = DEFAULT_TEMPLATE_KEY
+
     Set ws = GetEmailTemplatesSheet()
     If ws Is Nothing Then
-        template.TemplateName = DEFAULT_TEMPLATE_KEY
-        Debug.Print "Using blank default (sheet missing)"
+        EF_DebugPrint "ReadDefaultEmailTemplate: Template worksheet unavailable; returning labelled default."
         ReadDefaultEmailTemplate = template
         Exit Function
     End If
 
     Set headerMap = GetEmailTemplateHeaderMap(ws)
+    If headerMap Is Nothing Then
+        EF_DebugPrint "ReadDefaultEmailTemplate: Header map unavailable; returning labelled default."
+        ReadDefaultEmailTemplate = template
+        Exit Function
+    End If
+
+    If ResolveHeaderColumnIndex(headerMap, HDR_TEMPLATE_NAME) = 0 _
+        Or ResolveHeaderColumnIndex(headerMap, HDR_CC) = 0 _
+        Or ResolveHeaderColumnIndex(headerMap, HDR_SUBJECT) = 0 _
+        Or ResolveHeaderColumnIndex(headerMap, HDR_BODY) = 0 Then
+
+        EF_DebugPrint "ReadDefaultEmailTemplate: Required headers missing; returning labelled default."
+        ReadDefaultEmailTemplate = template
+        Exit Function
+    End If
 
     template.TemplateName = ReadDefaultTemplateField(ws, headerMap, HDR_TEMPLATE_NAME, DEFAULT_ROW_INDEX, DEFAULT_TEMPLATE_KEY)
-    template.Cc = ReadDefaultTemplateField(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
-    template.Subject = ReadDefaultTemplateField(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
-    template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+    EF_DebugPrint "ReadDefaultEmailTemplate: TemplateName='" & template.TemplateName & "'"
 
-    ' All default template fields are sourced from row 2 (DEFAULT_ROW_INDEX).
+    template.Cc = ReadDefaultTemplateField(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
+    EF_DebugPrint "ReadDefaultEmailTemplate: CC='" & template.Cc & "'"
+
+    template.Subject = ReadDefaultTemplateField(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
+    EF_DebugPrint "ReadDefaultEmailTemplate: Subject='" & template.Subject & "'"
+
+    template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+    EF_DebugPrint "ReadDefaultEmailTemplate: Body='" & template.Body & "'"
 
     If LenB(template.TemplateName) = 0 Then
         template.TemplateName = DEFAULT_TEMPLATE_KEY
@@ -366,22 +392,48 @@ Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
                                           ByVal headerName As String, _
                                           ByVal fallbackRow As Long, _
                                           Optional ByVal fallback As String = vbNullString) As String
-    Dim resolvedRow As Long
+    Dim rowIndex As Long
     Dim columnIndex As Long
+    Dim valueVariant As Variant
 
-    If ws Is Nothing Then Exit Function
+    rowIndex = fallbackRow
+    If rowIndex <= 0 Then
+        rowIndex = DEFAULT_ROW_INDEX
+    End If
 
-    columnIndex = TEMPLATE_COLUMN_INDEX
-    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then Exit Function
-
-    resolvedRow = ResolveTemplateRowFromMap(headerMap, fallbackRow, headerName)
-    If resolvedRow <= 0 Or resolvedRow > ws.Rows.Count Then
+    If ws Is Nothing Then
+        EF_DebugPrint "ReadDefaultTemplateField: Worksheet missing while reading '" & headerName & "'."
         ReadDefaultTemplateField = fallback
         Exit Function
     End If
 
-    ReadDefaultTemplateField = Trim$(CStrSafe(ws.Cells(resolvedRow, columnIndex).Value))
+    columnIndex = ResolveHeaderColumnIndex(headerMap, headerName)
+    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then
+        EF_DebugPrint "ReadDefaultTemplateField: Column for '" & headerName & "' not found; using fallback '" & fallback & "'."
+        ReadDefaultTemplateField = fallback
+        Exit Function
+    End If
+
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then
+        EF_DebugPrint "ReadDefaultTemplateField: Row " & rowIndex & " invalid for '" & headerName & "'."
+        ReadDefaultTemplateField = fallback
+        Exit Function
+    End If
+
+    valueVariant = ws.Cells(rowIndex, columnIndex).Value
+    If IsError(valueVariant) Then
+        EF_DebugPrint "ReadDefaultTemplateField: Error value encountered for '" & headerName & "' at (" & rowIndex & "," & columnIndex & ")."
+        ReadDefaultTemplateField = fallback
+        Exit Function
+    End If
+
+    ReadDefaultTemplateField = Trim$(CStrSafe(valueVariant))
     If LenB(ReadDefaultTemplateField) = 0 Then
+        If LenB(fallback) > 0 Then
+            EF_DebugPrint "ReadDefaultTemplateField: Blank value for '" & headerName & "'; using fallback '" & fallback & "'."
+        Else
+            EF_DebugPrint "ReadDefaultTemplateField: Blank value for '" & headerName & "'."
+        End If
         ReadDefaultTemplateField = fallback
     End If
 End Function
@@ -402,14 +454,17 @@ End Function
 Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     Dim headerMap As Object
     Dim headerTargets As Variant
-    Dim headerColumn As Range
+    Dim headerRow As Range
+    Dim firstColumn As Range
     Dim cell As Range
+    Dim lastColumn As Long
     Dim lastRow As Long
     Dim headerText As String
     Dim targetName As Variant
-    Dim hasValues As Boolean
+    Dim location As Object
 
-    'Create a late-bound dictionary so no project reference is required.
+    If ws Is Nothing Then Exit Function
+
     Set headerMap = CreateObject("Scripting.Dictionary")
     On Error Resume Next
     headerMap.CompareMode = vbTextCompare
@@ -418,45 +473,146 @@ Public Function GetEmailTemplateHeaderMap(ws As Worksheet) As Object
     headerTargets = Array(HDR_TEMPLATE_NAME, HDR_TO, HDR_CC, HDR_SUBJECT, _
                           HDR_BODY, HDR_ATTACHMENTS)
 
-    If Not ws Is Nothing Then
-        'Limit the scan to column 1 and intersect with the used range to avoid unnecessary rows.
-        On Error Resume Next
-        Set headerColumn = Intersect(ws.Columns(1), ws.UsedRange)
-        On Error GoTo 0
+    On Error Resume Next
+    Set headerRow = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
 
-        If headerColumn Is Nothing Then
-            'If UsedRange is empty, fall back to the last populated row in column 1.
-            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
-            hasValues = Application.WorksheetFunction.CountA(ws.Columns(1)) > 0
-            If hasValues And lastRow >= 1 Then
-                Set headerColumn = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, 1))
-            End If
-        End If
-
-        'Inspect each cell in the header column, matching the required header titles case-insensitively.
-        If Not headerColumn Is Nothing Then
-            For Each cell In headerColumn.Cells
-                headerText = Trim$(CStrSafe(cell.Value))
-                If LenB(headerText) > 0 Then
-                    For Each targetName In headerTargets
-                        If StrComp(headerText, CStr(targetName), vbTextCompare) = 0 Then
-                            headerMap(CStr(targetName)) = cell.Row
-                            Exit For
-                        End If
-                    Next targetName
-                End If
-            Next cell
+    If headerRow Is Nothing Then
+        lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        If lastColumn >= 1 Then
+            Set headerRow = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastColumn))
         End If
     End If
 
-    'Emit debug information for any headers that could not be resolved.
+    If Not headerRow Is Nothing Then
+        For Each cell In headerRow.Cells
+            headerText = Trim$(CStrSafe(cell.Value))
+            If LenB(headerText) > 0 Then
+                For Each targetName In headerTargets
+                    If StrComp(headerText, CStr(targetName), vbTextCompare) = 0 Then
+                        Set location = EnsureHeaderLocation(headerMap, CStr(targetName))
+                        If Not location.Exists("Column") Then
+                            location("Column") = cell.Column
+                        End If
+                        Exit For
+                    End If
+                Next targetName
+            End If
+        Next cell
+    End If
+
+    On Error Resume Next
+    Set firstColumn = Intersect(ws.Columns(1), ws.UsedRange)
+    On Error GoTo 0
+
+    If firstColumn Is Nothing Then
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        If lastRow >= 1 Then
+            Set firstColumn = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, 1))
+        End If
+    End If
+
+    If Not firstColumn Is Nothing Then
+        For Each cell In firstColumn.Cells
+            headerText = Trim$(CStrSafe(cell.Value))
+            If LenB(headerText) > 0 Then
+                For Each targetName In headerTargets
+                    If StrComp(headerText, CStr(targetName), vbTextCompare) = 0 Then
+                        Set location = EnsureHeaderLocation(headerMap, CStr(targetName))
+                        If Not location.Exists("Row") Then
+                            location("Row") = cell.Row
+                        End If
+                        Exit For
+                    End If
+                Next targetName
+            End If
+        Next cell
+    End If
+
     For Each targetName In headerTargets
         If Not headerMap.Exists(CStr(targetName)) Then
-            Debug.Print "Missing header: " & CStr(targetName)
+            EF_DebugPrint "GetEmailTemplateHeaderMap: Missing header '" & CStr(targetName) & "'."
+        Else
+            If IsObject(headerMap(CStr(targetName))) Then
+                Set location = headerMap(CStr(targetName))
+                If Not location.Exists("Column") Then
+                    EF_DebugPrint "GetEmailTemplateHeaderMap: Column for header '" & CStr(targetName) & "' not found."
+                End If
+            Else
+                EF_DebugPrint "GetEmailTemplateHeaderMap: Unexpected header map value for '" & CStr(targetName) & "'."
+            End If
         End If
     Next targetName
 
     Set GetEmailTemplateHeaderMap = headerMap
+End Function
+
+Private Function EnsureHeaderLocation(ByVal headerMap As Object, ByVal headerName As String) As Object
+    Dim location As Object
+
+    If Not headerMap Is Nothing Then
+        If headerMap.Exists(headerName) Then
+            If IsObject(headerMap(headerName)) Then
+                Set location = headerMap(headerName)
+            End If
+        End If
+    End If
+
+    If location Is Nothing Then
+        Set location = CreateObject("Scripting.Dictionary")
+        On Error Resume Next
+        location.CompareMode = vbTextCompare
+        On Error GoTo 0
+        Set headerMap(headerName) = location
+    End If
+
+    Set EnsureHeaderLocation = location
+End Function
+
+Private Function ResolveHeaderColumnIndex(ByVal headerMap As Object, ByVal headerName As String) As Long
+    Dim entry As Variant
+    Dim location As Object
+    Dim key As Variant
+    Dim normalizedTarget As String
+
+    If headerMap Is Nothing Then Exit Function
+
+    If headerMap.Exists(headerName) Then
+        entry = headerMap(headerName)
+        If IsObject(entry) Then
+            Set location = entry
+            If location.Exists("Column") Then
+                If IsNumeric(location("Column")) Then
+                    ResolveHeaderColumnIndex = CLng(location("Column"))
+                    Exit Function
+                End If
+            End If
+        ElseIf IsNumeric(entry) Then
+            ResolveHeaderColumnIndex = CLng(entry)
+            Exit Function
+        End If
+    End If
+
+    normalizedTarget = NormalizeHeaderKey(headerName)
+    If LenB(normalizedTarget) = 0 Then Exit Function
+
+    For Each key In headerMap.Keys
+        entry = headerMap(key)
+        If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
+            If IsObject(entry) Then
+                Set location = entry
+                If location.Exists("Column") Then
+                    If IsNumeric(location("Column")) Then
+                        ResolveHeaderColumnIndex = CLng(location("Column"))
+                        Exit Function
+                    End If
+                End If
+            ElseIf IsNumeric(entry) Then
+                ResolveHeaderColumnIndex = CLng(entry)
+                Exit Function
+            End If
+        End If
+    Next key
 End Function
 
 Private Function NormalizeHeaderKey(ByVal value As String) As String
@@ -476,24 +632,49 @@ Private Function ResolveTemplateRowFromMap(ByVal headerMap As Object, _
     Dim candidate As Variant
     Dim key As Variant
     Dim normalizedTarget As String
+    Dim location As Object
 
     resolvedRow = fallbackRow
 
     If Not headerMap Is Nothing Then
         If LenB(headerName) > 0 Then
             If headerMap.Exists(CStr(headerName)) Then
-                candidate = headerMap(CStr(headerName))
-                If IsNumeric(candidate) Then
-                    resolvedRow = CLng(candidate)
+                If IsObject(headerMap(CStr(headerName))) Then
+                    Set location = headerMap(CStr(headerName))
+                    If Not location Is Nothing Then
+                        If location.Exists("Row") Then
+                            candidate = location("Row")
+                            If IsNumeric(candidate) Then
+                                resolvedRow = CLng(candidate)
+                            End If
+                        End If
+                    End If
+                Else
+                    candidate = headerMap(CStr(headerName))
+                    If IsNumeric(candidate) Then
+                        resolvedRow = CLng(candidate)
+                    End If
                 End If
             Else
                 normalizedTarget = NormalizeHeaderKey(CStr(headerName))
                 If LenB(normalizedTarget) > 0 Then
                     For Each key In headerMap.Keys
                         If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
-                            candidate = headerMap(CStr(key))
-                            If IsNumeric(candidate) Then
-                                resolvedRow = CLng(candidate)
+                            If IsObject(headerMap(CStr(key))) Then
+                                Set location = headerMap(CStr(key))
+                                If Not location Is Nothing Then
+                                    If location.Exists("Row") Then
+                                        candidate = location("Row")
+                                        If IsNumeric(candidate) Then
+                                            resolvedRow = CLng(candidate)
+                                        End If
+                                    End If
+                                End If
+                            Else
+                                candidate = headerMap(CStr(key))
+                                If IsNumeric(candidate) Then
+                                    resolvedRow = CLng(candidate)
+                                End If
                             End If
                             Exit For
                         End If
