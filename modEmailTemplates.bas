@@ -920,13 +920,12 @@ End Function
 '-------------------------------------------------------------------------------
 Public Function GetAvailableTemplateKeys() As Collection
     Dim ws As Worksheet
-    Dim headerMap As Object
     Dim keys As Collection
-    Dim templateColumn As Long
-    Dim startRow As Long
-    Dim lastRow As Long
-    Dim rowIndex As Long
-    Dim templateName As String
+    Dim searchRange As Range
+    Dim cell As Range
+    Dim headerValue As String
+    Dim lastColumn As Long
+    Dim seen As Object
 
     Set keys = New Collection
 
@@ -936,43 +935,49 @@ Public Function GetAvailableTemplateKeys() As Collection
         GoTo EnsureDefault
     End If
 
-    Set headerMap = GetEmailTemplateHeaderMap(ws)
-    If headerMap Is Nothing Then
-        Debug.Print "GetAvailableTemplateKeys: Header map unavailable."
-        GoTo EnsureDefault
-    End If
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
 
-    If Not headerMap.Exists(HDR_TEMPLATE_NAME) Then
-        Debug.Print "GetAvailableTemplateKeys: '" & HDR_TEMPLATE_NAME & "' header missing."
-        GoTo EnsureDefault
-    End If
-
-    templateColumn = TEMPLATE_COLUMN_INDEX
-    If templateColumn < 1 Or templateColumn > ws.Columns.Count Then
-        Debug.Print "GetAvailableTemplateKeys: Template name column index out of range (" & templateColumn & ")."
-        GoTo EnsureDefault
-    End If
-
-    startRow = ResolveTemplateRowFromMap(headerMap, DEFAULT_ROW_INDEX, HDR_TEMPLATE_NAME)
-    If startRow < DEFAULT_ROW_INDEX Then
-        startRow = DEFAULT_ROW_INDEX
-    ElseIf startRow > ws.Rows.Count Then
-        Debug.Print "GetAvailableTemplateKeys: Resolved template name row exceeds worksheet bounds."
-        GoTo EnsureDefault
-    End If
-
-    lastRow = ws.Cells(ws.Rows.Count, templateColumn).End(xlUp).Row
-    If lastRow < startRow Then
-        Debug.Print "GetAvailableTemplateKeys: Template name column contains no entries."
-        GoTo EnsureDefault
-    End If
-
-    For rowIndex = startRow To lastRow
-        templateName = Trim$(CStrSafe(ws.Cells(rowIndex, templateColumn).Value))
-        If LenB(templateName) > 0 Then
-            keys.Add templateName
+    If searchRange Is Nothing Then
+        lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        If lastColumn < TEMPLATE_COLUMN_INDEX Then
+            lastColumn = TEMPLATE_COLUMN_INDEX
         End If
-    Next rowIndex
+
+        If lastColumn >= 1 Then
+            Set searchRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastColumn))
+        End If
+    End If
+
+    If searchRange Is Nothing Then
+        Debug.Print "GetAvailableTemplateKeys: Header row not available."
+        GoTo EnsureDefault
+    End If
+
+    On Error Resume Next
+    Set seen = CreateObject("Scripting.Dictionary")
+    If Err.Number = 0 Then
+        seen.CompareMode = vbTextCompare
+    Else
+        Set seen = Nothing
+        Err.Clear
+    End If
+    On Error GoTo 0
+
+    For Each cell In searchRange.Cells
+        If cell.Column >= 2 Then
+            headerValue = Trim$(CStrSafe(cell.Value))
+            If LenB(headerValue) > 0 Then
+                If seen Is Nothing Then
+                    keys.Add headerValue
+                ElseIf Not seen.Exists(headerValue) Then
+                    keys.Add headerValue
+                    seen.Add headerValue, True
+                End If
+            End If
+        End If
+    Next cell
 
 EnsureDefault:
     If keys.Count = 0 Then
