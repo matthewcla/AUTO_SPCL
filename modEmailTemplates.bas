@@ -34,10 +34,9 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     Dim ws As Worksheet
     Dim headerMap As Object
 
-    template.TemplateName = DEFAULT_TEMPLATE_KEY
-
     Set ws = GetEmailTemplatesSheet()
     If ws Is Nothing Then
+        template.TemplateName = DEFAULT_TEMPLATE_KEY
         Debug.Print "Using blank default (sheet missing)"
         ReadDefaultEmailTemplate = template
         Exit Function
@@ -45,12 +44,12 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
 
     Set headerMap = GetEmailTemplateHeaderMap(ws)
 
-    template.TemplateName = ReadDefaultTemplateValue(ws, headerMap, HDR_TEMPLATE_NAME, DEFAULT_ROW_INDEX, DEFAULT_TEMPLATE_KEY)
-    template.Cc = ReadDefaultTemplateValue(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
-    template.Subject = ReadDefaultTemplateValue(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
-    template.Body = ReadDefaultTemplateValue(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
-    template.AttachmentFilenames = ReadDefaultTemplateValue(ws, headerMap, HDR_ATTACHMENT_FILENAMES, DEFAULT_ROW_INDEX)
-    template.AttachmentPaths = ReadDefaultTemplateValue(ws, headerMap, HDR_ATTACHMENT_PATHS, DEFAULT_ROW_INDEX)
+    template.TemplateName = ReadDefaultTemplateField(ws, headerMap, HDR_TEMPLATE_NAME, DEFAULT_ROW_INDEX, DEFAULT_TEMPLATE_KEY)
+    template.Cc = ReadDefaultTemplateField(ws, headerMap, HDR_CC, DEFAULT_ROW_INDEX)
+    template.Subject = ReadDefaultTemplateField(ws, headerMap, HDR_SUBJECT, DEFAULT_ROW_INDEX)
+    template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+    template.AttachmentFilenames = ReadDefaultTemplateField(ws, headerMap, HDR_ATTACHMENT_FILENAMES, DEFAULT_ROW_INDEX)
+    template.AttachmentPaths = ReadDefaultTemplateField(ws, headerMap, HDR_ATTACHMENT_PATHS, DEFAULT_ROW_INDEX)
 
     If LenB(template.TemplateName) = 0 Then
         template.TemplateName = DEFAULT_TEMPLATE_KEY
@@ -59,63 +58,119 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     ReadDefaultEmailTemplate = template
 End Function
 
-Private Function ReadDefaultTemplateValue(ByVal ws As Worksheet, _
+Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
                                           ByVal headerMap As Object, _
                                           ByVal headerName As String, _
-                                          ByVal fallbackRowIndex As Long, _
+                                          ByVal rowIndex As Long, _
                                           Optional ByVal fallback As String = vbNullString) As String
-    Dim resolvedRow As Long
-    Dim candidate As Variant
-    Dim key As Variant
-    Dim normalizedTarget As String
-    Dim hasHeader As Boolean
-    Const TEMPLATE_COLUMN_INDEX_LOCAL As Long = TEMPLATE_COLUMN_INDEX
+    Dim columnIndex As Long
 
     If ws Is Nothing Then Exit Function
-    If fallbackRowIndex <= 0 Then Exit Function
+    If rowIndex <= 0 Or rowIndex > ws.Rows.Count Then Exit Function
 
-    resolvedRow = fallbackRowIndex
-    If Not headerMap Is Nothing Then
-        If headerMap.Exists(CStr(headerName)) Then
-            candidate = headerMap(CStr(headerName))
-            If IsNumeric(candidate) Then
-                resolvedRow = CLng(candidate)
-            End If
-            hasHeader = True
-        Else
-            normalizedTarget = NormalizeHeaderKey(CStr(headerName))
-            If LenB(normalizedTarget) > 0 Then
-                For Each key In headerMap.Keys
-                    If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
-                        candidate = headerMap(CStr(key))
-                        If IsNumeric(candidate) Then
-                            resolvedRow = CLng(candidate)
-                        End If
-                        hasHeader = True
-                        Exit For
-                    End If
-                Next key
-            End If
-        End If
-    End If
-
-    If resolvedRow <= 0 Or resolvedRow > ws.Rows.Count Then
-        resolvedRow = fallbackRowIndex
-    End If
-
-    If TEMPLATE_COLUMN_INDEX_LOCAL < 1 Or TEMPLATE_COLUMN_INDEX_LOCAL > ws.Columns.Count Then
-        ReadDefaultTemplateValue = fallback
+    columnIndex = ResolveDefaultTemplateColumn(ws, headerMap, headerName)
+    If columnIndex = 0 Then
+        Debug.Print "Missing header: " & CStr(headerName)
+        ReadDefaultTemplateField = fallback
         Exit Function
     End If
 
-    ReadDefaultTemplateValue = Trim$(CStrSafe(ws.Cells(resolvedRow, TEMPLATE_COLUMN_INDEX_LOCAL).Value))
-    If LenB(ReadDefaultTemplateValue) = 0 Then
-        ReadDefaultTemplateValue = fallback
+    ReadDefaultTemplateField = Trim$(CStrSafe(ws.Cells(rowIndex, columnIndex).Value))
+    If LenB(ReadDefaultTemplateField) = 0 Then
+        ReadDefaultTemplateField = fallback
+    End If
+End Function
+
+Private Function ResolveDefaultTemplateColumn(ByVal ws As Worksheet, _
+                                              ByVal headerMap As Object, _
+                                              ByVal headerName As String) As Long
+    Dim columnIndex As Long
+    Dim candidate As Variant
+    Dim key As Variant
+
+    If ws Is Nothing Then Exit Function
+    If LenB(headerName) = 0 Then Exit Function
+
+    If Not headerMap Is Nothing Then
+        If headerMap.Exists(CStr(headerName)) Then
+            candidate = headerMap(CStr(headerName))
+            columnIndex = ResolveColumnCandidate(ws, headerName, candidate)
+            If columnIndex <> 0 Then
+                ResolveDefaultTemplateColumn = columnIndex
+                Exit Function
+            End If
+        End If
+
+        For Each key In headerMap.Keys
+            If StrComp(CStr(key), CStr(headerName), vbTextCompare) = 0 Then
+                candidate = headerMap(CStr(key))
+                columnIndex = ResolveColumnCandidate(ws, headerName, candidate)
+                If columnIndex <> 0 Then
+                    ResolveDefaultTemplateColumn = columnIndex
+                    Exit Function
+                End If
+            End If
+        Next key
     End If
 
-    If Not hasHeader Then
-        Debug.Print "Missing header: " & CStr(headerName)
+    ResolveDefaultTemplateColumn = FindHeaderColumn(ws, headerName)
+End Function
+
+Private Function ResolveColumnCandidate(ByVal ws As Worksheet, _
+                                        ByVal headerName As String, _
+                                        ByVal candidate As Variant) As Long
+    Dim columnIndex As Long
+    Dim columnLetter As String
+
+    If ws Is Nothing Then Exit Function
+
+    If IsNumeric(candidate) Then
+        columnIndex = CLng(candidate)
+    ElseIf VarType(candidate) = vbString Then
+        columnLetter = Trim$(CStr(candidate))
+        If LenB(columnLetter) > 0 Then
+            On Error Resume Next
+            columnIndex = ws.Columns(columnLetter).Column
+            On Error GoTo 0
+        End If
     End If
+
+    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then
+        columnIndex = 0
+    End If
+
+    If columnIndex <> 0 Then
+        If StrComp(Trim$(CStrSafe(ws.Cells(1, columnIndex).Value)), CStr(headerName), vbTextCompare) <> 0 Then
+            columnIndex = 0
+        End If
+    End If
+
+    ResolveColumnCandidate = columnIndex
+End Function
+
+Private Function FindHeaderColumn(ByVal ws As Worksheet, ByVal headerName As String) As Long
+    Dim lastColumn As Long
+    Dim headerRow As Range
+    Dim cell As Range
+    Dim headerText As String
+
+    If ws Is Nothing Then Exit Function
+    If LenB(headerName) = 0 Then Exit Function
+
+    lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    If lastColumn < 1 Then Exit Function
+
+    Set headerRow = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastColumn))
+
+    For Each cell In headerRow.Cells
+        headerText = Trim$(CStrSafe(cell.Value))
+        If LenB(headerText) > 0 Then
+            If StrComp(headerText, CStr(headerName), vbTextCompare) = 0 Then
+                FindHeaderColumn = cell.Column
+                Exit Function
+            End If
+        End If
+    Next cell
 End Function
 
 Private Const EMAIL_ROW_TO As Long = 3
