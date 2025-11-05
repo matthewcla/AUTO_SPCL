@@ -1,17 +1,3 @@
-VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} EmailForm 
-   ClientHeight    =   11760
-   ClientLeft      =   120
-   ClientTop       =   465
-   ClientWidth     =   14355
-   OleObjectBlob   =   "EmailForm.frx":0000
-   StartUpPosition =   1  'CenterOwner
-End
-Attribute VB_Name = "EmailForm"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
-Attribute VB_Exposed = False
 Option Explicit
 '------------------------------------------
 ' AUTO_SPCL Refactor Update:
@@ -40,16 +26,16 @@ Private mTemplateAttachmentLookup As Object
 Private mUserAttachmentEntries As Collection
 Private mUserAttachmentLookup As Object
 Private mCurrentTemplateKey As String
-Private mActiveHoverLabel As MSForms.Label
+Private mActiveHoverLabel As MSForms.label
 
-Private mTxttpl As MSForms.TextBox
-Private mTxtto As MSForms.TextBox
+Private mtxtTEMP As MSForms.TextBox
+Private mtxtTO As MSForms.TextBox
 Private mTxtcc As MSForms.TextBox
 Private mTxtsubj As MSForms.TextBox
 Private mTxtbody As MSForms.TextBox
-Private mLstAT As MSForms.ListBox
-Private mCmdATadd As MSForms.CommandButton
-Private mCmdATrm As MSForms.CommandButton
+Private mLstAT As MSForms.listBox
+Private mbADD As MSForms.CommandButton
+Private mbSUB As MSForms.CommandButton
 
 Private mTemplateFieldWarningsShown As Object
 Private mTemplateAvailabilityWarningShown As Boolean
@@ -70,61 +56,61 @@ Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
 Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
 Private Sub InitializeControlReferences()
-    Set mTxttpl = TryGetTextBox("txttpl")
-    Set mTxtto = TryGetTextBox("txtto")
+    Set mtxtTEMP = TryGetTextBox("txtTEMP")
+    Set mtxtTO = TryGetTextBox("txtTO")
     Set mTxtcc = TryGetTextBox("txtcc")
     Set mTxtsubj = TryGetTextBox("txtsubj")
     Set mTxtbody = TryGetTextBox("txtbody")
     Set mLstAT = TryGetListBox("lstAT")
-    Set mCmdATadd = TryGetButton("cmdATadd")
-    Set mCmdATrm = TryGetButton("cmdATrm")
+    Set mbADD = TryGetButton("bADD")
+    Set mbSUB = TryGetButton("bSUB")
 End Sub
 
-Private Function TryGetControl(ByVal controlName As String) As MSForms.Control
-    Dim ctrl As MSForms.Control
+Private Function TryGetControl(ByVal controlName As String) As MSForms.control
+    Dim ctrl As MSForms.control
 
     On Error Resume Next
-    Set ctrl = Me.Controls(controlName)
+    Set ctrl = Me.controls(controlName)
     On Error GoTo 0
 
     Set TryGetControl = ctrl
 End Function
 
 Private Function TryGetTextBox(ByVal controlName As String) As MSForms.TextBox
-    Dim ctrl As MSForms.Control
+    Dim ctrl As MSForms.control
 
     Set ctrl = TryGetControl(controlName)
     If ctrl Is Nothing Then Exit Function
     If TypeOf ctrl Is MSForms.TextBox Then Set TryGetTextBox = ctrl
 End Function
 
-Private Function TryGetListBox(ByVal controlName As String) As MSForms.ListBox
-    Dim ctrl As MSForms.Control
+Private Function TryGetListBox(ByVal controlName As String) As MSForms.listBox
+    Dim ctrl As MSForms.control
 
     Set ctrl = TryGetControl(controlName)
     If ctrl Is Nothing Then Exit Function
-    If TypeOf ctrl Is MSForms.ListBox Then Set TryGetListBox = ctrl
+    If TypeOf ctrl Is MSForms.listBox Then Set TryGetListBox = ctrl
 End Function
 
 Private Function TryGetButton(ByVal controlName As String) As MSForms.CommandButton
-    Dim ctrl As MSForms.Control
+    Dim ctrl As MSForms.control
 
     Set ctrl = TryGetControl(controlName)
     If ctrl Is Nothing Then Exit Function
     If TypeOf ctrl Is MSForms.CommandButton Then Set TryGetButton = ctrl
 End Function
 
-Private Function TryGetLabel(ByVal controlName As String) As MSForms.Label
-    Dim ctrl As MSForms.Control
+Private Function TryGetLabel(ByVal controlName As String) As MSForms.label
+    Dim ctrl As MSForms.control
 
     Set ctrl = TryGetControl(controlName)
     If ctrl Is Nothing Then Exit Function
-    If TypeOf ctrl Is MSForms.Label Then Set TryGetLabel = ctrl
+    If TypeOf ctrl Is MSForms.label Then Set TryGetLabel = ctrl
 End Function
 
 Private Sub FocusTemplateSelector()
-    If Not mTxttpl Is Nothing Then
-        modUIHelpers.FocusControl mTxttpl
+    If Not mtxtTEMP Is Nothing Then
+        modUIHelpers.FocusControl mtxtTEMP
     Else
         modUIHelpers.EnsureFormFocus Me
     End If
@@ -139,14 +125,14 @@ Private Sub FocusAttachmentList()
 End Sub
 
 Private Sub FocusComposerField()
-    If Not mTxtto Is Nothing Then
-        modUIHelpers.FocusControl mTxtto
+    If Not mtxtTO Is Nothing Then
+        modUIHelpers.FocusControl mtxtTO
     Else
         modUIHelpers.EnsureFormFocus Me
     End If
 End Sub
 
-Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.Label
+Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.label
     Dim labelName As String
 
     labelName = "lblL" & CStr(displayIndex)
@@ -154,7 +140,7 @@ Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.L
 End Function
 
 Private Sub HandleLabelMouseMoveByIndex(ByVal displayIndex As Long)
-    Dim target As MSForms.Label
+    Dim target As MSForms.label
 
     Set target = GetLabelByDisplayIndex(displayIndex)
     If target Is Nothing Then Exit Sub
@@ -176,14 +162,14 @@ Private Function EnsureRequiredControls() As Boolean
 
     Set missing = New Collection
 
-    If mTxttpl Is Nothing Then missing.Add "txttpl (TextBox)"
-    If mTxtto Is Nothing Then missing.Add "txtto (TextBox)"
+    If mtxtTEMP Is Nothing Then missing.Add "txtTEMP (TextBox)"
+    If mtxtTO Is Nothing Then missing.Add "txtTO (TextBox)"
     If mTxtcc Is Nothing Then missing.Add "txtcc (TextBox)"
     If mTxtsubj Is Nothing Then missing.Add "txtsubj (TextBox)"
     If mTxtbody Is Nothing Then missing.Add "txtbody (TextBox)"
     If mLstAT Is Nothing Then missing.Add "lstAT (ListBox)"
-    If mCmdATadd Is Nothing Then missing.Add "cmdATadd (CommandButton)"
-    If mCmdATrm Is Nothing Then missing.Add "cmdATrm (CommandButton)"
+    If mbADD Is Nothing Then missing.Add "bADD (CommandButton)"
+    If mbSUB Is Nothing Then missing.Add "bSUB (CommandButton)"
 
     EnsureRequiredControls = missing.Count = 0
 
@@ -224,15 +210,15 @@ Private Function GetTextBoxText(ByVal target As MSForms.TextBox, Optional ByVal 
     If target Is Nothing Then Exit Function
 
     If trimResult Then
-        GetTextBoxText = Trim$(CStr(target.Value))
+        GetTextBoxText = Trim$(CStr(target.value))
     Else
-        GetTextBoxText = CStr(target.Value)
+        GetTextBoxText = CStr(target.value)
     End If
 End Function
 
 Private Sub SetTextBoxText(ByVal target As MSForms.TextBox, ByVal value As String)
     If target Is Nothing Then Exit Sub
-    target.Value = value
+    target.value = value
 End Sub
 
 Private Sub EnsureTemplateWarningCache()
@@ -260,7 +246,7 @@ End Function
 Private Function ResolveInitialTemplateKey(Optional ByVal templateKeys As Collection) As String
     Dim candidate As String
 
-    candidate = GetTextBoxText(mTxttpl)
+    candidate = GetTextBoxText(mtxtTEMP)
 
     If LenB(candidate) = 0 Then
         candidate = GetFirstTemplateKey(templateKeys)
@@ -320,11 +306,11 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     normalizedKey = Trim$(templateKey)
 
     If LenB(normalizedKey) = 0 Then
-        modEmail.ClearEmailFields mTxtto, mTxtcc, mTxtsubj, mTxtbody, _
-                                  mLstAT, mCmdATrm
+        modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
+                                  mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
         mCurrentTemplateKey = vbNullString
-        SetTextBoxText mTxttpl, vbNullString
+        SetTextBoxText mtxtTEMP, vbNullString
         TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString, 0
         GoTo CleanExit
     End If
@@ -340,7 +326,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     requestedTemplateKey = normalizedKey
     resolvedTemplateKey = vbNullString
     loadSucceeded = LoadEmailTemplateIntoControls(normalizedKey, _
-                                                  mTxtto, mTxtcc, mLstAT, _
+                                                  mtxtTO, mTxtcc, mLstAT, _
                                                   mTxtsubj, mTxtbody, _
                                                   resolvedTemplateKey)
 
@@ -355,7 +341,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
         End If
     End If
 
-    toValue = GetTextBoxText(mTxtto, False)
+    toValue = GetTextBoxText(mtxtTO, False)
     ccValue = GetTextBoxText(mTxtcc, False)
     subjectValue = GetTextBoxText(mTxtsubj, False)
     bodyValue = GetTextBoxText(mTxtbody, False)
@@ -366,18 +352,18 @@ Private Sub LoadTemplate(ByVal templateKey As String)
 
     If Not loadSucceeded Then
         ShowTemplateLoadFailure requestedTemplateKey
-        modEmail.ClearEmailFields mTxtto, mTxtcc, mTxtsubj, mTxtbody, _
-                                  mLstAT, mCmdATrm
+        modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
+                                  mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
         mCurrentTemplateKey = vbNullString
-        SetTextBoxText mTxttpl, vbNullString
+        SetTextBoxText mtxtTEMP, vbNullString
         GoTo CleanExit
     End If
 
     InitializeAttachmentTracking normalizedKey
     mOriginalBodyTemplate = GetTextBoxText(mTxtbody, False)
     mCurrentTemplateKey = normalizedKey
-    SetTextBoxText mTxttpl, normalizedKey
+    SetTextBoxText mtxtTEMP, normalizedKey
 
     If fallbackUsed Then
         Debug.Print "[EmailForm] Template '" & requestedTemplateKey & "' not found. Loaded '" & normalizedKey & "' instead."
@@ -413,21 +399,21 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
 
     hasTemplates = CollectionHasItems(templateKeys)
 
-    modUIHelpers.SetControlsEnabled Array(mTxtto, mTxtcc, mTxtsubj, _
+    modUIHelpers.SetControlsEnabled Array(mtxtTO, mTxtcc, mTxtsubj, _
                                           mTxtbody, mLstAT, _
-                                          mCmdATadd), hasTemplates
+                                          mbADD), hasTemplates
 
     If hasTemplates Then
         mTemplateAvailabilityWarningShown = False
         Application.StatusBar = False
         Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
                                                                       mUserAttachmentEntries)
-        modEmail.UpdateAttachmentRemoveButton mCmdATrm, combinedAttachments
+        modEmail.UpdateAttachmentRemoveButton mbSUB, combinedAttachments
     Else
-        modEmail.ClearEmailFields mTxtto, mTxtcc, mTxtsubj, mTxtbody, _
-                                  mLstAT, mCmdATrm
+        modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
+                                  mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
-        SetTextBoxText mTxttpl, vbNullString
+        SetTextBoxText mtxtTEMP, vbNullString
         mCurrentTemplateKey = vbNullString
         If Not mTemplateAvailabilityWarningShown Then
             Application.StatusBar = "No email templates available. Add template columns on the 'Email Templates' sheet to enable this form."
@@ -453,7 +439,7 @@ End Function
 Private Function ResolveActiveTemplateKey(Optional ByVal includeCurrent As Boolean = True) As String
     Dim templateKey As String
 
-    templateKey = GetTextBoxText(mTxttpl)
+    templateKey = GetTextBoxText(mtxtTEMP)
 
     If LenB(templateKey) = 0 And includeCurrent Then
         templateKey = Trim$(mCurrentTemplateKey)
@@ -462,8 +448,8 @@ Private Function ResolveActiveTemplateKey(Optional ByVal includeCurrent As Boole
     ResolveActiveTemplateKey = templateKey
 End Function
 
-Public Function ActiveTemplateKey(Optional ByVal includeCurrent As Boolean = True) As String
-    ActiveTemplateKey = ResolveActiveTemplateKey(includeCurrent)
+Public Function activeTemplateKey(Optional ByVal includeCurrent As Boolean = True) As String
+    activeTemplateKey = ResolveActiveTemplateKey(includeCurrent)
 End Function
 
 Private Sub TraceTemplateSelection(ByVal templateKey As String, _
@@ -490,7 +476,7 @@ Private Sub TraceEmailFieldState(ByVal stage As String, ByVal templateKey As Str
 
     If Not ENABLE_TEMPLATE_TRACE Then Exit Sub
 
-    toValue = GetTextBoxText(mTxtto, False)
+    toValue = GetTextBoxText(mtxtTO, False)
     ccValue = GetTextBoxText(mTxtcc, False)
     subjectValue = GetTextBoxText(mTxtsubj, False)
     bodyValue = GetTextBoxText(mTxtbody, False)
@@ -513,13 +499,13 @@ Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
     Dim subjectValue As String
     Dim bodyValue As String
 
-    toValue = GetTextBoxText(mTxtto)
+    toValue = GetTextBoxText(mtxtTO)
     subjectValue = GetTextBoxText(mTxtsubj)
     bodyValue = GetTextBoxText(mTxtbody, False)
 
     If LenB(toValue) = 0 Then
         warnings.Add "To"
-        SetTextBoxText mTxtto, "<enter recipients>"
+        SetTextBoxText mtxtTO, "<enter recipients>"
     End If
 
     If LenB(subjectValue) = 0 Then
@@ -580,7 +566,7 @@ Private Sub UserForm_Initialize()
     Dim listIndex As Long
     Dim attachmentCount As Long
     Dim combinedAttachments As Collection
-    Dim highlightLabel As MSForms.Label
+    Dim highlightLabel As MSForms.label
     Dim labelIndex As Long
 
     InitializeControlReferences
@@ -589,8 +575,8 @@ Private Sub UserForm_Initialize()
 
     mTitleBarHidden = False
 
-    If Not mCmdATrm Is Nothing Then
-        mCmdATrm.Visible = False
+    If Not mbSUB Is Nothing Then
+        mbSUB.Visible = False
     End If
 
     If Not EnsureRequiredControls() Then
@@ -610,7 +596,7 @@ Private Sub UserForm_Initialize()
         resolvedTemplateKey = Trim$(templateKey)
     Else
         tpl = modEmailTemplates.ReadDefaultEmailTemplate()
-        resolvedTemplateKey = Trim$(tpl.TemplateName)
+        resolvedTemplateKey = Trim$(tpl.templateName)
         If LenB(requestedTemplateKey) > 0 Then
             Debug.Print "UserForm_Initialize: Template '" & requestedTemplateKey & _
                         "' not found. Using default template '" & resolvedTemplateKey & "'."
@@ -618,7 +604,7 @@ Private Sub UserForm_Initialize()
     End If
 
     If LenB(resolvedTemplateKey) = 0 Then
-        resolvedTemplateKey = Trim$(tpl.TemplateName)
+        resolvedTemplateKey = Trim$(tpl.templateName)
     End If
 
     modEmailTemplates.DebugPrintTemplate "EmailForm.Initialize [" & resolvedTemplateKey & "]", tpl
@@ -629,7 +615,7 @@ Private Sub UserForm_Initialize()
 
     mOriginalBodyTemplate = tpl.Body
     mCurrentTemplateKey = resolvedTemplateKey
-    SetTextBoxText mTxttpl, resolvedTemplateKey
+    SetTextBoxText mtxtTEMP, resolvedTemplateKey
 
     'Ref: Template field cleanup - load serialized attachments directly from template entries.
     Set templateEntries = modEmailTemplates.GetTemplateAttachmentEntriesForKey(resolvedTemplateKey)
@@ -700,7 +686,7 @@ Private Sub UserForm_Initialize()
 
     Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
                                                                  mUserAttachmentEntries)
-    modEmail.UpdateAttachmentRemoveButton mCmdATrm, combinedAttachments
+    modEmail.UpdateAttachmentRemoveButton mbSUB, combinedAttachments
 
     attachmentCount = 0
     If Not combinedAttachments Is Nothing Then
@@ -782,10 +768,6 @@ End Sub
 
 Private Sub UserForm_Activate()
     modUIHelpers.HideUserFormTitleBar Me, mTitleBarHidden, "email"
-End Sub
-
-Private Sub UserForm_Click()
-
 End Sub
 
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -872,9 +854,9 @@ End Sub
 Private Sub RenderMemberPage()
     Dim slotIndex As Long
     Dim memberIndex As Long
-    Dim nameLabel As MSForms.Label
-    Dim ssnLabel As MSForms.Label
-    Dim statusLabel As MSForms.Label
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim statusLabel As MSForms.label
 
     ClearActiveHoverLabel
 
@@ -905,18 +887,18 @@ Private Sub RenderMemberPage()
     Next slotIndex
 End Sub
 
-Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As MSForms.Label
-    Dim ctrl As MSForms.Control
+Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As MSForms.label
+    Dim ctrl As MSForms.control
     Dim controlName As String
 
     controlName = prefix & CStr(index)
 
     On Error Resume Next
-    Set ctrl = Me.Controls(controlName)
+    Set ctrl = Me.controls(controlName)
     On Error GoTo 0
 
     If ctrl Is Nothing Then Exit Function
-    If Not TypeOf ctrl Is MSForms.Label Then Exit Function
+    If Not TypeOf ctrl Is MSForms.label Then Exit Function
 
     Set GetLabelControl = ctrl
 End Function
@@ -1029,7 +1011,7 @@ Private Sub SetMemberStatus(ByVal memberIndex As Long, ByVal statusText As Strin
                              Optional ByVal updateUI As Boolean = True)
     Dim normalized As String
     Dim displayIndex As Long
-    Dim statusLabel As MSForms.Label
+    Dim statusLabel As MSForms.label
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Sub
 
@@ -1176,9 +1158,9 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     AddPlaceholderValue placeholders, "BR", vbCrLf
     AddPlaceholderValue placeholders, "TAB", vbTab
 
-    Dim ctrl As MSForms.Control
-    For Each ctrl In Me.Controls
-        If TypeOf ctrl Is MSForms.Label Then
+    Dim ctrl As MSForms.control
+    For Each ctrl In Me.controls
+        If TypeOf ctrl Is MSForms.label Then
             textValue = SafeText(ctrl.caption)
             AddPlaceholderValue placeholders, ctrl.Name, textValue, False
             If Len(ctrl.Name) > 3 Then
@@ -1205,7 +1187,7 @@ End Function
 
 Private Function CollectIssueMap() As Object
     Dim dict As Object
-    Dim ctrl As MSForms.Control
+    Dim ctrl As MSForms.control
     Dim idx As Long
     Dim caption As String
 
@@ -1214,8 +1196,8 @@ Private Function CollectIssueMap() As Object
     dict.CompareMode = vbTextCompare
     On Error GoTo 0
 
-    For Each ctrl In Me.Controls
-        If TypeOf ctrl Is MSForms.Label Then
+    For Each ctrl In Me.controls
+        If TypeOf ctrl Is MSForms.label Then
             idx = ExtractIndex(ctrl.Name, "lblL")
             If idx > 0 Then
                 caption = SafeText(ctrl.caption)
@@ -1360,13 +1342,13 @@ Private Function SafeText(ByVal value As Variant) As String
     SafeText = Trim$(CStr(value))
 End Function
 
-Private Sub HandleLabelMouseMove(ByVal target As MSForms.Label)
+Private Sub HandleLabelMouseMove(ByVal target As MSForms.label)
     If target Is Nothing Then Exit Sub
 
     UpdateHoverLabel target
 End Sub
 
-Private Sub UpdateHoverLabel(ByVal target As MSForms.Label)
+Private Sub UpdateHoverLabel(ByVal target As MSForms.label)
     If target Is Nothing Then Exit Sub
 
     If Not mActiveHoverLabel Is Nothing Then
@@ -1383,7 +1365,7 @@ Private Sub UpdateHoverLabel(ByVal target As MSForms.Label)
     End If
 End Sub
 
-Private Sub ResetHoverLabel(ByVal target As MSForms.Label)
+Private Sub ResetHoverLabel(ByVal target As MSForms.label)
     If target Is Nothing Then Exit Sub
 
     target.BorderStyle = fmBorderStyleNone
@@ -1423,7 +1405,7 @@ Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
     SetMemberStatus memberIndex, newStatus, True
 End Sub
 
-Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
+Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.label)
     Dim statusText As String
 
     If statusLabel Is Nothing Then Exit Sub
@@ -1439,7 +1421,7 @@ Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.Label)
     End If
 End Sub
 
-Private Function GetListBoxEntries(ByVal listControl As MSForms.ListBox) As Collection
+Private Function GetListBoxEntries(ByVal listControl As MSForms.listBox) As Collection
     Dim entries As Collection
     Dim idx As Long
 
@@ -1486,7 +1468,7 @@ Private Sub PopulateLookupFromEntries(ByVal entries As Collection, ByVal lookup 
     Next entry
 End Sub
 
-Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.ListBox, _
+Private Sub LoadListBoxFromCollection(ByVal listControl As MSForms.listBox, _
                                       ByVal entries As Collection)
     Dim entry As Variant
 
@@ -1523,7 +1505,7 @@ Private Sub InitializeAttachmentTracking(ByVal templateKey As String)
     RefreshAttachmentListDisplay
 End Sub
 
-Private Function GetAttachmentEntriesFromListBox(ByRef listBox As MSForms.ListBox) As Collection
+Private Function GetAttachmentEntriesFromListBox(ByRef listBox As MSForms.listBox) As Collection
     Dim entries As Collection
     Dim idx As Long
     Dim entryText As String
@@ -1869,7 +1851,7 @@ NextEntry:
 End Function
 
 Private Sub SyncTemplateAttachmentList(ByVal templateKey As String)
-    modEmail.SyncAttachmentList mLstAT, mCmdATrm, _
+    modEmail.SyncAttachmentList mLstAT, mbSUB, _
                                 mTemplateAttachmentEntries, mUserAttachmentEntries
     PersistUserAttachmentsToWorksheet templateKey
     TraceEmailFieldState "SyncTemplateAttachmentList", ResolveActiveTemplateKey(False)
@@ -1896,11 +1878,11 @@ WriteFail:
 End Sub
 
 Private Sub RefreshAttachmentListDisplay()
-    modEmail.SyncAttachmentList mLstAT, mCmdATrm, _
+    modEmail.SyncAttachmentList mLstAT, mbSUB, _
                                 mTemplateAttachmentEntries, mUserAttachmentEntries
 End Sub
 
-Private Sub cmdATadd_Click()
+Private Sub bADD_Click()
     Dim fd As FileDialog
     Dim selectedPaths As Collection
     Dim selectedItem As Variant
@@ -1989,7 +1971,7 @@ CleanFail:
     Resume CleanExit
 End Sub
 
-Private Sub cmdATrm_Click()
+Private Sub bSUB_Click()
     Dim fd As FileDialog
     Dim selectedPaths As Collection
     Dim selectedItem As Variant
@@ -2309,5 +2291,6 @@ End Sub
 Private Sub lblL8_Click()
     HandleLabelClickByIndex 8
 End Sub
+
 
 
