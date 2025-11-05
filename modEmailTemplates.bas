@@ -26,6 +26,7 @@ Private Const TEMPLATE_SHEET_NAME_ALT As String = "EmailTemplates"
 Private Const TEMPLATE_SHEET_NAME_ALT2 As String = "Email Templates"
 Private Const TEMPLATE_COLUMN_INDEX As Long = 2
 Private Const DEFAULT_TEMPLATE_KEY As String = "Default"
+Private Const DEFAULT_ROW_INDEX As Long = 2
 
 
 Private Const EMAIL_ROW_TO As Long = 3
@@ -246,8 +247,6 @@ NextRow:
 End Function
 
 Public Function ReadDefaultEmailTemplate() As EmailTemplate
-    Const DEFAULT_ROW_INDEX As Long = 2
-
     Dim template As EmailTemplate
     Dim ws As Worksheet
     Dim headerMap As Object
@@ -922,18 +921,66 @@ End Function
 Public Function GetAvailableTemplateKeys() As Collection
     Dim ws As Worksheet
     Dim keys As Collection
+    Dim searchRange As Range
+    Dim cell As Range
     Dim headerValue As String
-
-    Set ws = ResolveTemplateWorksheet()
-    If ws Is Nothing Then Exit Function
+    Dim lastColumn As Long
+    Dim seen As Object
 
     Set keys = New Collection
 
-    headerValue = ResolveTemplateColumnHeader(ws)
+    Set ws = GetEmailTemplatesSheet()
+    If ws Is Nothing Then
+        Debug.Print "GetAvailableTemplateKeys: Email template worksheet not found."
+        GoTo EnsureDefault
+    End If
 
-    If LenB(headerValue) > 0 Then
-        keys.Add headerValue
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
+
+    If searchRange Is Nothing Then
+        lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        If lastColumn < TEMPLATE_COLUMN_INDEX Then
+            lastColumn = TEMPLATE_COLUMN_INDEX
+        End If
+
+        If lastColumn >= 1 Then
+            Set searchRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastColumn))
+        End If
+    End If
+
+    If searchRange Is Nothing Then
+        Debug.Print "GetAvailableTemplateKeys: Header row not available."
+        GoTo EnsureDefault
+    End If
+
+    On Error Resume Next
+    Set seen = CreateObject("Scripting.Dictionary")
+    If Err.Number = 0 Then
+        seen.CompareMode = vbTextCompare
     Else
+        Set seen = Nothing
+        Err.Clear
+    End If
+    On Error GoTo 0
+
+    For Each cell In searchRange.Cells
+        If cell.Column >= 2 Then
+            headerValue = Trim$(CStrSafe(cell.Value))
+            If LenB(headerValue) > 0 Then
+                If seen Is Nothing Then
+                    keys.Add headerValue
+                ElseIf Not seen.Exists(headerValue) Then
+                    keys.Add headerValue
+                    seen.Add headerValue, True
+                End If
+            End If
+        End If
+    Next cell
+
+EnsureDefault:
+    If keys.Count = 0 Then
         keys.Add DEFAULT_TEMPLATE_KEY
     End If
 
