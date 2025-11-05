@@ -392,6 +392,7 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
 
     If hasTemplates Then
         mTemplateAvailabilityWarningShown = False
+        Application.StatusBar = False
         Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
                                                                       mUserAttachmentEntries)
         modEmail.UpdateAttachmentRemoveButton mBtnRemoveAttachment, combinedAttachments
@@ -402,7 +403,8 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
         SetTextBoxText mTxtTemplateKey, vbNullString
         mCurrentTemplateKey = vbNullString
         If Not mTemplateAvailabilityWarningShown Then
-            modUIHelpers.ShowWarningMessage "AUTO_SPCL couldn't find any email templates. Add template columns to the Email Templates worksheet, then refresh this form."
+            Application.StatusBar = "No email templates available. Add template columns on the 'Email Templates' sheet to enable this form."
+            Debug.Print "[EmailForm] No email templates available; user informed via status bar."
             FocusTemplateSelector
             mTemplateAvailabilityWarningShown = True
         End If
@@ -514,10 +516,10 @@ Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
     End If
 
     warningText = "Template '" & templateKey & "' is missing: " & _
-                  JoinCollectionString(warnings, ", ") & "." & vbCrLf & _
-                  "Update the Email Templates worksheet or complete the highlighted fields before sending."
+                  JoinCollectionString(warnings, ", ") & ". Update the Email Templates worksheet or complete the highlighted fields before sending."
 
-    modUIHelpers.ShowWarningMessage warningText
+    'Ref: Template prompt cleanup - emit debug details instead of modal prompts.
+    Debug.Print "[EmailForm] " & warningText
     FocusComposerField
 End Sub
 
