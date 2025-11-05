@@ -16,9 +16,9 @@ Private Const DEFAULT_ELIG_NOTE_TEXT As String = "(no note found)"
 ' Parameters:
 '   txtTo - Text box that collects the primary recipients.
 '   txtCc - Text box that collects the carbon copy recipients.
-'   txtsubj - Text box containing the email subject.
+'   txtSubject - Text box containing the email subject.
 '   txtBody - Text box containing the email body template.
-'   lstAT - Optional list box showing the current attachments.
+'   lstAttachments - Optional list box showing the current attachments.
 '   btnRemoveAttachment - Optional button used to remove selected attachments.
 ' Returns  : None.
 ' Side Effects:
@@ -26,19 +26,19 @@ Private Const DEFAULT_ELIG_NOTE_TEXT As String = "(no note found)"
 '-------------------------------------------------------------------------------
 Public Sub ClearEmailFields(ByRef txtTo As MSForms.TextBox, _
                             ByRef txtCc As MSForms.TextBox, _
-                            ByRef txtsubj As MSForms.TextBox, _
+                            ByRef txtSubject As MSForms.TextBox, _
                             ByRef txtBody As MSForms.TextBox, _
-                            Optional ByRef lstAT As MSForms.ListBox, _
+                            Optional ByRef lstAttachments As MSForms.ListBox, _
                             Optional ByRef btnRemoveAttachment As MSForms.CommandButton)
 
     AssignTextBoxValue txtTo, vbNullString
     AssignTextBoxValue txtCc, vbNullString
-    AssignTextBoxValue txtsubj, vbNullString
+    AssignTextBoxValue txtSubject, vbNullString
     AssignTextBoxValue txtBody, vbNullString
 
-    If Not lstAT Is Nothing Then
+    If Not lstAttachments Is Nothing Then
         On Error Resume Next
-        lstAT.Clear
+        lstAttachments.Clear
         On Error GoTo 0
     End If
 
@@ -81,7 +81,7 @@ End Function
 ' Procedure: SyncAttachmentList
 ' Purpose  : Refresh the attachment list UI and button state based on current sources.
 ' Parameters:
-'   lstAT - List box displaying attachment summaries.
+'   lstAttachments - List box displaying attachment summaries.
 '   btnRemoveAttachment - Button that removes the selected attachment.
 '   templateEntries - Template-level attachment entries to include.
 '   userEntries - User-level attachment entries to include.
@@ -89,14 +89,14 @@ End Function
 ' Side Effects:
 '   Updates list box items and remove button enabled/visible flags.
 '-------------------------------------------------------------------------------
-Public Function SyncAttachmentList(ByRef lstAT As MSForms.ListBox, _
+Public Function SyncAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
                                    ByRef btnRemoveAttachment As MSForms.CommandButton, _
                                    ByVal templateEntries As Collection, _
                                    ByVal userEntries As Collection) As Collection
     Dim combined As Collection
 
     Set combined = BuildAttachmentDisplayList(templateEntries, userEntries)
-    PopulateAttachmentList lstAT, combined
+    PopulateAttachmentList lstAttachments, combined
     UpdateAttachmentRemoveButton btnRemoveAttachment, combined
 
     Set SyncAttachmentList = combined
@@ -127,19 +127,19 @@ Public Sub UpdateAttachmentRemoveButton(ByRef btnRemoveAttachment As MSForms.Com
     On Error GoTo 0
 End Sub
 
-Private Sub PopulateAttachmentList(ByRef lstAT As MSForms.ListBox, _
+Private Sub PopulateAttachmentList(ByRef lstAttachments As MSForms.ListBox, _
                                    ByVal entries As Collection)
     Dim entry As Variant
 
-    If lstAT Is Nothing Then Exit Sub
+    If lstAttachments Is Nothing Then Exit Sub
 
-    lstAT.Clear
+    lstAttachments.Clear
 
     If entries Is Nothing Then Exit Sub
 
     For Each entry In entries
         On Error Resume Next
-        lstAT.AddItem CStr(entry)
+        lstAttachments.AddItem CStr(entry)
         On Error GoTo 0
     Next entry
 End Sub
