@@ -135,7 +135,7 @@ Public Function ParseAttachments(ByVal filenamesCsv As String, ByVal pathsCsv As
         Else
             normalizedPath = pathPart
             Do While LenB(normalizedPath) > 0 And (Right$(normalizedPath, 1) = "\\" Or Right$(normalizedPath, 1) = "/")
-                normalizedPath = Left$(normalizedPath, Len(normalizedPath) - 1)
+                normalizedPath = vba.Left$(normalizedPath, Len(normalizedPath) - 1)
             Loop
 
             separator = Application.PathSeparator
@@ -1988,13 +1988,13 @@ Private Function ExtractAttachmentEntryName(ByVal entry As String) As String
 
     separatorPos = InStr(entry, "|")
     If separatorPos > 0 Then
-        ExtractAttachmentEntryName = Trim$(Left$(entry, separatorPos - 1))
+        ExtractAttachmentEntryName = Trim$(vba.Left$(entry, separatorPos - 1))
         Exit Function
     End If
 
     separatorPos = InStr(entry, ": ")
     If separatorPos > 0 Then
-        ExtractAttachmentEntryName = Trim$(Left$(entry, separatorPos - 1))
+        ExtractAttachmentEntryName = Trim$(vba.Left$(entry, separatorPos - 1))
         Exit Function
     End If
 
