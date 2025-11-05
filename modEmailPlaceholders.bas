@@ -1,3 +1,9 @@
+'------------------------------------------
+' AUTO_SPCL Refactor Update:
+' EmailForm controls renamed for consistency
+'   txtsubject → txtsubj
+'   lstattachments → lstAT
+'------------------------------------------
 Attribute VB_Name = "modEmailPlaceholders"
 Option Explicit
 

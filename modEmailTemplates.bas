@@ -1,4 +1,10 @@
 '------------------------------------------
+' AUTO_SPCL Refactor Update:
+' EmailForm controls renamed for consistency
+'   txtsubject → txtsubj
+'   lstattachments → lstAT
+'------------------------------------------
+'------------------------------------------
 ' AUTO_SPCL Variable Declaration Audit
 ' Fixed undeclared variables:
 '   EMAIL_ROW_CC → Removed (replaced with DEFAULT_ROW_INDEX)
@@ -513,8 +519,8 @@ End Function
 '   templateKey - Column header identifying which template to load.
 '   txtTo - Text box receiving the To recipients.
 '   txtCc - Text box receiving the CC recipients.
-'   lstAttachments - List box that surfaces template and user attachment summaries.
-'   txtSubject - Text box that receives the subject line.
+'   lstAT - List box that surfaces template and user attachment summaries.
+'   txtsubj - Text box that receives the subject line.
 '   txtBody - Text box that receives the body content.
 ' Returns  : True when the template column is found and controls are populated; False otherwise.
 ' Side Effects:
@@ -523,8 +529,8 @@ End Function
 Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
                                       ByRef txtTo As MSForms.TextBox, _
                                       ByRef txtCc As MSForms.TextBox, _
-                                      ByRef lstAttachments As MSForms.ListBox, _
-                                      ByRef txtSubject As MSForms.TextBox, _
+                                      ByRef lstAT As MSForms.ListBox, _
+                                      ByRef txtsubj As MSForms.TextBox, _
                                       ByRef txtBody As MSForms.TextBox, _
                                       Optional ByRef resolvedTemplateKey As Variant) As Boolean
     Dim ws As Worksheet
@@ -537,16 +543,16 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
 
     normalizedKey = NormaliseTemplateKey(templateKey, ws)
 
-    ClearTemplateControls txtTo, txtCc, lstAttachments, txtSubject, txtBody
+    ClearTemplateControls txtTo, txtCc, lstAT, txtsubj, txtBody
 
     templateColumn = ResolveTemplateColumnIndex(ws, normalizedKey)
 
     If templateColumn = 0 Then
-        If Not TryPopulateTemplateFromDefaultColumn(ws, txtTo, txtCc, lstAttachments, txtSubject, txtBody, resolvedKey) Then
+        If Not TryPopulateTemplateFromDefaultColumn(ws, txtTo, txtCc, lstAT, txtsubj, txtBody, resolvedKey) Then
             Exit Function
         End If
     Else
-        If Not PopulateTemplateControlsFromColumn(ws, templateColumn, txtTo, txtCc, lstAttachments, txtSubject, txtBody, resolvedKey) Then
+        If Not PopulateTemplateControlsFromColumn(ws, templateColumn, txtTo, txtCc, lstAT, txtsubj, txtBody, resolvedKey) Then
             Exit Function
         End If
     End If
@@ -561,8 +567,8 @@ End Function
 Private Function TryPopulateTemplateFromDefaultColumn(ByRef ws As Worksheet, _
                                                       ByRef txtTo As MSForms.TextBox, _
                                                       ByRef txtCc As MSForms.TextBox, _
-                                                      ByRef lstAttachments As MSForms.ListBox, _
-                                                      ByRef txtSubject As MSForms.TextBox, _
+                                                      ByRef lstAT As MSForms.ListBox, _
+                                                      ByRef txtsubj As MSForms.TextBox, _
                                                       ByRef txtBody As MSForms.TextBox, _
                                                       ByRef resolvedKey As String) As Boolean
     Dim defaultColumn As Long
@@ -574,16 +580,16 @@ Private Function TryPopulateTemplateFromDefaultColumn(ByRef ws As Worksheet, _
     If defaultColumn > ws.Columns.Count Then Exit Function
 
     TryPopulateTemplateFromDefaultColumn = PopulateTemplateControlsFromColumn(ws, defaultColumn, _
-                                                                             txtTo, txtCc, lstAttachments, _
-                                                                             txtSubject, txtBody, resolvedKey)
+                                                                             txtTo, txtCc, lstAT, _
+                                                                             txtsubj, txtBody, resolvedKey)
 End Function
 
 Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
                                                     ByVal templateColumn As Long, _
                                                     ByRef txtTo As MSForms.TextBox, _
                                                     ByRef txtCc As MSForms.TextBox, _
-                                                    ByRef lstAttachments As MSForms.ListBox, _
-                                                    ByRef txtSubject As MSForms.TextBox, _
+                                                    ByRef lstAT As MSForms.ListBox, _
+                                                    ByRef txtsubj As MSForms.TextBox, _
                                                     ByRef txtBody As MSForms.TextBox, _
                                                     ByRef resolvedKey As String) As Boolean
     Dim headerMap As Object
@@ -628,8 +634,8 @@ Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
 
     AssignTemplateTextBoxValue txtTo, toValue
     AssignTemplateTextBoxValue txtCc, ccValue
-    AssignTemplateTextBoxValue txtSubject, subjectValue
-    AssignAttachmentList lstAttachments, combinedAttachments
+    AssignTemplateTextBoxValue txtsubj, subjectValue
+    AssignAttachmentList lstAT, combinedAttachments
     AssignTemplateTextBoxValue txtBody, BuildBodyValue(bodyValue)
 
     resolvedKey = Trim$(CStrSafe(ws.Cells(1, templateColumn).Value))
@@ -816,13 +822,13 @@ End Sub
 
 Private Sub ClearTemplateControls(ByRef txtTo As MSForms.TextBox, _
                                   ByRef txtCc As MSForms.TextBox, _
-                                  ByRef lstAttachments As MSForms.ListBox, _
-                                  ByRef txtSubject As MSForms.TextBox, _
+                                  ByRef lstAT As MSForms.ListBox, _
+                                  ByRef txtsubj As MSForms.TextBox, _
                                   ByRef txtBody As MSForms.TextBox)
     AssignTemplateTextBoxValue txtTo, vbNullString
     AssignTemplateTextBoxValue txtCc, vbNullString
-    ClearListBoxItems lstAttachments
-    AssignTemplateTextBoxValue txtSubject, vbNullString
+    ClearListBoxItems lstAT
+    AssignTemplateTextBoxValue txtsubj, vbNullString
     AssignTemplateTextBoxValue txtBody, vbNullString
 End Sub
 
