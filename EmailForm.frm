@@ -13,6 +13,12 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
+'------------------------------------------
+' AUTO_SPCL Refactor Update:
+' EmailForm control map:
+'   txtSubject - Subject input
+'   lstAttachments - Attachment list
+'------------------------------------------
 '-------------------------------------------------------------------------------
 ' Form: EmailForm
 ' Role   : Primary workspace for reviewing member records and composing outbound

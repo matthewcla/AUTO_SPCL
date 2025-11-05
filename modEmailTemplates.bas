@@ -1,4 +1,10 @@
 '------------------------------------------
+' AUTO_SPCL Refactor Update:
+' EmailForm control map:
+'   txtSubject - Subject input
+'   lstAttachments - Attachment list
+'------------------------------------------
+'------------------------------------------
 ' AUTO_SPCL Variable Declaration Audit
 ' Fixed undeclared variables:
 '   EMAIL_ROW_CC → Removed (replaced with DEFAULT_ROW_INDEX)
