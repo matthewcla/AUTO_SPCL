@@ -21,7 +21,8 @@ Public Type EmailTemplate
     Body As String
 End Type
 
-Public Sub DebugPrintTemplate(ByVal label As String, ByVal tpl As EmailTemplate)
+' NOTE: UDT parameters cannot be passed ByVal in VBA; changed to ByRef to fix compile error.
+Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Dim prefix As String
 
     prefix = "[EmailTemplate]"
