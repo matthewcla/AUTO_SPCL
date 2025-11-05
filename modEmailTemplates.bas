@@ -27,6 +27,87 @@ Public Type EmailTemplate
     AttachmentPaths As String
 End Type
 
+Public Function ReadTemplateByName(ByVal templateName As String) As EmailTemplate
+    Dim ws As Worksheet
+    Dim headerMap As Object
+    Dim template As EmailTemplate
+    Dim nameColumn As Long
+    Dim lastRow As Long
+    Dim rowIndex As Long
+    Dim candidateName As String
+    Dim columnValue As Variant
+
+    templateName = Trim$(templateName)
+
+    If LenB(templateName) = 0 Then
+        Debug.Print "ReadTemplateByName: Blank template name provided; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    Set ws = ResolveTemplateWorksheet()
+    If ws Is Nothing Then
+        Debug.Print "ReadTemplateByName: Email template worksheet not found; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    Set headerMap = GetTemplateTableHeaderMap(ws)
+    If headerMap Is Nothing Then
+        Debug.Print "ReadTemplateByName: Header dictionary unavailable; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    If Not headerMap.Exists(HDR_TEMPLATE_NAME) Then
+        Debug.Print "ReadTemplateByName: Template name column missing; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    columnValue = headerMap(HDR_TEMPLATE_NAME)
+    If IsNumeric(columnValue) Then
+        nameColumn = CLng(columnValue)
+    End If
+
+    If nameColumn < 1 Or nameColumn > ws.Columns.Count Then
+        Debug.Print "ReadTemplateByName: Invalid template name column; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    lastRow = ws.Cells(ws.Rows.Count, nameColumn).End(xlUp).Row
+    If lastRow < 2 Then
+        Debug.Print "ReadTemplateByName: No template entries found; using default template."
+        ReadTemplateByName = ReadDefaultEmailTemplate()
+        Exit Function
+    End If
+
+    For rowIndex = 2 To lastRow
+        candidateName = Trim$(CStrSafe(ws.Cells(rowIndex, nameColumn).Value))
+        If LenB(candidateName) = 0 Then GoTo NextRow
+        If StrComp(candidateName, templateName, vbTextCompare) = 0 Then
+            template.TemplateName = candidateName
+            template.Cc = ReadTemplateTableField(ws, headerMap, HDR_CC, rowIndex)
+            template.Subject = ReadTemplateTableField(ws, headerMap, HDR_SUBJECT, rowIndex)
+            template.Body = ReadTemplateTableField(ws, headerMap, HDR_BODY, rowIndex)
+            template.AttachmentFilenames = ReadTemplateTableField(ws, headerMap, HDR_ATTACHMENT_FILENAMES, rowIndex)
+            template.AttachmentPaths = ReadTemplateTableField(ws, headerMap, HDR_ATTACHMENT_PATHS, rowIndex)
+
+            If LenB(template.TemplateName) = 0 Then
+                template.TemplateName = templateName
+            End If
+
+            ReadTemplateByName = template
+            Exit Function
+        End If
+NextRow:
+    Next rowIndex
+
+    Debug.Print "ReadTemplateByName: Template '" & templateName & "' not found; using default template."
+    ReadTemplateByName = ReadDefaultEmailTemplate()
+End Function
+
 Public Function ReadDefaultEmailTemplate() As EmailTemplate
     Const DEFAULT_ROW_INDEX As Long = 2
 
@@ -56,6 +137,92 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     End If
 
     ReadDefaultEmailTemplate = template
+End Function
+
+Private Function GetTemplateTableHeaderMap(ByVal ws As Worksheet) As Object
+    Dim headerMap As Object
+    Dim headerRow As Range
+    Dim cell As Range
+    Dim lastColumn As Long
+    Dim headerText As String
+
+    If ws Is Nothing Then Exit Function
+
+    Set headerMap = CreateObject("Scripting.Dictionary")
+    On Error Resume Next
+    headerMap.CompareMode = vbTextCompare
+    On Error GoTo 0
+
+    On Error Resume Next
+    Set headerRow = Intersect(ws.Rows(1), ws.UsedRange)
+    On Error GoTo 0
+
+    If headerRow Is Nothing Then
+        lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        If lastColumn >= 1 Then
+            Set headerRow = ws.Range(ws.Cells(1, 1), ws.Cells(1, lastColumn))
+        End If
+    End If
+
+    If headerRow Is Nothing Then
+        Debug.Print "ReadTemplateByName: Unable to resolve header row."
+        Exit Function
+    End If
+
+    For Each cell In headerRow.Cells
+        headerText = Trim$(CStrSafe(cell.Value))
+        If LenB(headerText) > 0 Then
+            If Not headerMap.Exists(headerText) Then
+                headerMap(headerText) = cell.Column
+            End If
+        End If
+    Next cell
+
+    If headerMap Is Nothing Then
+        Debug.Print "ReadTemplateByName: Header dictionary could not be created."
+    ElseIf headerMap.Count = 0 Then
+        Debug.Print "ReadTemplateByName: Header dictionary is empty."
+        Set headerMap = Nothing
+    End If
+
+    Set GetTemplateTableHeaderMap = headerMap
+End Function
+
+Private Function ReadTemplateTableField(ByVal ws As Worksheet, _
+                                        ByVal headerMap As Object, _
+                                        ByVal headerName As String, _
+                                        ByVal rowIndex As Long) As String
+    Dim columnIndex As Long
+    Dim candidate As Variant
+    Dim key As Variant
+    Dim normalizedTarget As String
+
+    If ws Is Nothing Then Exit Function
+    If headerMap Is Nothing Then Exit Function
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then Exit Function
+
+    If headerMap.Exists(CStr(headerName)) Then
+        candidate = headerMap(CStr(headerName))
+    Else
+        normalizedTarget = NormalizeHeaderKey(CStr(headerName))
+        For Each key In headerMap.Keys
+            If NormalizeHeaderKey(CStr(key)) = normalizedTarget Then
+                candidate = headerMap(CStr(key))
+                Exit For
+            End If
+        Next key
+    End If
+
+    If IsNumeric(candidate) Then
+        columnIndex = CLng(candidate)
+    Else
+        Debug.Print "ReadTemplateByName: Column for header '" & headerName & "' not found."
+        Exit Function
+    End If
+
+    If columnIndex < 1 Or columnIndex > ws.Columns.Count Then Exit Function
+
+    ReadTemplateTableField = Trim$(CStrSafe(ws.Cells(rowIndex, columnIndex).Value))
 End Function
 
 Private Function ReadDefaultTemplateField(ByVal ws As Worksheet, _
