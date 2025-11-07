@@ -273,6 +273,7 @@ End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     Const ISSUE_PLACEHOLDER As String = "{Issues}"
+    Const DEFAULT_ISSUE_DESCRIPTION As String = "Issue details currently unavailable."
 
     Dim nameLabel As MSForms.label
     Dim memberName As String
@@ -280,39 +281,104 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     Dim nameColumn As Range
     Dim issueColumn As Range
     Dim matchIndex As Variant
+    Dim matchedRow As Long
     Dim issueDescription As String
     Dim emailBody As String
 
-    Set nameLabel = GetLabelControl("lblNM", displayIndex)
-    If nameLabel Is Nothing Then Exit Sub
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: displayIndex=" & displayIndex
 
-    memberName = SafeText(nameLabel.caption)
-    If LenB(memberName) = 0 Then Exit Sub
+    Set nameLabel = GetLabelControl("lblNM", displayIndex)
+    If nameLabel Is Nothing Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: lblNM" & displayIndex & " not found"
+        Exit Sub
+    End If
+
+    memberName = Trim$(SafeText(nameLabel.caption))
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: memberName='" & memberName & "'"
+
+    If LenB(memberName) = 0 Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: member name empty"
+        Exit Sub
+    End If
 
     Set lo = TryGetListObject("RED_Board")
-    If lo Is Nothing Then Exit Sub
+    If lo Is Nothing Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: table 'RED_Board' not found"
+        Exit Sub
+    End If
 
     On Error Resume Next
     Set nameColumn = lo.ListColumns(1).DataBodyRange
     Set issueColumn = lo.ListColumns(3).DataBodyRange
     On Error GoTo 0
 
-    If nameColumn Is Nothing Then Exit Sub
-    If issueColumn Is Nothing Then Exit Sub
+    If nameColumn Is Nothing Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: name column unavailable"
+        Exit Sub
+    End If
+
+    If issueColumn Is Nothing Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue column unavailable"
+        Exit Sub
+    End If
 
     matchIndex = Application.Match(memberName, nameColumn, 0)
-    If IsError(matchIndex) Then Exit Sub
+    If IsError(matchIndex) Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: Application.Match failed; attempting manual search"
+        matchedRow = FindMemberRowIndex(memberName, nameColumn)
+    Else
+        matchedRow = CLng(matchIndex)
+    End If
 
-    issueDescription = SafeText(issueColumn.Cells(CLng(matchIndex), 1).Value)
+    If matchedRow <= 0 Or matchedRow > issueColumn.Rows.Count Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: member not found in table; using default description"
+        issueDescription = DEFAULT_ISSUE_DESCRIPTION
+    Else
+        issueDescription = SafeText(issueColumn.Cells(matchedRow, 1).Value)
+        If LenB(issueDescription) = 0 Then
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description empty; using default description"
+            issueDescription = DEFAULT_ISSUE_DESCRIPTION
+        Else
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description='" & issueDescription & "'"
+        End If
+    End If
 
-    If mTxtbody Is Nothing Then Exit Sub
+    If mTxtbody Is Nothing Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: txtbody control missing"
+        Exit Sub
+    End If
 
     emailBody = GetTextBoxText(mTxtbody, False)
-    If InStr(1, emailBody, ISSUE_PLACEHOLDER, vbTextCompare) = 0 Then Exit Sub
+    If InStr(1, emailBody, ISSUE_PLACEHOLDER, vbTextCompare) = 0 Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder not present in body"
+        Exit Sub
+    End If
 
     emailBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder replaced"
     SetTextBoxText mTxtbody, emailBody
 End Sub
+
+Private Function FindMemberRowIndex(ByVal memberName As String, ByVal nameColumn As Range) As Long
+    Dim cell As Range
+    Dim normalizedTarget As String
+    Dim normalizedCandidate As String
+    Dim indexCounter As Long
+
+    normalizedTarget = NormalizeDraftWhitelistValue(memberName)
+
+    For Each cell In nameColumn.Cells
+        indexCounter = indexCounter + 1
+        normalizedCandidate = NormalizeDraftWhitelistValue(SafeText(cell.Value))
+
+        If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
+            FindMemberRowIndex = indexCounter
+            Exit Function
+        End If
+    Next cell
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: manual search did not find member '" & memberName & "'"
+End Function
 
 Private Function TryGetListObject(ByVal tableName As String) As ListObject
     Dim ws As Worksheet
