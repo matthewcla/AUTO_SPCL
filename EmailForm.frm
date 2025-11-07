@@ -276,9 +276,10 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
 
     Dim nameLabel As MSForms.label
     Dim memberName As String
-    Dim ws As Worksheet
-    Dim searchRange As Range
-    Dim foundCell As Range
+    Dim lo As ListObject
+    Dim nameColumn As Range
+    Dim issueColumn As Range
+    Dim matchIndex As Variant
     Dim issueDescription As String
     Dim emailBody As String
 
@@ -288,24 +289,21 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     memberName = SafeText(nameLabel.caption)
     If LenB(memberName) = 0 Then Exit Sub
 
-    On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("ID")
-    On Error GoTo 0
-    If ws Is Nothing Then Exit Sub
+    Set lo = TryGetListObject("RED_Board")
+    If lo Is Nothing Then Exit Sub
 
     On Error Resume Next
-    Set searchRange = ws.Columns(2)
+    Set nameColumn = lo.ListColumns(1).DataBodyRange
+    Set issueColumn = lo.ListColumns(3).DataBodyRange
     On Error GoTo 0
-    If searchRange Is Nothing Then Exit Sub
 
-    On Error Resume Next
-    Set foundCell = searchRange.Find(What:=memberName, LookIn:=xlValues, _
-                                     LookAt:=xlWhole, SearchOrder:=xlByRows, _
-                                     SearchDirection:=xlNext, MatchCase:=False)
-    On Error GoTo 0
-    If foundCell Is Nothing Then Exit Sub
+    If nameColumn Is Nothing Then Exit Sub
+    If issueColumn Is Nothing Then Exit Sub
 
-    issueDescription = SafeText(ws.Cells(foundCell.Row, 3).Value)
+    matchIndex = Application.Match(memberName, nameColumn, 0)
+    If IsError(matchIndex) Then Exit Sub
+
+    issueDescription = SafeText(issueColumn.Cells(CLng(matchIndex), 1).Value)
 
     If mTxtbody Is Nothing Then Exit Sub
 
@@ -315,6 +313,22 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     emailBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
     SetTextBoxText mTxtbody, emailBody
 End Sub
+
+Private Function TryGetListObject(ByVal tableName As String) As ListObject
+    Dim ws As Worksheet
+    Dim lo As ListObject
+
+    For Each ws In ThisWorkbook.Worksheets
+        On Error Resume Next
+        Set lo = ws.ListObjects(tableName)
+        On Error GoTo 0
+
+        If Not lo Is Nothing Then
+            Set TryGetListObject = lo
+            Exit Function
+        End If
+    Next ws
+End Function
 
 Private Sub DeselectMemberSelectionLabels(Optional ByVal exceptDisplayIndex As Long = 0)
     Dim slotIndex As Long
