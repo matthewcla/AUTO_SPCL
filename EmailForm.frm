@@ -20,6 +20,7 @@ Private Const MSO_FILE_DIALOG_FILE_PICKER As Long = 3
 
 Private mTitleBarHidden As Boolean
 Private mOriginalBodyTemplate As String
+Private mOriginalSubjectTemplate As String
 Private mSelectedMemberIndex As Long
 Private mTemplateAttachmentEntries As Collection
 Private mTemplateAttachmentLookup As Object
@@ -235,21 +236,91 @@ End Sub
 Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     Dim memberIndex As Long
     Dim target As MSForms.label
+    Dim resolvedDisplayIndex As Long
 
     memberIndex = DisplayIndexToMemberIndex(displayIndex)
-    If memberIndex = 0 Then Exit Sub
+
+    If memberIndex = 0 Then
+        DeselectMemberSelectionLabels 0
+        UpdateToFieldFromHighlightedRecord
+        Exit Sub
+    End If
 
     SelectedMemberIndex = memberIndex
 
-    Set target = GetLabelByDisplayIndex(displayIndex)
-    If target Is Nothing Then Exit Sub
+    resolvedDisplayIndex = MemberIndexToDisplayIndex(memberIndex)
 
-    If target.BorderStyle <> fmBorderStyleSingle Then
-        target.BorderStyle = fmBorderStyleSingle
+    If resolvedDisplayIndex < 1 Then
+        DeselectMemberSelectionLabels 0
+        resolvedDisplayIndex = displayIndex
+    Else
+        DeselectMemberSelectionLabels resolvedDisplayIndex
     End If
 
-    If target.BorderColor = vbWhite Then
-        target.BorderColor = vbRed
+    Set target = GetLabelByDisplayIndex(resolvedDisplayIndex)
+    If Not target Is Nothing Then
+        If target.BorderStyle <> fmBorderStyleSingle Then
+            target.BorderStyle = fmBorderStyleSingle
+        End If
+
+        If target.BorderColor <> vbRed Then
+            target.BorderColor = vbRed
+        End If
+    End If
+
+    RefreshSelectedMemberDetails memberIndex, resolvedDisplayIndex
+End Sub
+
+Private Sub DeselectMemberSelectionLabels(Optional ByVal exceptDisplayIndex As Long = 0)
+    Dim slotIndex As Long
+    Dim candidate As MSForms.label
+
+    For slotIndex = 1 To MEMBERS_PER_PAGE
+        Set candidate = GetLabelByDisplayIndex(slotIndex)
+        If candidate Is Nothing Then GoTo NextLabel
+
+        If exceptDisplayIndex >= 1 Then
+            If slotIndex = exceptDisplayIndex Then GoTo NextLabel
+        End If
+
+        candidate.BorderColor = vbWhite
+        ResetHoverLabel candidate
+
+        If Not mActiveHoverLabel Is Nothing Then
+            If candidate Is mActiveHoverLabel Then
+                Set mActiveHoverLabel = Nothing
+            End If
+        End If
+
+NextLabel:
+    Next slotIndex
+End Sub
+
+Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displayIndex As Long)
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim statusLabel As MSForms.label
+
+    EnsureMemberRecordsLoaded
+
+    If memberIndex >= 1 And memberIndex <= mMemberCount Then
+        If displayIndex >= 1 And displayIndex <= MEMBERS_PER_PAGE Then
+            Set nameLabel = GetLabelControl("lblNM", displayIndex)
+            If Not nameLabel Is Nothing Then
+                nameLabel.caption = SafeText(GetMemberNameValue(memberIndex))
+            End If
+
+            Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
+            If Not ssnLabel Is Nothing Then
+                ssnLabel.caption = SafeText(GetMemberSSNValue(memberIndex))
+            End If
+
+            Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
+            If Not statusLabel Is Nothing Then
+                statusLabel.caption = SafeText(GetMemberStatusValue(memberIndex))
+                ApplyStatusColor statusLabel
+            End If
+        End If
     End If
 
     UpdateToFieldFromHighlightedRecord
@@ -407,6 +478,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
         modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
                                   mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
+        mOriginalSubjectTemplate = vbNullString
         mCurrentTemplateKey = vbNullString
         SetTextBoxText mtxtTEMP, vbNullString
         TraceTemplateSelection normalizedKey, False, vbNullString, vbNullString, vbNullString, vbNullString, 0
@@ -453,12 +525,14 @@ Private Sub LoadTemplate(ByVal templateKey As String)
         modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
                                   mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
+        mOriginalSubjectTemplate = vbNullString
         mCurrentTemplateKey = vbNullString
         SetTextBoxText mtxtTEMP, vbNullString
         GoTo CleanExit
     End If
 
     InitializeAttachmentTracking normalizedKey
+    mOriginalSubjectTemplate = GetTextBoxText(mTxtsubj, False)
     mOriginalBodyTemplate = GetTextBoxText(mTxtbody, False)
     mCurrentTemplateKey = normalizedKey
     SetTextBoxText mtxtTEMP, normalizedKey
@@ -511,6 +585,7 @@ Private Sub UpdateTemplateAvailabilityState(Optional ByVal templateKeys As Colle
         modEmail.ClearEmailFields mtxtTO, mTxtcc, mTxtsubj, mTxtbody, _
                                   mLstAT, mbSUB
         mOriginalBodyTemplate = vbNullString
+        mOriginalSubjectTemplate = vbNullString
         SetTextBoxText mtxtTEMP, vbNullString
         mCurrentTemplateKey = vbNullString
         If Not mTemplateAvailabilityWarningShown Then
@@ -711,6 +786,7 @@ Private Sub UserForm_Initialize()
     SetTextBoxText mTxtsubj, tpl.Subject
     SetTextBoxText mTxtbody, tpl.Body
 
+    mOriginalSubjectTemplate = tpl.Subject
     mOriginalBodyTemplate = tpl.Body
     mCurrentTemplateKey = resolvedTemplateKey
     SetTextBoxText mtxtTEMP, resolvedTemplateKey
@@ -901,6 +977,9 @@ Public Sub RefreshBodyPlaceholders(Optional ByVal memberIndex As Long = -1, _
                                    Optional ByVal resetTemplate As Boolean = False)
     If resetTemplate Or LenB(mOriginalBodyTemplate) = 0 Then
         mOriginalBodyTemplate = GetTextBoxText(mTxtbody, False)
+    End If
+    If resetTemplate Or LenB(mOriginalSubjectTemplate) = 0 Then
+        mOriginalSubjectTemplate = GetTextBoxText(mTxtsubj, False)
     End If
     ApplyBodyPlaceholders memberIndex
 End Sub
@@ -1148,8 +1227,6 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
         baseText = GetTextBoxText(mTxtbody, False)
     End If
 
-    If LenB(baseText) = 0 Then Exit Sub
-
     If mMemberCount = 0 Then Exit Sub
 
     If memberIndex < 1 Then
@@ -1171,8 +1248,29 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     mSelectedMemberIndex = targetIndex
 
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
-    SetTextBoxText mTxtbody, modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
+
+    If LenB(baseText) > 0 Then
+        SetTextBoxText mTxtbody, modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
+    End If
+
+    ApplySubjectPlaceholders placeholderPairs
+
     TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
+End Sub
+
+Private Sub ApplySubjectPlaceholders(ByRef placeholderPairs As Variant)
+    Dim subjectTemplate As String
+
+    If mTxtsubj Is Nothing Then Exit Sub
+
+    subjectTemplate = mOriginalSubjectTemplate
+    If LenB(subjectTemplate) = 0 Then
+        subjectTemplate = GetTextBoxText(mTxtsubj, False)
+    End If
+
+    If LenB(subjectTemplate) = 0 Then Exit Sub
+
+    SetTextBoxText mTxtsubj, modEmailPlaceholders.ReplacePlaceholdersArray(subjectTemplate, placeholderPairs)
 End Sub
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
