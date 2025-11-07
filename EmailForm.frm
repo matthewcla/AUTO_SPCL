@@ -150,11 +150,23 @@ End Sub
 
 Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     Dim memberIndex As Long
+    Dim target As MSForms.label
 
     memberIndex = DisplayIndexToMemberIndex(displayIndex)
     If memberIndex = 0 Then Exit Sub
 
-    HandleEmailToggleClick memberIndex
+    SelectedMemberIndex = memberIndex
+
+    Set target = GetLabelByDisplayIndex(displayIndex)
+    If target Is Nothing Then Exit Sub
+
+    If target.BorderStyle <> fmBorderStyleSingle Then
+        target.BorderStyle = fmBorderStyleSingle
+    End If
+
+    If target.BorderColor = vbWhite Then
+        target.BorderColor = vbRed
+    End If
 End Sub
 
 Private Function EnsureRequiredControls() As Boolean
@@ -1361,7 +1373,10 @@ Private Sub UpdateHoverLabel(ByVal target As MSForms.label)
 
     Set mActiveHoverLabel = target
 
-    target.BorderStyle = fmBorderStyleSingle
+    If target.BorderStyle <> fmBorderStyleSingle Then
+        target.BorderStyle = fmBorderStyleSingle
+    End If
+
     If target.BorderColor <> vbRed Then
         target.BorderColor = vbWhite
     End If
@@ -1370,7 +1385,9 @@ End Sub
 Private Sub ResetHoverLabel(ByVal target As MSForms.label)
     If target Is Nothing Then Exit Sub
 
-    target.BorderStyle = fmBorderStyleNone
+    If target.BorderColor <> vbRed Then
+        target.BorderStyle = fmBorderStyleNone
+    End If
 End Sub
 
 Private Sub ClearActiveHoverLabel()
