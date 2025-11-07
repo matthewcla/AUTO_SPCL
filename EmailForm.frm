@@ -294,7 +294,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     If ws Is Nothing Then Exit Sub
 
     On Error Resume Next
-    Set searchRange = ws.Columns(1)
+    Set searchRange = ws.Columns(2)
     On Error GoTo 0
     If searchRange Is Nothing Then Exit Sub
 
