@@ -140,10 +140,20 @@ Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.l
 End Function
 
 Private Sub UpdateToFieldFromHighlightedRecord()
+    Dim ssnValue As String
+    Dim selectedIndex As Long
     Dim displayIndex As Long
     Dim selectionLabel As MSForms.label
     Dim ssnLabel As MSForms.label
-    Dim ssnValue As String
+
+    EnsureMemberRecordsLoaded
+
+    selectedIndex = mSelectedMemberIndex
+    If selectedIndex >= 1 And selectedIndex <= mMemberCount Then
+        ssnValue = SafeText(GetMemberSSNValue(selectedIndex))
+        PopulateToFieldFromSSN ssnValue
+        Exit Sub
+    End If
 
     For displayIndex = 1 To MEMBERS_PER_PAGE
         Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
