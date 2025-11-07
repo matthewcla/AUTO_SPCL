@@ -139,6 +139,90 @@ Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.l
     Set GetLabelByDisplayIndex = TryGetLabel(labelName)
 End Function
 
+Private Sub UpdateToFieldFromHighlightedRecord()
+    Dim ssnValue As String
+    Dim selectedIndex As Long
+    Dim displayIndex As Long
+    Dim selectionLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+
+    EnsureMemberRecordsLoaded
+
+    selectedIndex = mSelectedMemberIndex
+    If selectedIndex >= 1 And selectedIndex <= mMemberCount Then
+        ssnValue = SafeText(GetMemberSSNValue(selectedIndex))
+        PopulateToFieldFromSSN ssnValue
+        Exit Sub
+    End If
+
+    For displayIndex = 1 To MEMBERS_PER_PAGE
+        Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
+        If selectionLabel Is Nothing Then GoTo NextSlot
+
+        If selectionLabel.BorderColor = vbRed Then
+            Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
+            If Not ssnLabel Is Nothing Then
+                ssnValue = SafeText(ssnLabel.caption)
+            Else
+                ssnValue = vbNullString
+            End If
+
+            PopulateToFieldFromSSN ssnValue
+            Exit Sub
+        End If
+
+NextSlot:
+    Next displayIndex
+
+    PopulateToFieldFromSSN vbNullString
+End Sub
+
+Private Sub PopulateToFieldFromSSN(ByVal ssnValue As String)
+    Dim ws As Worksheet
+    Dim searchRange As Range
+    Dim foundCell As Range
+    Dim recipients As String
+    Dim columnIndex As Long
+    Dim part As String
+
+    If mtxtTO Is Nothing Then Exit Sub
+
+    recipients = vbNullString
+    ssnValue = Trim$(ssnValue)
+
+    If LenB(ssnValue) > 0 Then
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets("ID")
+        On Error GoTo 0
+
+        If Not ws Is Nothing Then
+            On Error Resume Next
+            Set searchRange = ws.Columns(1)
+            On Error GoTo 0
+
+            If Not searchRange Is Nothing Then
+                On Error Resume Next
+                Set foundCell = searchRange.Find(What:=ssnValue, LookIn:=xlValues, _
+                                                 LookAt:=xlWhole, SearchOrder:=xlByRows, _
+                                                 SearchDirection:=xlNext, MatchCase:=False)
+                On Error GoTo 0
+
+                If Not foundCell Is Nothing Then
+                    For columnIndex = 3 To 6
+                        part = SafeText(ws.Cells(foundCell.Row, columnIndex).Value)
+                        If LenB(part) > 0 Then
+                            If LenB(recipients) > 0 Then recipients = recipients & ";"
+                            recipients = recipients & part
+                        End If
+                    Next columnIndex
+                End If
+            End If
+        End If
+    End If
+
+    SetTextBoxText mtxtTO, recipients
+End Sub
+
 Private Sub HandleLabelMouseMoveByIndex(ByVal displayIndex As Long)
     Dim target As MSForms.label
 
@@ -167,6 +251,8 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     If target.BorderColor = vbWhite Then
         target.BorderColor = vbRed
     End If
+
+    UpdateToFieldFromHighlightedRecord
 End Sub
 
 Private Function EnsureRequiredControls() As Boolean
@@ -741,6 +827,8 @@ NextLabel:
     Next labelIndex
 
     Debug.Print "[EmailForm] Initialize: highlightLabel border set"
+
+    UpdateToFieldFromHighlightedRecord
 
     ' The first member index represents worksheet row 2 because row 1 stores headers.
     ' We highlight that row silently so reviewers land on the initial record without prompts.
