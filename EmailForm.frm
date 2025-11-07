@@ -271,6 +271,51 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     RefreshSelectedMemberDetails memberIndex, resolvedDisplayIndex
 End Sub
 
+Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
+    Const ISSUE_PLACEHOLDER As String = "{Issues}"
+
+    Dim nameLabel As MSForms.label
+    Dim memberName As String
+    Dim ws As Worksheet
+    Dim searchRange As Range
+    Dim foundCell As Range
+    Dim issueDescription As String
+    Dim emailBody As String
+
+    Set nameLabel = GetLabelControl("lblNM", displayIndex)
+    If nameLabel Is Nothing Then Exit Sub
+
+    memberName = SafeText(nameLabel.caption)
+    If LenB(memberName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("ID")
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set searchRange = ws.Columns(2)
+    On Error GoTo 0
+    If searchRange Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set foundCell = searchRange.Find(What:=memberName, LookIn:=xlValues, _
+                                     LookAt:=xlWhole, SearchOrder:=xlByRows, _
+                                     SearchDirection:=xlNext, MatchCase:=False)
+    On Error GoTo 0
+    If foundCell Is Nothing Then Exit Sub
+
+    issueDescription = SafeText(ws.Cells(foundCell.Row, 3).Value)
+
+    If mTxtbody Is Nothing Then Exit Sub
+
+    emailBody = GetTextBoxText(mTxtbody, False)
+    If InStr(1, emailBody, ISSUE_PLACEHOLDER, vbTextCompare) = 0 Then Exit Sub
+
+    emailBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
+    SetTextBoxText mTxtbody, emailBody
+End Sub
+
 Private Sub DeselectMemberSelectionLabels(Optional ByVal exceptDisplayIndex As Long = 0)
     Dim slotIndex As Long
     Dim candidate As MSForms.label
@@ -2439,6 +2484,7 @@ End Sub
 
 Private Sub lblL1_Click()
     HandleLabelClickByIndex 1
+    UpdateIssuePlaceholderForDisplayIndex 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2447,6 +2493,7 @@ End Sub
 
 Private Sub lblL2_Click()
     HandleLabelClickByIndex 2
+    UpdateIssuePlaceholderForDisplayIndex 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2455,6 +2502,7 @@ End Sub
 
 Private Sub lblL3_Click()
     HandleLabelClickByIndex 3
+    UpdateIssuePlaceholderForDisplayIndex 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2463,6 +2511,7 @@ End Sub
 
 Private Sub lblL4_Click()
     HandleLabelClickByIndex 4
+    UpdateIssuePlaceholderForDisplayIndex 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2471,6 +2520,7 @@ End Sub
 
 Private Sub lblL5_Click()
     HandleLabelClickByIndex 5
+    UpdateIssuePlaceholderForDisplayIndex 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2479,6 +2529,7 @@ End Sub
 
 Private Sub lblL6_Click()
     HandleLabelClickByIndex 6
+    UpdateIssuePlaceholderForDisplayIndex 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2487,6 +2538,7 @@ End Sub
 
 Private Sub lblL7_Click()
     HandleLabelClickByIndex 7
+    UpdateIssuePlaceholderForDisplayIndex 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2495,6 +2547,7 @@ End Sub
 
 Private Sub lblL8_Click()
     HandleLabelClickByIndex 8
+    UpdateIssuePlaceholderForDisplayIndex 8
 End Sub
 
 
