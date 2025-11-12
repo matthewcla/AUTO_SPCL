@@ -64,13 +64,7 @@ Private Sub InitializeControlReferences()
 End Sub
 
 Private Function TryGetControl(ByVal controlName As String) As MSForms.control
-    Dim ctrl As MSForms.control
-
-    On Error Resume Next
-    Set ctrl = Me.controls(controlName)
-    On Error GoTo 0
-
-    Set TryGetControl = ctrl
+    Set TryGetControl = FindControlRecursive(Me, controlName)
 End Function
 
 Private Function TryGetTextBox(ByVal controlName As String) As MSForms.TextBox
@@ -103,6 +97,61 @@ Private Function TryGetLabel(ByVal controlName As String) As MSForms.label
     Set ctrl = TryGetControl(controlName)
     If ctrl Is Nothing Then Exit Function
     If TypeOf ctrl Is MSForms.label Then Set TryGetLabel = ctrl
+End Function
+
+Private Function FindControlRecursive(ByVal container As Object, ByVal controlName As String) As MSForms.control
+    Dim directMatch As MSForms.control
+    Dim children As Object
+    Dim pages As Object
+    Dim child As Object
+    Dim found As MSForms.control
+
+    If container Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set directMatch = container.controls(controlName)
+    On Error GoTo 0
+
+    If Not directMatch Is Nothing Then
+        Set FindControlRecursive = directMatch
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set children = container.controls
+    On Error GoTo 0
+
+    If Not children Is Nothing Then
+        For Each child In children
+            On Error Resume Next
+            If StrComp(child.Name, controlName, vbTextCompare) = 0 Then
+                Set FindControlRecursive = child
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+
+            Set found = FindControlRecursive(child, controlName)
+            If Not found Is Nothing Then
+                Set FindControlRecursive = found
+                Exit Function
+            End If
+        Next child
+    End If
+
+    On Error Resume Next
+    Set pages = container.Pages
+    On Error GoTo 0
+
+    If Not pages Is Nothing Then
+        For Each child In pages
+            Set found = FindControlRecursive(child, controlName)
+            If Not found Is Nothing Then
+                Set FindControlRecursive = found
+                Exit Function
+            End If
+        Next child
+    End If
 End Function
 
 Private Sub FocusTemplateSelector()
@@ -1589,15 +1638,18 @@ Private Sub RefreshEightRowBlock()
 
     For rowIndex = 1 To PAGE_SIZE
         Set selectionLabel = GetLabelControl("lblL", rowIndex)
-        If Not selectionLabel Is Nothing Then
-            If LenB(selectionLabel.caption) <> 0 Then
-                selectionLabel.caption = ""
-            End If
-            On Error Resume Next
-            selectionLabel.MousePointer = fmMousePointerHand
-            selectionLabel.SpecialEffect = fmSpecialEffectFlat
-            On Error GoTo 0
+        If selectionLabel Is Nothing Then
+            ReportMissingEmailFormControl "lblL" & CStr(rowIndex)
+            GoTo nextRow
         End If
+
+        If LenB(selectionLabel.caption) <> 0 Then
+            selectionLabel.caption = ""
+        End If
+        On Error Resume Next
+        selectionLabel.MousePointer = fmMousePointerHand
+        selectionLabel.SpecialEffect = fmSpecialEffectFlat
+        On Error GoTo 0
 
         Set nameLabel = GetLabelControl("lblNM", rowIndex)
         Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
@@ -1619,6 +1671,7 @@ Private Sub RefreshEightRowBlock()
 
         Debug.Print "[EmailForm] RefreshEightRowBlock row=" & rowIndex & _
                     " name='" & rowName & "' ssn='" & resolvedSsn & "'"
+nextRow:
     Next rowIndex
 End Sub
 
@@ -1785,15 +1838,39 @@ Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As
 
     controlName = prefix & CStr(index)
 
-    On Error Resume Next
-    Set ctrl = Me.controls(controlName)
-    On Error GoTo 0
+    Set ctrl = TryGetControl(controlName)
 
-    If ctrl Is Nothing Then Exit Function
-    If Not TypeOf ctrl Is MSForms.label Then Exit Function
+    If ctrl Is Nothing Then
+        ReportMissingEmailFormControl controlName
+        Exit Function
+    End If
+
+    If Not TypeOf ctrl Is MSForms.label Then
+        ReportMissingEmailFormControl controlName
+        Exit Function
+    End If
 
     Set GetLabelControl = ctrl
 End Function
+
+Private Sub ReportMissingEmailFormControl(ByVal controlName As String)
+    Static reported As Object
+    Dim missing As Collection
+
+    If LenB(controlName) = 0 Then Exit Sub
+
+    If reported Is Nothing Then
+        Set reported = CreateObject("Scripting.Dictionary")
+    End If
+
+    If reported.Exists(controlName) Then Exit Sub
+    reported.Add controlName, True
+
+    Set missing = New Collection
+    missing.Add controlName
+
+    modEmailFormDiagnostics.ReportMissingControls missing
+End Sub
 
 Private Sub EnsureSelectedIndexVisible()
     Dim maxStart As Long
