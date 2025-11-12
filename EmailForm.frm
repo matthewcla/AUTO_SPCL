@@ -356,7 +356,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
         Exit Sub
     End If
 
-    emailBody = GetTextBoxText(mTxtbody, False)
+    emailBody = GetBodyText()
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: bodyLength=" & Len(emailBody)
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: bodyPreview='" & Left$(emailBody, 200) & "'"
 
@@ -410,7 +410,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     End If
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: replacementOutcome=" & replacementOutcome
-    SetTextBoxText mTxtbody, emailBody
+    SetBodyText emailBody
 End Sub
 
 Private Function NormalizeBraceToken(ByVal token As String) As String
@@ -602,6 +602,27 @@ Private Sub SetTextBoxText(ByVal target As MSForms.TextBox, ByVal value As Strin
     target.value = value
 End Sub
 
+Private Function GetBodyText() As String
+    Dim normalized As String
+
+    If mTxtbody Is Nothing Then Exit Function
+
+    normalized = CStr(mTxtbody.Value)
+    normalized = Replace$(normalized, vbCrLf, vbLf)
+    normalized = Replace$(normalized, vbCr, vbLf)
+    GetBodyText = Replace$(normalized, vbLf, vbCrLf)
+End Function
+
+Private Sub SetBodyText(ByVal value As String)
+    Dim normalized As String
+
+    If mTxtbody Is Nothing Then Exit Sub
+
+    normalized = Replace$(value, vbCrLf, vbLf)
+    normalized = Replace$(normalized, vbCr, vbLf)
+    mTxtbody.Value = Replace$(normalized, vbLf, vbCrLf)
+End Sub
+
 Private Sub EnsureTemplateWarningCache()
     If Not mTemplateFieldWarningsShown Is Nothing Then Exit Sub
 
@@ -726,7 +747,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
     toValue = GetTextBoxText(mtxtTO, False)
     ccValue = GetTextBoxText(mTxtcc, False)
     subjectValue = GetTextBoxText(mTxtsubj, False)
-    bodyValue = GetTextBoxText(mTxtbody, False)
+    bodyValue = GetBodyText()
     attachmentCount = 0
     If loadSucceeded Then attachmentCount = GetAttachmentListCount()
 
@@ -745,7 +766,7 @@ Private Sub LoadTemplate(ByVal templateKey As String)
 
     InitializeAttachmentTracking normalizedKey
     mOriginalSubjectTemplate = GetTextBoxText(mTxtsubj, False)
-    mOriginalBodyTemplate = GetTextBoxText(mTxtbody, False)
+    mOriginalBodyTemplate = GetBodyText()
     mCurrentTemplateKey = normalizedKey
     SetTextBoxText mtxtTEMP, normalizedKey
 
@@ -864,7 +885,7 @@ Private Sub TraceEmailFieldState(ByVal stage As String, ByVal templateKey As Str
     toValue = GetTextBoxText(mtxtTO, False)
     ccValue = GetTextBoxText(mTxtcc, False)
     subjectValue = GetTextBoxText(mTxtsubj, False)
-    bodyValue = GetTextBoxText(mTxtbody, False)
+    bodyValue = GetBodyText()
     attachmentCount = GetAttachmentListCount()
 
     Debug.Print "[EmailForm] State '" & stage & "' template='" & templateKey & _
@@ -886,7 +907,7 @@ Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
 
     toValue = GetTextBoxText(mtxtTO)
     subjectValue = GetTextBoxText(mTxtsubj)
-    bodyValue = GetTextBoxText(mTxtbody, False)
+    bodyValue = GetBodyText()
 
     If LenB(toValue) = 0 Then
         warnings.Add "To"
@@ -900,7 +921,7 @@ Private Sub ValidateLoadedTemplateFields(ByVal templateKey As String)
 
     If LenB(bodyValue) = 0 Then
         warnings.Add "Body"
-        SetTextBoxText mTxtbody, "(No body content provided)"
+        SetBodyText "(No body content provided)"
     End If
 
     If warnings.Count = 0 Then Exit Sub
@@ -998,7 +1019,7 @@ Private Sub UserForm_Initialize()
 
     SetTextBoxText mTxtcc, tpl.Cc
     SetTextBoxText mTxtsubj, tpl.Subject
-    SetTextBoxText mTxtbody, tpl.Body
+    SetBodyText tpl.Body
 
     mOriginalSubjectTemplate = tpl.Subject
     mOriginalBodyTemplate = tpl.Body
@@ -1086,7 +1107,7 @@ Private Sub UserForm_Initialize()
     TraceTemplateSelection resolvedTemplateKey, True, vbNullString, _
                            GetTextBoxText(mTxtcc, False), _
                            GetTextBoxText(mTxtsubj, False), _
-                           GetTextBoxText(mTxtbody, False), attachmentCount
+                           GetBodyText(), attachmentCount
     ValidateLoadedTemplateFields resolvedTemplateKey
     TraceEmailFieldState "InitializeTemplate", resolvedTemplateKey
 
@@ -1190,7 +1211,7 @@ End Property
 Public Sub RefreshBodyPlaceholders(Optional ByVal memberIndex As Long = -1, _
                                    Optional ByVal resetTemplate As Boolean = False)
     If resetTemplate Or LenB(mOriginalBodyTemplate) = 0 Then
-        mOriginalBodyTemplate = GetTextBoxText(mTxtbody, False)
+        mOriginalBodyTemplate = GetBodyText()
     End If
     If resetTemplate Or LenB(mOriginalSubjectTemplate) = 0 Then
         mOriginalSubjectTemplate = GetTextBoxText(mTxtsubj, False)
@@ -1200,7 +1221,7 @@ End Sub
 
 Public Sub LoadBodyTemplate(ByVal templateText As String, Optional ByVal memberIndex As Long = -1)
     mOriginalBodyTemplate = templateText
-    SetTextBoxText mTxtbody, templateText
+    SetBodyText templateText
     ApplyBodyPlaceholders memberIndex
 End Sub
 
@@ -1438,7 +1459,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
 
     baseText = mOriginalBodyTemplate
     If LenB(baseText) = 0 Then
-        baseText = GetTextBoxText(mTxtbody, False)
+        baseText = GetBodyText()
     End If
 
     If mMemberCount = 0 Then Exit Sub
@@ -1464,7 +1485,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
 
     If LenB(baseText) > 0 Then
-        SetTextBoxText mTxtbody, modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
+        SetBodyText modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
     End If
 
     ApplySubjectPlaceholders placeholderPairs
