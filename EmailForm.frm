@@ -109,47 +109,6 @@ Private Function TryGetLabel(ByVal controlName As String) As MSForms.label
     If TypeOf ctrl Is MSForms.label Then Set TryGetLabel = ctrl
 End Function
 
-Private Function TryReadDefaultEmailTemplate(ByRef templateKeyOut As String) As Boolean
-    Dim defaultTemplate As EmailTemplate
-
-    On Error GoTo CleanFail
-
-    defaultTemplate = modEmailTemplates.ReadDefaultEmailTemplate()
-    templateKeyOut = Trim$(defaultTemplate.templateName)
-
-    If LenB(templateKeyOut) = 0 Then GoTo CleanFail
-
-    TryReadDefaultEmailTemplate = True
-    Exit Function
-
-CleanFail:
-    templateKeyOut = vbNullString
-End Function
-
-Private Function LoadDefaultEmailTemplateIntoForm(ByVal templateKey As String) As Boolean
-    Dim normalizedKey As String
-
-    normalizedKey = Trim$(templateKey)
-    If LenB(normalizedKey) = 0 Then
-        Debug.Print "[EmailForm] Error: Could not load default template."
-        Exit Function
-    End If
-
-    On Error GoTo LoadFail
-    LoadTemplate normalizedKey
-
-    If LenB(Trim$(mCurrentTemplateKey)) = 0 Then
-        Debug.Print "[EmailForm] Error: Could not load default template."
-        Exit Function
-    End If
-
-    LoadDefaultEmailTemplateIntoForm = True
-    Exit Function
-
-LoadFail:
-    Debug.Print "[EmailForm] Error: Could not load default template."
-End Function
-
 Private Sub FocusTemplateSelector()
     If Not mtxtTEMP Is Nothing Then
         modUIHelpers.FocusControl mtxtTEMP
@@ -199,7 +158,7 @@ Private Sub UpdateToFieldFromHighlightedRecord()
 
     For displayIndex = 1 To MEMBERS_PER_PAGE
         Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
-        If selectionLabel Is Nothing Then GoTo NextSlot
+        If selectionLabel Is Nothing Then GoTo nextSlot
 
         If selectionLabel.BorderColor = vbRed Then
             Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
@@ -213,7 +172,7 @@ Private Sub UpdateToFieldFromHighlightedRecord()
             Exit Sub
         End If
 
-NextSlot:
+nextSlot:
     Next displayIndex
 
     PopulateToFieldFromSSN vbNullString
@@ -251,7 +210,7 @@ Private Sub PopulateToFieldFromSSN(ByVal ssnValue As String)
 
                 If Not foundCell Is Nothing Then
                     For columnIndex = 3 To 6
-                        part = SafeText(ws.Cells(foundCell.Row, columnIndex).Value)
+                        part = SafeText(ws.Cells(foundCell.row, columnIndex).value)
                         If LenB(part) > 0 Then
                             If LenB(recipients) > 0 Then recipients = recipients & ";"
                             recipients = recipients & part
@@ -310,120 +269,6 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     End If
 
     RefreshSelectedMemberDetails memberIndex, resolvedDisplayIndex
-End Sub
-
-Private Sub PopulateFormFromFirstRecord()
-    Dim nameLabel As MSForms.label
-    Dim ssnLabel As MSForms.label
-    Dim recordName As String
-    Dim recordSSN As String
-    Dim issueText As String
-
-    Set nameLabel = TryGetLabel("lblNM1")
-    Set ssnLabel = TryGetLabel("lblSSN1")
-
-    recordName = vbNullString
-    recordSSN = vbNullString
-
-    If Not nameLabel Is Nothing Then
-        recordName = Trim$(SafeText(nameLabel.caption))
-    End If
-
-    If Not ssnLabel Is Nothing Then
-        recordSSN = Trim$(SafeText(ssnLabel.caption))
-    End If
-
-    Debug.Print "[EmailForm] Initializing with record: " & recordName & " (" & recordSSN & ")"
-
-    issueText = GetIssuesFromRedBoard(recordName, recordSSN)
-    Debug.Print "[EmailForm] Issues retrieved: " & issueText
-
-    UpdateIssuePlaceholder issueText
-
-    Debug.Print "[EmailForm] Form populated successfully with lblL1 record."
-End Sub
-
-Private Function GetIssuesFromRedBoard(ByVal officerName As String, _
-                                        ByVal officerSSN As String) As String
-    Const DEFAULT_ISSUES As String = "(No issues found)"
-
-    Dim ws As Worksheet
-    Dim tbl As ListObject
-    Dim rowObj As ListRow
-    Dim keyValue As String
-    Dim normalizedName As String
-    Dim normalizedSSN As String
-    Dim normalizedCandidate As String
-    Dim issueValue As String
-
-    normalizedName = NormalizeDraftWhitelistValue(officerName)
-    normalizedSSN = NormalizeDraftWhitelistValue(officerSSN)
-
-    On Error GoTo LookupFail
-    Set ws = ThisWorkbook.Worksheets("RED_Board")
-    Set tbl = ws.ListObjects("RED_Board")
-    On Error GoTo 0
-
-    For Each rowObj In tbl.ListRows
-        keyValue = SafeText(rowObj.Range.Cells(1, 1).Value)
-        normalizedCandidate = NormalizeDraftWhitelistValue(keyValue)
-
-        If LenB(normalizedSSN) > 0 Then
-            If StrComp(normalizedCandidate, normalizedSSN, vbTextCompare) = 0 Then
-                issueValue = SafeText(rowObj.Range.Cells(1, 3).Value)
-                If LenB(issueValue) = 0 Then issueValue = DEFAULT_ISSUES
-                GetIssuesFromRedBoard = issueValue
-                Exit Function
-            End If
-        End If
-
-        If LenB(normalizedName) > 0 Then
-            If StrComp(normalizedCandidate, normalizedName, vbTextCompare) = 0 Then
-                issueValue = SafeText(rowObj.Range.Cells(1, 3).Value)
-                If LenB(issueValue) = 0 Then issueValue = DEFAULT_ISSUES
-                GetIssuesFromRedBoard = issueValue
-                Exit Function
-            End If
-        End If
-    Next rowObj
-
-    Debug.Print "[EmailForm] Warning: Record not found for lblL1."
-    GetIssuesFromRedBoard = DEFAULT_ISSUES
-    Exit Function
-
-LookupFail:
-    Debug.Print "[EmailForm] Warning: Record not found for lblL1."
-    GetIssuesFromRedBoard = DEFAULT_ISSUES
-End Function
-
-Private Sub UpdateIssuePlaceholder(ByVal issueText As String)
-    Const PLACEHOLDER As String = "{Issues}"
-
-    Dim bodyText As String
-    Dim placeholderPosition As Long
-
-    bodyText = GetBodyText()
-
-    placeholderPosition = InStr(1, bodyText, PLACEHOLDER, vbTextCompare)
-
-    If placeholderPosition > 0 Then
-        bodyText = Left$(bodyText, placeholderPosition - 1) & issueText & _
-                   Mid$(bodyText, placeholderPosition + Len(PLACEHOLDER))
-        SetBodyText bodyText
-        Exit Sub
-    End If
-
-    Debug.Print "[EmailForm] Placeholder '{Issues}' not found in template."
-
-    If LenB(issueText) = 0 Then Exit Sub
-
-    If LenB(bodyText) > 0 Then
-        bodyText = bodyText & vbCrLf & vbCrLf & issueText
-    Else
-        bodyText = issueText
-    End If
-
-    SetBodyText bodyText
 End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
@@ -497,7 +342,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: member not found in table; using default description"
         issueDescription = DEFAULT_ISSUE_DESCRIPTION
     Else
-        issueDescription = SafeText(issueColumn.Cells(matchedRow, 1).Value)
+        issueDescription = SafeText(issueColumn.Cells(matchedRow, 1).value)
         If LenB(issueDescription) = 0 Then
             Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description empty; using default description"
             issueDescription = DEFAULT_ISSUE_DESCRIPTION
@@ -611,7 +456,7 @@ Private Function FindMemberRowIndex(ByVal memberName As String, ByVal nameColumn
 
     For Each cell In nameColumn.Cells
         indexCounter = indexCounter + 1
-        normalizedCandidate = NormalizeDraftWhitelistValue(SafeText(cell.Value))
+        normalizedCandidate = NormalizeDraftWhitelistValue(SafeText(cell.value))
 
         If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
             FindMemberRowIndex = indexCounter
@@ -762,7 +607,7 @@ Private Function GetBodyText() As String
 
     If mTxtbody Is Nothing Then Exit Function
 
-    normalized = CStr(mTxtbody.Value)
+    normalized = CStr(mTxtbody.value)
     normalized = Replace$(normalized, vbCrLf, vbLf)
     normalized = Replace$(normalized, vbCr, vbLf)
     GetBodyText = Replace$(normalized, vbLf, vbCrLf)
@@ -775,7 +620,7 @@ Private Sub SetBodyText(ByVal value As String)
 
     normalized = Replace$(value, vbCrLf, vbLf)
     normalized = Replace$(normalized, vbCr, vbLf)
-    mTxtbody.Value = Replace$(normalized, vbLf, vbCrLf)
+    mTxtbody.value = Replace$(normalized, vbLf, vbCrLf)
 End Sub
 
 Private Sub EnsureTemplateWarningCache()
@@ -1106,8 +951,6 @@ Private Sub ShowTemplateLoadFailure(ByVal templateKey As String)
 End Sub
 
 Private Sub UserForm_Initialize()
-    Dim defaultTemplateKey As String
-    Dim defaultTemplateLoaded As Boolean
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -1132,7 +975,6 @@ Private Sub UserForm_Initialize()
     Dim highlightLabel As MSForms.label
     Dim labelIndex As Long
 
-    Debug.Print "[EmailForm] Initializing..."
     Debug.Print "EmailTemplate structure successfully recognized."
 
     InitializeControlReferences
@@ -1154,133 +996,120 @@ Private Sub UserForm_Initialize()
 
     Set templateKeys = PopulateTemplateDropdown()
 
-    defaultTemplateLoaded = False
-    If TryReadDefaultEmailTemplate(defaultTemplateKey) Then
-        If LoadDefaultEmailTemplateIntoForm(defaultTemplateKey) Then
-            resolvedTemplateKey = defaultTemplateKey
-            TraceEmailFieldState "InitializeTemplate", defaultTemplateKey
-            defaultTemplateLoaded = True
-        End If
+    templateKey = ResolveInitialTemplateKey(templateKeys)
+    requestedTemplateKey = templateKey
+
+    If TemplateKeyExists(templateKey, templateKeys) Then
+        tpl = modEmailTemplates.ReadTemplateByName(templateKey)
+        resolvedTemplateKey = Trim$(templateKey)
     Else
-        Debug.Print "[EmailForm] Error: Could not load default template."
+        tpl = modEmailTemplates.ReadDefaultEmailTemplate()
+        resolvedTemplateKey = Trim$(tpl.templateName)
+        If LenB(requestedTemplateKey) > 0 Then
+            Debug.Print "UserForm_Initialize: Template '" & requestedTemplateKey & _
+                        "' not found. Using default template '" & resolvedTemplateKey & "'."
+        End If
     End If
 
-    If Not defaultTemplateLoaded Then
-        templateKey = ResolveInitialTemplateKey(templateKeys)
-        requestedTemplateKey = templateKey
+    If LenB(resolvedTemplateKey) = 0 Then
+        resolvedTemplateKey = Trim$(tpl.templateName)
+    End If
 
-        If TemplateKeyExists(templateKey, templateKeys) Then
-            tpl = modEmailTemplates.ReadTemplateByName(templateKey)
-            resolvedTemplateKey = Trim$(templateKey)
-        Else
-            tpl = modEmailTemplates.ReadDefaultEmailTemplate()
-            resolvedTemplateKey = Trim$(tpl.templateName)
-            If LenB(requestedTemplateKey) > 0 Then
-                Debug.Print "UserForm_Initialize: Template '" & requestedTemplateKey & _
-                            "' not found. Using default template '" & resolvedTemplateKey & "'."
+    modEmailTemplates.DebugPrintTemplate "EmailForm.Initialize [" & resolvedTemplateKey & "]", tpl
+
+    SetTextBoxText mTxtcc, tpl.Cc
+    SetTextBoxText mTxtsubj, tpl.Subject
+    SetBodyText tpl.Body
+
+    mOriginalSubjectTemplate = tpl.Subject
+    mOriginalBodyTemplate = tpl.Body
+    mCurrentTemplateKey = resolvedTemplateKey
+    SetTextBoxText mtxtTEMP, resolvedTemplateKey
+
+    'Ref: Template field cleanup - load serialized attachments directly from template entries.
+    Set templateEntries = modEmailTemplates.GetTemplateAttachmentEntriesForKey(resolvedTemplateKey)
+
+    If Not mLstAT Is Nothing Then
+        On Error Resume Next
+        mLstAT.Clear
+        mLstAT.ColumnCount = 2
+        mLstAT.ColumnWidths = CStr(mLstAT.Width) & " pt;0 pt"
+        On Error GoTo 0
+    End If
+
+    Set mTemplateAttachmentEntries = New Collection
+
+    If Not templateEntries Is Nothing Then
+        For Each entryVariant In templateEntries
+            entryValue = CStr(entryVariant)
+            displayName = Trim$(modEmailTemplates.GetAttachmentEntryName(entryValue))
+            fullPath = Trim$(modEmailTemplates.GetAttachmentEntryPath(entryValue))
+
+            If LenB(displayName) = 0 Then displayName = fullPath
+
+            If LenB(fullPath) = 0 Then
+                Debug.Print "UserForm_Initialize: Attachment path missing for '" & displayName & "'."
+            Else
+                If LenB(entryValue) > 0 Then
+                    mTemplateAttachmentEntries.Add entryValue
+                End If
             End If
-        End If
 
-        If LenB(resolvedTemplateKey) = 0 Then
-            resolvedTemplateKey = Trim$(tpl.templateName)
-        End If
-
-        modEmailTemplates.DebugPrintTemplate "EmailForm.Initialize [" & resolvedTemplateKey & "]", tpl
-
-        SetTextBoxText mTxtcc, tpl.Cc
-        SetTextBoxText mTxtsubj, tpl.Subject
-        SetBodyText tpl.Body
-
-        mOriginalSubjectTemplate = tpl.Subject
-        mOriginalBodyTemplate = tpl.Body
-        mCurrentTemplateKey = resolvedTemplateKey
-        SetTextBoxText mtxtTEMP, resolvedTemplateKey
-
-        'Ref: Template field cleanup - load serialized attachments directly from template entries.
-        Set templateEntries = modEmailTemplates.GetTemplateAttachmentEntriesForKey(resolvedTemplateKey)
-
-        If Not mLstAT Is Nothing Then
-            On Error Resume Next
-            mLstAT.Clear
-            mLstAT.ColumnCount = 2
-            mLstAT.ColumnWidths = CStr(mLstAT.Width) & " pt;0 pt"
-            On Error GoTo 0
-        End If
-
-        Set mTemplateAttachmentEntries = New Collection
-
-        If Not templateEntries Is Nothing Then
-            For Each entryVariant In templateEntries
-                entryValue = CStr(entryVariant)
-                displayName = Trim$(modEmailTemplates.GetAttachmentEntryName(entryValue))
-                fullPath = Trim$(modEmailTemplates.GetAttachmentEntryPath(entryValue))
-
-                If LenB(displayName) = 0 Then displayName = fullPath
-
-                If LenB(fullPath) = 0 Then
-                    Debug.Print "UserForm_Initialize: Attachment path missing for '" & displayName & "'."
+            If Not mLstAT Is Nothing Then
+                On Error Resume Next
+                mLstAT.AddItem displayName
+                If Err.Number = 0 Then
+                    listIndex = mLstAT.ListCount - 1
+                    If listIndex >= 0 Then
+                        mLstAT.List(listIndex, 1) = fullPath
+                    End If
                 Else
-                    If LenB(entryValue) > 0 Then
-                        mTemplateAttachmentEntries.Add entryValue
-                    End If
+                    Debug.Print "UserForm_Initialize: Failed to add attachment '" & displayName & "' to lstAT."
+                    Err.Clear
                 End If
-
-                If Not mLstAT Is Nothing Then
-                    On Error Resume Next
-                    mLstAT.AddItem displayName
-                    If Err.Number = 0 Then
-                        listIndex = mLstAT.ListCount - 1
-                        If listIndex >= 0 Then
-                            mLstAT.List(listIndex, 1) = fullPath
-                        End If
-                    Else
-                        Debug.Print "UserForm_Initialize: Failed to add attachment '" & displayName & "' to lstAT."
-                        Err.Clear
-                    End If
-                    On Error GoTo 0
-                End If
-            Next entryVariant
-        End If
-
-        If mTemplateAttachmentEntries Is Nothing Then
-            Set mTemplateAttachmentEntries = New Collection
-        End If
-
-        Set mUserAttachmentEntries = GetUserAttachmentEntries(resolvedTemplateKey)
-        If mUserAttachmentEntries Is Nothing Then
-            Set mUserAttachmentEntries = New Collection
-        End If
-
-        Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
-        PopulateLookupFromEntries mTemplateAttachmentEntries, mTemplateAttachmentLookup
-
-        If mUserAttachmentLookup Is Nothing Then
-            Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
-        Else
-            On Error Resume Next
-            mUserAttachmentLookup.RemoveAll
-            On Error GoTo 0
-        End If
-        RebuildLookupFromCollection mUserAttachmentLookup, mUserAttachmentEntries
-
-        Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
-                                                                     mUserAttachmentEntries)
-        modEmail.UpdateAttachmentRemoveButton mbSUB, combinedAttachments
-
-        attachmentCount = 0
-        If Not combinedAttachments Is Nothing Then
-            On Error Resume Next
-            attachmentCount = combinedAttachments.Count
-            On Error GoTo 0
-        End If
-
-        TraceTemplateSelection resolvedTemplateKey, True, vbNullString, _
-                               GetTextBoxText(mTxtcc, False), _
-                               GetTextBoxText(mTxtsubj, False), _
-                               GetBodyText(), attachmentCount
-        ValidateLoadedTemplateFields resolvedTemplateKey
-        TraceEmailFieldState "InitializeTemplate", resolvedTemplateKey
+                On Error GoTo 0
+            End If
+        Next entryVariant
     End If
+
+    If mTemplateAttachmentEntries Is Nothing Then
+        Set mTemplateAttachmentEntries = New Collection
+    End If
+
+    Set mUserAttachmentEntries = GetUserAttachmentEntries(resolvedTemplateKey)
+    If mUserAttachmentEntries Is Nothing Then
+        Set mUserAttachmentEntries = New Collection
+    End If
+
+    Set mTemplateAttachmentLookup = CreateCaseInsensitiveDictionary()
+    PopulateLookupFromEntries mTemplateAttachmentEntries, mTemplateAttachmentLookup
+
+    If mUserAttachmentLookup Is Nothing Then
+        Set mUserAttachmentLookup = CreateCaseInsensitiveDictionary()
+    Else
+        On Error Resume Next
+        mUserAttachmentLookup.RemoveAll
+        On Error GoTo 0
+    End If
+    RebuildLookupFromCollection mUserAttachmentLookup, mUserAttachmentEntries
+
+    Set combinedAttachments = modEmail.BuildAttachmentDisplayList(mTemplateAttachmentEntries, _
+                                                                 mUserAttachmentEntries)
+    modEmail.UpdateAttachmentRemoveButton mbSUB, combinedAttachments
+
+    attachmentCount = 0
+    If Not combinedAttachments Is Nothing Then
+        On Error Resume Next
+        attachmentCount = combinedAttachments.Count
+        On Error GoTo 0
+    End If
+
+    TraceTemplateSelection resolvedTemplateKey, True, vbNullString, _
+                           GetTextBoxText(mTxtcc, False), _
+                           GetTextBoxText(mTxtsubj, False), _
+                           GetBodyText(), attachmentCount
+    ValidateLoadedTemplateFields resolvedTemplateKey
+    TraceEmailFieldState "InitializeTemplate", resolvedTemplateKey
 
     LoadMemberRecords
 
@@ -1311,7 +1140,6 @@ NextLabel:
     Debug.Print "[EmailForm] Initialize: highlightLabel border set"
 
     UpdateToFieldFromHighlightedRecord
-    PopulateFormFromFirstRecord
 
     ' The first member index represents worksheet row 2 because row 1 stores headers.
     ' We highlight that row silently so reviewers land on the initial record without prompts.
@@ -2911,6 +2739,8 @@ Private Sub lblL8_Click()
     HandleLabelClickByIndex 8
     UpdateIssuePlaceholderForDisplayIndex 8
 End Sub
+
+
 
 
 
