@@ -277,19 +277,41 @@ Private Function PopulateToFieldFromName(ByVal fullName As String, _
                                          Optional ByVal worksheetRow As Long = 0) As String
     Dim normalizedName As String
     Dim recipients As String
+    Dim rowName As String
 
     normalizedName = Trim$(SafeText(fullName))
 
     If worksheetRow > 0 Then
-        recipients = modDataAccess.GetEmailsByRow(worksheetRow)
-        If LenB(normalizedName) > 0 And LenB(recipients) = 0 Then
+        rowName = modDataAccess.GetNameByRow(worksheetRow)
+
+        If LenB(rowName) = 0 Then
             Debug.Print "[EmailForm] PopulateToFieldFromName: worksheet row " & worksheetRow & _
-                        " returned no recipients for '" & normalizedName & "'"
+                        " no longer has a name."
+        ElseIf LenB(normalizedName) > 0 And _
+               StrComp(rowName, normalizedName, vbTextCompare) <> 0 Then
+            Debug.Print "[EmailForm] PopulateToFieldFromName: worksheet row " & worksheetRow & _
+                        " now belongs to '" & rowName & "'; expected '" & normalizedName & "'."
+        Else
+            recipients = modDataAccess.GetEmailsByRow(worksheetRow)
+            If LenB(normalizedName) = 0 Then normalizedName = rowName
+
+            If LenB(recipients) = 0 And LenB(normalizedName) > 0 Then
+                Debug.Print "[EmailForm] PopulateToFieldFromName: worksheet row " & worksheetRow & _
+                            " returned no recipients for '" & normalizedName & "'"
+            End If
         End If
-    ElseIf LenB(normalizedName) > 0 Then
-        recipients = modDataAccess.GetEmailsByName(normalizedName)
-    Else
-        recipients = vbNullString
+    End If
+
+    If LenB(recipients) = 0 Then
+        If LenB(normalizedName) > 0 Then
+            If worksheetRow > 0 Then
+                Debug.Print "[EmailForm] PopulateToFieldFromName: falling back to name lookup for '" & _
+                            normalizedName & "'"
+            End If
+            recipients = modDataAccess.GetEmailsByName(normalizedName)
+        Else
+            recipients = vbNullString
+        End If
     End If
 
     SetTextBoxText mtxtTO, recipients

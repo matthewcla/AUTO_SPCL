@@ -142,6 +142,27 @@ Public Function GetSsnByRow(ByVal rowIndex As Long) As String
     GetSsnByRow = value
 End Function
 
+Public Function GetNameByRow(ByVal rowIndex As Long) As String
+    Dim wsID As Worksheet
+    Dim value As String
+
+    Set wsID = GetIDSheet()
+    If wsID Is Nothing Then Exit Function
+
+    If Not ValidateRowIndex(wsID, rowIndex, "GetNameByRow") Then Exit Function
+
+    On Error Resume Next
+    value = NormalizeValue(wsID.Cells(rowIndex, "B").Value)
+    If Err.Number <> 0 Then
+        Debug.Print "[modDataAccess] GetNameByRow: failed to read column B. Error " & Err.Number & ": " & Err.Description
+        Err.Clear
+        value = vbNullString
+    End If
+    On Error GoTo 0
+
+    GetNameByRow = value
+End Function
+
 Public Function GetEmailsByName(ByVal fullName As String) As String
     Dim wsID As Worksheet
     Dim rowIndex As Long
