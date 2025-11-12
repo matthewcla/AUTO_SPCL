@@ -859,7 +859,7 @@ Private Sub UserForm_Initialize()
 
     Dim templateKey As String
     Dim templateKeys As Collection
-    Dim tpl As modEmailTemplates.EmailTemplate
+    Dim tpl As EmailTemplate
     Dim templateEntries As Collection
     Dim entryVariant As Variant
     Dim entryValue As String
@@ -872,6 +872,8 @@ Private Sub UserForm_Initialize()
     Dim combinedAttachments As Collection
     Dim highlightLabel As MSForms.label
     Dim labelIndex As Long
+
+    Debug.Print "EmailTemplate structure successfully recognized."
 
     InitializeControlReferences
     EnsureTemplateWarningCache
