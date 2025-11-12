@@ -1454,6 +1454,9 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     Dim baseText As String
     Dim targetIndex As Long
     Dim placeholderPairs As Variant
+    Dim resolvedBody As String
+    Dim containsIssuePlaceholder As Boolean
+    Dim issueDisplayIndex As Long
 
     EnsureMemberRecordsLoaded
 
@@ -1485,10 +1488,22 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     placeholderPairs = BuildPlaceholderPairs(targetIndex)
 
     If LenB(baseText) > 0 Then
-        SetBodyText modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
+        resolvedBody = modEmailPlaceholders.ReplacePlaceholdersArray(baseText, placeholderPairs)
+        containsIssuePlaceholder = BodyContainsIssuePlaceholder(resolvedBody)
+        SetBodyText resolvedBody
+    Else
+        resolvedBody = GetBodyText()
+        containsIssuePlaceholder = BodyContainsIssuePlaceholder(resolvedBody)
     End If
 
     ApplySubjectPlaceholders placeholderPairs
+
+    If containsIssuePlaceholder Then
+        issueDisplayIndex = MemberIndexToDisplayIndex(targetIndex)
+        If issueDisplayIndex >= 1 Then
+            UpdateIssuePlaceholderForDisplayIndex issueDisplayIndex
+        End If
+    End If
 
     TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
 End Sub
@@ -1507,6 +1522,41 @@ Private Sub ApplySubjectPlaceholders(ByRef placeholderPairs As Variant)
 
     SetTextBoxText mTxtsubj, modEmailPlaceholders.ReplacePlaceholdersArray(subjectTemplate, placeholderPairs)
 End Sub
+
+Private Function BodyContainsIssuePlaceholder(ByVal bodyText As String) As Boolean
+    Const ISSUE_PLACEHOLDER As String = "{Issues}"
+
+    Dim position As Long
+    Dim placeholderStart As Long
+    Dim placeholderEnd As Long
+    Dim candidate As String
+    Dim normalizedCandidate As String
+    Dim normalizedTarget As String
+
+    normalizedTarget = NormalizeBraceToken(ISSUE_PLACEHOLDER)
+    If LenB(normalizedTarget) = 0 Then Exit Function
+
+    position = 1
+    Do
+        placeholderStart = InStr(position, bodyText, "{", vbTextCompare)
+        If placeholderStart = 0 Then Exit Do
+
+        placeholderEnd = InStr(placeholderStart + 1, bodyText, "}", vbTextCompare)
+        If placeholderEnd = 0 Then Exit Do
+
+        candidate = Mid$(bodyText, placeholderStart, placeholderEnd - placeholderStart + 1)
+        normalizedCandidate = NormalizeBraceToken(candidate)
+
+        If LenB(normalizedCandidate) > 0 Then
+            If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
+                BodyContainsIssuePlaceholder = True
+                Exit Function
+            End If
+        End If
+
+        position = placeholderEnd + 1
+    Loop
+End Function
 
 Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     Dim placeholders As Object
