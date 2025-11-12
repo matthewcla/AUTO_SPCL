@@ -43,17 +43,10 @@ Private mTemplateAvailabilityWarningShown As Boolean
 Private mIsLoading As Boolean
 Private mInitialized As Boolean
 
-Private Type MemberRecord
-    Name As String
-    SSN As String
-    Status As String
-End Type
-
-Private mMembers() As MemberRecord
 Private mMemberCount As Long
-Private mMembersLoaded As Boolean
 Private mStartIndex As Long
 Private mTotalRecords As Long
+Private mStatusCache As Object
 
 Private Const PAGE_SIZE As Long = 8
 Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
@@ -612,29 +605,48 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
     Dim nameLabel As MSForms.label
     Dim ssnLabel As MSForms.label
     Dim statusLabel As MSForms.label
+    Dim record As Object
+    Dim nameText As String
+    Dim ssnText As String
+    Dim statusText As String
 
     EnsureMemberRecordsLoaded
 
     If memberIndex >= 1 And memberIndex <= mMemberCount Then
         If displayIndex >= 1 And displayIndex <= PAGE_SIZE Then
+            Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+            If record Is Nothing Then GoTo SkipLabelRefresh
+
+            nameText = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
+            If LenB(nameText) = 0 Then
+                nameText = SafeText(GetRecordValue(record, "PRIMARYNAME", "Primary", "PRIMARY"))
+            End If
+
+            ssnText = SafeText( _
+                GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", _
+                               "SSN#", "LK", "Lookup", "2"))
+
+            statusText = GetMemberStatusValue(memberIndex, record)
+
             Set nameLabel = GetLabelControl("lblNM", displayIndex)
             If Not nameLabel Is Nothing Then
-                nameLabel.caption = SafeText(GetMemberNameValue(memberIndex))
+                nameLabel.caption = nameText
             End If
 
             Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
             If Not ssnLabel Is Nothing Then
-                ssnLabel.caption = SafeText(GetMemberSSNValue(memberIndex))
+                ssnLabel.caption = ssnText
             End If
 
             Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
             If Not statusLabel Is Nothing Then
-                statusLabel.caption = SafeText(GetMemberStatusValue(memberIndex))
+                statusLabel.caption = statusText
                 ApplyStatusColor statusLabel
             End If
         End If
     End If
 
+SkipLabelRefresh:
     UpdateToFieldFromHighlightedRecord
 End Sub
 
@@ -1228,7 +1240,7 @@ Private Sub UserForm_Initialize()
 
     LoadMemberRecords
 
-    mTotalRecords = GetRedBoardCount()
+    mTotalRecords = modRedBoardRecords.GetRedBoardCount()
     If mTotalRecords = 0 Then mTotalRecords = mMemberCount
 
     mStartIndex = 1
@@ -1353,45 +1365,148 @@ Public Sub LoadBodyTemplate(ByVal templateText As String, Optional ByVal memberI
 End Sub
 
 Private Sub EnsureMemberRecordsLoaded()
-    If mMembersLoaded Then Exit Sub
     LoadMemberRecords
 End Sub
 
 Private Sub LoadMemberRecords()
-    Dim ws As Worksheet
-    Dim lastRow As Long
-    Dim data As Variant
-    Dim rowCount As Long
-    Dim idx As Long
-
-    mMembersLoaded = True
-    mMemberCount = 0
-    Erase mMembers
-
-    On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("ID")
-    On Error GoTo 0
-
-    If ws Is Nothing Then Exit Sub
-
-    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).row
-    If lastRow < 2 Then Exit Sub
-
-    data = ws.Range("A2:B" & lastRow).value
-    If Not IsArray(data) Then Exit Sub
-
-    rowCount = UBound(data, 1)
-    If rowCount <= 0 Then Exit Sub
-
-    ReDim mMembers(1 To rowCount)
-    For idx = 1 To rowCount
-        mMembers(idx).SSN = SafeText(data(idx, 1))
-        mMembers(idx).Name = SafeText(data(idx, 2))
-        mMembers(idx).Status = DEFAULT_EMAIL_STATUS
-    Next idx
-
-    mMemberCount = rowCount
+    UpdateMemberRecordCache
 End Sub
+
+Private Sub UpdateMemberRecordCache()
+    Dim recordCount As Long
+
+    recordCount = modRedBoardRecords.GetRedBoardCount()
+    If recordCount < 0 Then recordCount = 0
+
+    mMemberCount = recordCount
+    mTotalRecords = recordCount
+    EnsureStatusCache recordCount
+End Sub
+
+Private Sub EnsureStatusCache(ByVal recordCount As Long)
+    Dim keys As Variant
+    Dim idx As Long
+    Dim key As Variant
+    Dim record As Object
+    Dim statusText As String
+
+    If recordCount < 0 Then recordCount = 0
+
+    If mStatusCache Is Nothing Then
+        Set mStatusCache = CreateObject("Scripting.Dictionary")
+        If mStatusCache Is Nothing Then Exit Sub
+        On Error Resume Next
+        mStatusCache.CompareMode = vbTextCompare
+        On Error GoTo 0
+    End If
+
+    keys = mStatusCache.Keys
+    If IsArray(keys) Then
+        For idx = LBound(keys) To UBound(keys)
+            key = keys(idx)
+            If Val(CStr(key)) > recordCount Then
+                mStatusCache.Remove key
+            End If
+        Next idx
+    End If
+
+    For idx = 1 To recordCount
+        key = CStr(idx)
+
+        statusText = DEFAULT_EMAIL_STATUS
+        Set record = modRedBoardRecords.GetRedBoardRecord(idx)
+        If Not record Is Nothing Then
+            statusText = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+            If LenB(statusText) = 0 Then
+                statusText = DEFAULT_EMAIL_STATUS
+            End If
+        End If
+
+        If mStatusCache.Exists(key) Then
+            If StrComp(SafeText(mStatusCache(key)), statusText, vbTextCompare) <> 0 Then
+                mStatusCache(key) = statusText
+            End If
+        Else
+            mStatusCache.Add key, statusText
+        End If
+    Next idx
+End Sub
+
+Private Sub CacheMemberStatus(ByVal memberIndex As Long, ByVal statusText As String)
+    Dim key As String
+
+    If memberIndex < 1 Then Exit Sub
+    key = CStr(memberIndex)
+
+    If mStatusCache Is Nothing Then
+        Set mStatusCache = CreateObject("Scripting.Dictionary")
+        If mStatusCache Is Nothing Then Exit Sub
+        On Error Resume Next
+        mStatusCache.CompareMode = vbTextCompare
+        On Error GoTo 0
+    End If
+
+    If mStatusCache.Exists(key) Then
+        mStatusCache(key) = statusText
+    Else
+        mStatusCache.Add key, statusText
+    End If
+End Sub
+
+Private Function ReadCachedStatus(ByVal memberIndex As Long) As String
+    Dim key As String
+
+    If memberIndex < 1 Then Exit Function
+    key = CStr(memberIndex)
+
+    If mStatusCache Is Nothing Then Exit Function
+    If Not mStatusCache.Exists(key) Then Exit Function
+
+    ReadCachedStatus = SafeText(mStatusCache(key))
+End Function
+
+Private Function RecordContainsKey(ByVal record As Object, ByVal key As String) As Boolean
+    On Error Resume Next
+    RecordContainsKey = record.Exists(key)
+    On Error GoTo 0
+End Function
+
+Private Function GetRecordValue(ByVal record As Object, ParamArray keys() As Variant) As Variant
+    Dim candidate As Variant
+    Dim keyText As String
+    Dim normalized As String
+
+    If record Is Nothing Then Exit Function
+
+    On Error GoTo CleanFail
+
+    For Each candidate In keys
+        If IsNull(candidate) Then GoTo NextCandidate
+
+        keyText = Trim$(CStr(candidate))
+        If LenB(keyText) = 0 Then GoTo NextCandidate
+
+        If RecordContainsKey(record, keyText) Then
+            GetRecordValue = record(keyText)
+            Exit Function
+        End If
+
+        normalized = modRedBoardRecords.NormalizeRedBoardFieldKey(keyText)
+        If LenB(normalized) > 0 Then
+            If RecordContainsKey(record, normalized) Then
+                GetRecordValue = record(normalized)
+                Exit Function
+            End If
+        End If
+
+NextCandidate:
+    Next candidate
+
+    Exit Function
+
+CleanFail:
+    Err.Clear
+End Function
 
 Private Sub RefreshPage()
     Dim slotIndex As Long
@@ -1452,20 +1567,34 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     Dim ssnLabel As MSForms.label
     Dim statusLabel As MSForms.label
     Dim selectionLabel As MSForms.label
+    Dim record As Object
+    Dim nameText As String
+    Dim ssnText As String
+    Dim statusText As String
 
     Set nameLabel = GetLabelControl("lblNM", displayIndex)
     Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
     Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
     Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
 
-    If Not nameLabel Is Nothing Then nameLabel.caption = GetMemberNameValue(memberIndex)
-    If Not ssnLabel Is Nothing Then ssnLabel.caption = GetMemberSSNValue(memberIndex)
+    Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+    If record Is Nothing Then
+        ClearSlot displayIndex
+        Exit Sub
+    End If
+
+    nameText = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
+    ssnText = SafeText(GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", "SSN#", "LK", "Lookup", "2"))
+    statusText = GetMemberStatusValue(memberIndex, record)
+
+    If Not nameLabel Is Nothing Then nameLabel.caption = nameText
+    If Not ssnLabel Is Nothing Then ssnLabel.caption = ssnText
     If Not statusLabel Is Nothing Then
-        statusLabel.caption = GetMemberStatusValue(memberIndex)
+        statusLabel.caption = statusText
         ApplyStatusColor statusLabel
     End If
     If Not selectionLabel Is Nothing Then
-        selectionLabel.caption = GetMemberNameValue(memberIndex)
+        selectionLabel.caption = nameText
     End If
 End Sub
 
@@ -1605,26 +1734,61 @@ Private Function MemberIndexToDisplayIndex(ByVal memberIndex As Long) As Long
 End Function
 
 Private Function GetMemberNameValue(ByVal memberIndex As Long) As String
+    Dim record As Object
+    Dim nameText As String
+
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
-    GetMemberNameValue = mMembers(memberIndex).Name
+
+    Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+    If record Is Nothing Then Exit Function
+
+    nameText = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
+    If LenB(nameText) = 0 Then
+        nameText = SafeText(GetRecordValue(record, "PRIMARYNAME", "Primary", "PRIMARY"))
+    End If
+
+    GetMemberNameValue = nameText
 End Function
 
 Private Function GetMemberSSNValue(ByVal memberIndex As Long) As String
+    Dim record As Object
+
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
-    GetMemberSSNValue = mMembers(memberIndex).SSN
+
+    Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+    If record Is Nothing Then Exit Function
+
+    GetMemberSSNValue = SafeText( _
+        GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", _
+                       "SSN#", "LK", "Lookup", "2"))
 End Function
 
-Private Function GetMemberStatusValue(ByVal memberIndex As Long) As String
+Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
+                                      Optional ByVal record As Object = Nothing) As String
     Dim statusText As String
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
 
-    statusText = mMembers(memberIndex).Status
-    If LenB(statusText) = 0 Then
-        statusText = DEFAULT_EMAIL_STATUS
-        mMembers(memberIndex).Status = statusText
+    statusText = ReadCachedStatus(memberIndex)
+
+    If record Is Nothing Then
+        Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
     End If
 
+    If Not record Is Nothing Then
+        Dim recordStatus As String
+
+        recordStatus = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+        If LenB(recordStatus) > 0 Then
+            statusText = recordStatus
+        End If
+    End If
+
+    If LenB(statusText) = 0 Then
+        statusText = DEFAULT_EMAIL_STATUS
+    End If
+
+    CacheMemberStatus memberIndex, statusText
     GetMemberStatusValue = statusText
 End Function
 
@@ -1641,7 +1805,7 @@ Private Sub SetMemberStatus(ByVal memberIndex As Long, ByVal statusText As Strin
         normalized = DEFAULT_EMAIL_STATUS
     End If
 
-    mMembers(memberIndex).Status = normalized
+    CacheMemberStatus memberIndex, normalized
 
     If Not updateUI Then Exit Sub
 
@@ -1722,6 +1886,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     Dim key As Variant
     Dim arr() As Variant
     Dim nextSlot As Long
+    Dim record As Object
 
     EnsureMemberRecordsLoaded
 
@@ -1740,7 +1905,10 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
     On Error GoTo 0
 
     For idx = 1 To mMemberCount
-        textValue = SafeText(GetMemberNameValue(idx))
+        Set record = modRedBoardRecords.GetRedBoardRecord(idx)
+        If record Is Nothing Then GoTo NextMember
+
+        textValue = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
         AddPlaceholderValue placeholders, "NAME" & CStr(idx), textValue
         If idx = memberIndex Then
             AddPlaceholderValue placeholders, "NAME", textValue
@@ -1750,7 +1918,9 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
             AddPlaceholderValue placeholders, "CURRENTNAME", textValue
         End If
 
-        textValue = SafeText(GetMemberSSNValue(idx))
+        textValue = SafeText( _
+            GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", _
+                           "SSN#", "LK", "Lookup", "2"))
         AddPlaceholderValue placeholders, "SSN" & CStr(idx), textValue
         If idx = memberIndex Then
             AddPlaceholderValue placeholders, "SSN", textValue
@@ -1759,7 +1929,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
             AddPlaceholderValue placeholders, "CURRENTSSN", textValue
         End If
 
-        textValue = SafeText(GetMemberStatusValue(idx))
+        textValue = SafeText(GetMemberStatusValue(idx, record))
         AddPlaceholderValue placeholders, "STAT" & CStr(idx), textValue
         AddPlaceholderValue placeholders, "STATUS" & CStr(idx), textValue
         If idx = memberIndex Then
@@ -1769,6 +1939,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
             AddPlaceholderValue placeholders, "SELECTEDSTATUS", textValue
             AddPlaceholderValue placeholders, "CURRENTSTATUS", textValue
         End If
+NextMember:
     Next idx
 
     AddPlaceholderValue placeholders, "MEMBERINDEX", CStr(memberIndex)
@@ -1928,10 +2099,6 @@ Private Function DetermineMaxMemberIndex() As Long
     EnsureMemberRecordsLoaded
 
     DetermineMaxMemberIndex = mMemberCount
-End Function
-
-Private Function GetRedBoardCount() As Long
-    GetRedBoardCount = DetermineMaxMemberIndex()
 End Function
 
 Private Function ExtractIndex(ByVal controlName As String, ByVal prefix As String) As Long
