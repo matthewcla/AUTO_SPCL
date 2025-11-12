@@ -137,6 +137,12 @@ Private Function LoadDefaultEmailTemplateIntoForm(ByVal templateKey As String) A
 
     On Error GoTo LoadFail
     LoadTemplate normalizedKey
+
+    If LenB(Trim$(mCurrentTemplateKey)) = 0 Then
+        Debug.Print "[EmailForm] Error: Could not load default template."
+        Exit Function
+    End If
+
     LoadDefaultEmailTemplateIntoForm = True
     Exit Function
 
