@@ -44,14 +44,6 @@ Private Sub EF_DebugPrint(ByVal message As String)
     Debug.Print "[EmailTemplates] " & message
 End Sub
 
-Public Type EmailTemplate
-    TemplateName As String
-    Cc As String
-    Subject As String
-    Body As String
-End Type
-
-
 ' NOTE: UDT parameters cannot be passed ByVal in VBA; changed to ByRef to fix compile error.
 Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Dim prefix As String
@@ -65,6 +57,7 @@ Public Sub DebugPrintTemplate(ByVal label As String, ByRef tpl As EmailTemplate)
     Debug.Print prefix & " Cc='" & tpl.Cc & "'"
     Debug.Print prefix & " Subject='" & tpl.Subject & "'"
     Debug.Print prefix & " Body='" & tpl.Body & "'"
+    Debug.Print prefix & " Attachments='" & tpl.Attachments & "'"
 End Sub
 
 ' NOTE: Collections/Variants cannot safely store UDT instances; AttachmentInfo objects encapsulate attachment metadata.
@@ -236,6 +229,7 @@ Public Function ReadTemplateByName(ByVal templateName As String) As EmailTemplat
             template.Cc = ReadTemplateTableField(ws, headerMap, HDR_CC, rowIndex)
             template.Subject = ReadTemplateTableField(ws, headerMap, HDR_SUBJECT, rowIndex)
             template.Body = ReadTemplateTableField(ws, headerMap, HDR_BODY, rowIndex)
+            template.Attachments = ReadTemplateTableField(ws, headerMap, HDR_ATTACHMENTS, rowIndex)
 
             If LenB(template.TemplateName) = 0 Then
                 template.TemplateName = templateName
@@ -295,6 +289,7 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
     EF_DebugPrint "ReadDefaultEmailTemplate: Subject='" & template.Subject & "'"
 
     template.Body = ReadDefaultTemplateField(ws, headerMap, HDR_BODY, DEFAULT_ROW_INDEX)
+    template.Attachments = ReadDefaultTemplateField(ws, headerMap, HDR_ATTACHMENTS, DEFAULT_ROW_INDEX)
     EF_DebugPrint "ReadDefaultEmailTemplate: Body='" & template.Body & "'"
 
     If LenB(template.TemplateName) = 0 Then
