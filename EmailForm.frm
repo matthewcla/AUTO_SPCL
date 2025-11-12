@@ -47,6 +47,7 @@ Private mMemberCount As Long
 Private mStartIndex As Long
 Private mTotalRecords As Long
 Private mStatusCache As Object
+Private mSlotWorksheetRows(1 To PAGE_SIZE) As Long
 
 Private Const PAGE_SIZE As Long = 8
 Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
@@ -185,10 +186,50 @@ Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.l
     Set GetLabelByDisplayIndex = TryGetLabel(labelName)
 End Function
 
+Private Sub StoreSlotWorksheetRow(ByVal displayIndex As Long, ByVal worksheetRow As Long)
+    If displayIndex < 1 Or displayIndex > PAGE_SIZE Then Exit Sub
+
+    mSlotWorksheetRows(displayIndex) = worksheetRow
+End Sub
+
+Private Function GetSlotWorksheetRow(ByVal displayIndex As Long) As Long
+    If displayIndex < 1 Or displayIndex > PAGE_SIZE Then Exit Function
+
+    GetSlotWorksheetRow = mSlotWorksheetRows(displayIndex)
+End Function
+
+Private Function GetWorksheetRowFromRecord(ByVal record As Object) As Long
+    Dim candidate As Variant
+
+    If record Is Nothing Then Exit Function
+
+    On Error Resume Next
+    candidate = record("_WorksheetRow")
+    If Err.Number <> 0 Then
+        Err.Clear
+        candidate = Null
+    End If
+    On Error GoTo 0
+
+    If IsNumeric(candidate) Then
+        GetWorksheetRowFromRecord = CLng(candidate)
+    End If
+End Function
+
+Private Function GetWorksheetRowForMemberIndex(ByVal memberIndex As Long) As Long
+    Dim record As Object
+
+    If memberIndex < 1 Then Exit Function
+
+    Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+    GetWorksheetRowForMemberIndex = GetWorksheetRowFromRecord(record)
+End Function
+
 Private Sub UpdateToFieldFromHighlightedRecord()
     Dim nameValue As String
     Dim selectedIndex As Long
     Dim displayIndex As Long
+    Dim worksheetRow As Long
     Dim selectionLabel As MSForms.label
     Dim nameLabel As MSForms.label
 
@@ -197,7 +238,15 @@ Private Sub UpdateToFieldFromHighlightedRecord()
     selectedIndex = mSelectedMemberIndex
     If selectedIndex >= 1 And selectedIndex <= mMemberCount Then
         nameValue = Trim$(SafeText(GetMemberNameValue(selectedIndex)))
-        PopulateToFieldFromName nameValue
+        displayIndex = MemberIndexToDisplayIndex(selectedIndex)
+        If displayIndex >= 1 Then
+            worksheetRow = GetSlotWorksheetRow(displayIndex)
+        End If
+        If worksheetRow = 0 Then
+            worksheetRow = GetWorksheetRowForMemberIndex(selectedIndex)
+        End If
+
+        PopulateToFieldFromName nameValue, worksheetRow
         Exit Sub
     End If
 
@@ -213,23 +262,31 @@ Private Sub UpdateToFieldFromHighlightedRecord()
                 nameValue = vbNullString
             End If
 
-            PopulateToFieldFromName nameValue
+            worksheetRow = GetSlotWorksheetRow(displayIndex)
+            PopulateToFieldFromName nameValue, worksheetRow
             Exit Sub
         End If
 
 nextSlot:
     Next displayIndex
 
-    PopulateToFieldFromName vbNullString
+    PopulateToFieldFromName vbNullString, 0
 End Sub
 
-Private Function PopulateToFieldFromName(ByVal fullName As String) As String
+Private Function PopulateToFieldFromName(ByVal fullName As String, _
+                                         Optional ByVal worksheetRow As Long = 0) As String
     Dim normalizedName As String
     Dim recipients As String
 
     normalizedName = Trim$(SafeText(fullName))
 
-    If LenB(normalizedName) > 0 Then
+    If worksheetRow > 0 Then
+        recipients = modDataAccess.GetEmailsByRow(worksheetRow)
+        If LenB(normalizedName) > 0 And LenB(recipients) = 0 Then
+            Debug.Print "[EmailForm] PopulateToFieldFromName: worksheet row " & worksheetRow & _
+                        " returned no recipients for '" & normalizedName & "'"
+        End If
+    ElseIf LenB(normalizedName) > 0 Then
         recipients = modDataAccess.GetEmailsByName(normalizedName)
     Else
         recipients = vbNullString
@@ -237,7 +294,8 @@ Private Function PopulateToFieldFromName(ByVal fullName As String) As String
 
     SetTextBoxText mtxtTO, recipients
 
-    Debug.Print "[EmailForm] PopulateToFieldFromName: name='" & normalizedName & "' recipients='" & recipients & "'"
+    Debug.Print "[EmailForm] PopulateToFieldFromName: name='" & normalizedName & _
+                "' row=" & worksheetRow & " recipients='" & recipients & "'"
 
     PopulateToFieldFromName = recipients
 End Function
@@ -294,6 +352,7 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
     Dim ssnLabel As MSForms.label
     Dim rowName As String
     Dim rowSsn As String
+    Dim worksheetRow As Long
     Dim recipients As String
 
     If mIsLoading Then Exit Sub
@@ -304,6 +363,7 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
 
     Set nameLabel = GetLabelControl("lblNM", rowIndex)
     Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
+    worksheetRow = GetSlotWorksheetRow(rowIndex)
 
     If Not nameLabel Is Nothing Then
         rowName = Trim$(SafeText(nameLabel.caption))
@@ -315,7 +375,7 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
         HandleLabelClickByIndex rowIndex
         PopulateFromIndex rowIndex
 
-        recipients = PopulateToFieldFromName(vbNullString)
+        recipients = PopulateToFieldFromName(vbNullString, 0)
 
         Debug.Print "[EmailForm] HandleRowClick: cleared selection for row=" & rowIndex & _
                     " txtTO='" & recipients & "'"
@@ -329,10 +389,11 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
     HandleLabelClickByIndex rowIndex
     PopulateFromIndex rowIndex
 
-    recipients = PopulateToFieldFromName(rowName)
+    recipients = PopulateToFieldFromName(rowName, worksheetRow)
 
     Debug.Print "[EmailForm] HandleRowClick: selected row=" & rowIndex & _
-                " name='" & rowName & "' ssn='" & rowSsn & "' txtTO='" & recipients & "'"
+                " name='" & rowName & "' ssn='" & rowSsn & _
+                "' worksheetRow=" & worksheetRow & " txtTO='" & recipients & "'"
 End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
@@ -1635,6 +1696,7 @@ Private Sub RefreshEightRowBlock()
     Dim ssnLabel As MSForms.label
     Dim rowName As String
     Dim resolvedSsn As String
+    Dim worksheetRow As Long
 
     For rowIndex = 1 To PAGE_SIZE
         Set selectionLabel = GetLabelControl("lblL", rowIndex)
@@ -1656,12 +1718,21 @@ Private Sub RefreshEightRowBlock()
 
         rowName = vbNullString
         resolvedSsn = vbNullString
+        worksheetRow = GetSlotWorksheetRow(rowIndex)
 
         If Not nameLabel Is Nothing Then
             rowName = Trim$(SafeText(nameLabel.caption))
         End If
 
-        If LenB(rowName) > 0 Then
+        If worksheetRow > 0 Then
+            resolvedSsn = modDataAccess.GetSsnByRow(worksheetRow)
+            If LenB(resolvedSsn) = 0 And LenB(rowName) > 0 Then
+                Debug.Print "[EmailForm] RefreshEightRowBlock: worksheet row " & worksheetRow & _
+                            " returned empty SSN for '" & rowName & "'"
+            End If
+        ElseIf LenB(rowName) > 0 Then
+            Debug.Print "[EmailForm] RefreshEightRowBlock: missing stored row for display " & rowIndex & _
+                        "; falling back to FindIdRowByName for '" & rowName & "'"
             resolvedSsn = modDataAccess.GetSsnByName(rowName)
         End If
 
@@ -1670,7 +1741,8 @@ Private Sub RefreshEightRowBlock()
         End If
 
         Debug.Print "[EmailForm] RefreshEightRowBlock row=" & rowIndex & _
-                    " name='" & rowName & "' ssn='" & resolvedSsn & "'"
+                    " name='" & rowName & "' storedRow=" & worksheetRow & _
+                    " ssn='" & resolvedSsn & "'"
 nextRow:
     Next rowIndex
 End Sub
@@ -1684,11 +1756,13 @@ Public Sub DebugValidateEightRowBindings()
     Dim labelSsn As String
     Dim resolvedSsn As String
     Dim emails As String
+    Dim worksheetRow As Long
 
     For rowIndex = 1 To PAGE_SIZE
         Set nameLabel = GetLabelControl("lblNM", rowIndex)
         Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
         Set selectLabel = GetLabelControl("lblL", rowIndex)
+        worksheetRow = GetSlotWorksheetRow(rowIndex)
 
         If Not nameLabel Is Nothing Then
             labelName = Trim$(SafeText(nameLabel.caption))
@@ -1703,8 +1777,13 @@ Public Sub DebugValidateEightRowBindings()
         End If
 
         If LenB(labelName) > 0 Then
-            resolvedSsn = modDataAccess.GetSsnByName(labelName)
-            emails = modDataAccess.GetEmailsByName(labelName)
+            If worksheetRow > 0 Then
+                resolvedSsn = modDataAccess.GetSsnByRow(worksheetRow)
+                emails = modDataAccess.GetEmailsByRow(worksheetRow)
+            Else
+                resolvedSsn = modDataAccess.GetSsnByName(labelName)
+                emails = modDataAccess.GetEmailsByName(labelName)
+            End If
         Else
             resolvedSsn = vbNullString
             emails = vbNullString
@@ -1712,7 +1791,8 @@ Public Sub DebugValidateEightRowBindings()
 
         Debug.Print "[EmailForm] DebugValidateEightRowBindings row=" & rowIndex & _
                     " name='" & labelName & "' lblSSN='" & labelSsn & _
-                    "' resolvedSSN='" & resolvedSsn & "' emails='" & emails & "'"
+                    "' storedRow=" & worksheetRow & _
+                    " resolvedSSN='" & resolvedSsn & "' emails='" & emails & "'"
 
         If StrComp(labelSsn, resolvedSsn, vbTextCompare) <> 0 Then
             Debug.Print "  WARNING: SSN mismatch detected on row " & rowIndex
@@ -1737,6 +1817,7 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     Dim record As Object
     Dim nameText As String
     Dim statusText As String
+    Dim worksheetRow As Long
 
     Set nameLabel = GetLabelControl("lblNM", displayIndex)
     Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
@@ -1749,8 +1830,15 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
         Exit Sub
     End If
 
+    worksheetRow = GetWorksheetRowFromRecord(record)
+
     nameText = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
     statusText = GetMemberStatusValue(memberIndex, record)
+
+    If worksheetRow = 0 And LenB(nameText) > 0 Then
+        Debug.Print "[EmailForm] BindSlot: missing worksheet row for memberIndex=" & memberIndex & _
+                    " displayIndex=" & displayIndex & " name='" & nameText & "'"
+    End If
 
     If Not nameLabel Is Nothing Then nameLabel.caption = nameText
     If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
@@ -1761,6 +1849,8 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     If Not selectionLabel Is Nothing Then
         selectionLabel.caption = ""
     End If
+
+    StoreSlotWorksheetRow displayIndex, worksheetRow
 End Sub
 
 Private Sub ClearSlot(ByVal displayIndex As Long)
@@ -1783,6 +1873,8 @@ Private Sub ClearSlot(ByVal displayIndex As Long)
     If Not selectionLabel Is Nothing Then
         selectionLabel.caption = ""
     End If
+
+    StoreSlotWorksheetRow displayIndex, 0
 End Sub
 
 Private Sub ResetAllRecordSlotBorders()
