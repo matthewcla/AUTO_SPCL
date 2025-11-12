@@ -1766,7 +1766,7 @@ Private Sub RefreshEightRowBlock()
             selectionLabel.caption = ""
         End If
         On Error Resume Next
-        selectionLabel.MousePointer = fmMousePointerHand
+        selectionLabel.MousePointer = fmMousePointerDefault
         selectionLabel.SpecialEffect = fmSpecialEffectFlat
         On Error GoTo 0
 
