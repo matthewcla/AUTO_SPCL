@@ -1575,7 +1575,7 @@ Private Function BuildPlaceholderPairs(ByVal memberIndex As Long) As Variant
         AddPlaceholderValue placeholders, "ISSUECOUNT", CStr(issues.Count)
         AddPlaceholderValue placeholders, "ISSUESCOUNT", CStr(issues.Count)
         AddPlaceholderValue placeholders, "TOTALISSUES", CStr(issues.Count)
-        AddPlaceholderValue placeholders, "ISSUES", BuildIssuesSummary(issues, False)
+        AddPlaceholderValue placeholders, "ISSUES_SUMMARY", BuildIssuesSummary(issues, False)
         AddPlaceholderValue placeholders, "ISSUES_LIST", BuildIssuesSummary(issues, False)
         AddPlaceholderValue placeholders, "ISSUES_BULLETED", BuildIssuesSummary(issues, True)
 
