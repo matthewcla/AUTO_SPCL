@@ -1412,15 +1412,21 @@ Private Sub EnsureStatusCache(ByVal recordCount As Long)
 
     For idx = 1 To recordCount
         key = CStr(idx)
-        If Not mStatusCache.Exists(key) Then
-            statusText = DEFAULT_EMAIL_STATUS
-            Set record = modRedBoardRecords.GetRedBoardRecord(idx)
-            If Not record Is Nothing Then
-                statusText = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
-                If LenB(statusText) = 0 Then
-                    statusText = DEFAULT_EMAIL_STATUS
-                End If
+
+        statusText = DEFAULT_EMAIL_STATUS
+        Set record = modRedBoardRecords.GetRedBoardRecord(idx)
+        If Not record Is Nothing Then
+            statusText = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+            If LenB(statusText) = 0 Then
+                statusText = DEFAULT_EMAIL_STATUS
             End If
+        End If
+
+        If mStatusCache.Exists(key) Then
+            If StrComp(SafeText(mStatusCache(key)), statusText, vbTextCompare) <> 0 Then
+                mStatusCache(key) = statusText
+            End If
+        Else
             mStatusCache.Add key, statusText
         End If
     Next idx
@@ -1765,13 +1771,16 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
 
     statusText = ReadCachedStatus(memberIndex)
 
-    If LenB(statusText) = 0 Then
-        If record Is Nothing Then
-            Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
-        End If
+    If record Is Nothing Then
+        Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+    End If
 
-        If Not record Is Nothing Then
-            statusText = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+    If Not record Is Nothing Then
+        Dim recordStatus As String
+
+        recordStatus = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+        If LenB(recordStatus) > 0 Then
+            statusText = recordStatus
         End If
     End If
 
