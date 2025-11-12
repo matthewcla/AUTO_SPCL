@@ -43,15 +43,15 @@ Private mTemplateAvailabilityWarningShown As Boolean
 Private mIsLoading As Boolean
 Private mInitialized As Boolean
 
+Private Const PAGE_SIZE As Long = 8
+Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
+Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
+
 Private mMemberCount As Long
 Private mStartIndex As Long
 Private mTotalRecords As Long
 Private mStatusCache As Object
 Private mSlotWorksheetRows(1 To PAGE_SIZE) As Long
-
-Private Const PAGE_SIZE As Long = 8
-Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
-Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
 Private Sub InitializeControlReferences()
     Set mtxtTEMP = TryGetTextBox("txtTEMP")
