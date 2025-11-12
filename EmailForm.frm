@@ -52,9 +52,10 @@ End Type
 Private mMembers() As MemberRecord
 Private mMemberCount As Long
 Private mMembersLoaded As Boolean
-Private mFirstVisibleMemberIndex As Long
+Private mStartIndex As Long
+Private mTotalRecords As Long
 
-Private Const MEMBERS_PER_PAGE As Long = 8
+Private Const PAGE_SIZE As Long = 8
 Private Const DEFAULT_EMAIL_STATUS As String = "Draft"
 Private Const ENABLE_TEMPLATE_TRACE As Boolean = False
 
@@ -158,7 +159,7 @@ Private Sub UpdateToFieldFromHighlightedRecord()
         Exit Sub
     End If
 
-    For displayIndex = 1 To MEMBERS_PER_PAGE
+    For displayIndex = 1 To PAGE_SIZE
         Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
         If selectionLabel Is Nothing Then GoTo nextSlot
 
@@ -586,7 +587,7 @@ Private Sub DeselectMemberSelectionLabels(Optional ByVal exceptDisplayIndex As L
     Dim slotIndex As Long
     Dim candidate As MSForms.label
 
-    For slotIndex = 1 To MEMBERS_PER_PAGE
+    For slotIndex = 1 To PAGE_SIZE
         Set candidate = GetLabelByDisplayIndex(slotIndex)
         If candidate Is Nothing Then GoTo NextLabel
 
@@ -615,7 +616,7 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
     EnsureMemberRecordsLoaded
 
     If memberIndex >= 1 And memberIndex <= mMemberCount Then
-        If displayIndex >= 1 And displayIndex <= MEMBERS_PER_PAGE Then
+        If displayIndex >= 1 And displayIndex <= PAGE_SIZE Then
             Set nameLabel = GetLabelControl("lblNM", displayIndex)
             If Not nameLabel Is Nothing Then
                 nameLabel.caption = SafeText(GetMemberNameValue(memberIndex))
@@ -1227,14 +1228,18 @@ Private Sub UserForm_Initialize()
 
     LoadMemberRecords
 
-    mFirstVisibleMemberIndex = 1
+    mTotalRecords = GetRedBoardCount()
+    If mTotalRecords = 0 Then mTotalRecords = mMemberCount
+
+    mStartIndex = 1
 
     If mMemberCount > 0 Then
         SelectedMemberIndex = 1
     Else
         mSelectedMemberIndex = 0
-        RenderMemberPage
     End If
+
+    RefreshPage
 
     Debug.Print "[EmailForm] Initialize: set highlightLabel border"
 
@@ -1244,7 +1249,7 @@ Private Sub UserForm_Initialize()
         highlightLabel.BorderColor = vbRed
     End If
 
-    For labelIndex = 2 To 8
+    For labelIndex = 2 To PAGE_SIZE
         Set highlightLabel = GetLabelByDisplayIndex(labelIndex)
         If highlightLabel Is Nothing Then GoTo NextLabel
         highlightLabel.BorderStyle = fmBorderStyleNone
@@ -1362,7 +1367,6 @@ Private Sub LoadMemberRecords()
     mMembersLoaded = True
     mMemberCount = 0
     Erase mMembers
-    mFirstVisibleMemberIndex = 1
 
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets("ID")
@@ -1389,40 +1393,149 @@ Private Sub LoadMemberRecords()
     mMemberCount = rowCount
 End Sub
 
-Private Sub RenderMemberPage()
+Private Sub RefreshPage()
     Dim slotIndex As Long
     Dim memberIndex As Long
+    Dim selectionDisplayIndex As Long
+    Dim selectionLabel As MSForms.label
+
+    ClearActiveHoverLabel
+    EnsureMemberRecordsLoaded
+
+    If mStartIndex < 1 Then mStartIndex = 1
+    If mMemberCount = 0 Then
+        mStartIndex = 1
+    ElseIf mStartIndex > mMemberCount Then
+        mStartIndex = ((mMemberCount - 1) \ PAGE_SIZE) * PAGE_SIZE + 1
+    End If
+
+    ResetAllRecordSlotBorders
+
+    For slotIndex = 1 To PAGE_SIZE
+        memberIndex = mStartIndex + slotIndex - 1
+        If memberIndex >= 1 And memberIndex <= mMemberCount Then
+            BindSlot slotIndex, memberIndex
+        Else
+            ClearSlot slotIndex
+        End If
+    Next slotIndex
+
+    If mMemberCount = 0 Then
+        mSelectedMemberIndex = 0
+        DeselectMemberSelectionLabels 0
+    Else
+        If mSelectedMemberIndex < mStartIndex Or _
+           mSelectedMemberIndex > mStartIndex + PAGE_SIZE - 1 Then
+            mSelectedMemberIndex = mStartIndex
+            ApplyBodyPlaceholders mSelectedMemberIndex
+        End If
+
+        selectionDisplayIndex = MemberIndexToDisplayIndex(mSelectedMemberIndex)
+        If selectionDisplayIndex >= 1 Then
+            DeselectMemberSelectionLabels selectionDisplayIndex
+            Set selectionLabel = GetLabelByDisplayIndex(selectionDisplayIndex)
+            If Not selectionLabel Is Nothing Then
+                selectionLabel.BorderStyle = fmBorderStyleSingle
+                selectionLabel.BorderColor = vbRed
+            End If
+        Else
+            DeselectMemberSelectionLabels 0
+        End If
+    End If
+
+    UpdateToFieldFromHighlightedRecord
+    UpdatePagerButtons
+End Sub
+
+Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     Dim nameLabel As MSForms.label
     Dim ssnLabel As MSForms.label
     Dim statusLabel As MSForms.label
+    Dim selectionLabel As MSForms.label
 
-    ClearActiveHoverLabel
+    Set nameLabel = GetLabelControl("lblNM", displayIndex)
+    Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
+    Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
+    Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
 
-    EnsureMemberRecordsLoaded
+    If Not nameLabel Is Nothing Then nameLabel.caption = GetMemberNameValue(memberIndex)
+    If Not ssnLabel Is Nothing Then ssnLabel.caption = GetMemberSSNValue(memberIndex)
+    If Not statusLabel Is Nothing Then
+        statusLabel.caption = GetMemberStatusValue(memberIndex)
+        ApplyStatusColor statusLabel
+    End If
+    If Not selectionLabel Is Nothing Then
+        selectionLabel.caption = GetMemberNameValue(memberIndex)
+    End If
+End Sub
 
-    For slotIndex = 1 To MEMBERS_PER_PAGE
-        memberIndex = mFirstVisibleMemberIndex + slotIndex - 1
+Private Sub ClearSlot(ByVal displayIndex As Long)
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim statusLabel As MSForms.label
+    Dim selectionLabel As MSForms.label
 
-        Set nameLabel = GetLabelControl("lblNM", slotIndex)
-        Set ssnLabel = GetLabelControl("lblSSN", slotIndex)
-        Set statusLabel = GetLabelControl("lblSTAT", slotIndex)
+    Set nameLabel = GetLabelControl("lblNM", displayIndex)
+    Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
+    Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
+    Set selectionLabel = GetLabelByDisplayIndex(displayIndex)
 
-        If memberIndex >= 1 And memberIndex <= mMemberCount Then
-            If Not nameLabel Is Nothing Then nameLabel.caption = GetMemberNameValue(memberIndex)
-            If Not ssnLabel Is Nothing Then ssnLabel.caption = GetMemberSSNValue(memberIndex)
-            If Not statusLabel Is Nothing Then
-                statusLabel.caption = GetMemberStatusValue(memberIndex)
-                ApplyStatusColor statusLabel
-            End If
-        Else
-            If Not nameLabel Is Nothing Then nameLabel.caption = ""
-            If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
-            If Not statusLabel Is Nothing Then
-                statusLabel.caption = ""
-                ApplyStatusColor statusLabel
-            End If
-        End If
+    If Not nameLabel Is Nothing Then nameLabel.caption = ""
+    If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
+    If Not statusLabel Is Nothing Then
+        statusLabel.caption = ""
+        ApplyStatusColor statusLabel
+    End If
+    If Not selectionLabel Is Nothing Then
+        selectionLabel.caption = ""
+    End If
+End Sub
+
+Private Sub ResetAllRecordSlotBorders()
+    Dim slotIndex As Long
+    Dim selectionLabel As MSForms.label
+
+    DeselectMemberSelectionLabels 0
+
+    For slotIndex = 1 To PAGE_SIZE
+        Set selectionLabel = GetLabelByDisplayIndex(slotIndex)
+        If selectionLabel Is Nothing Then GoTo NextLabel
+
+        selectionLabel.BorderStyle = fmBorderStyleNone
+        selectionLabel.BorderColor = vbWhite
+
+NextLabel:
     Next slotIndex
+End Sub
+
+Private Sub UpdatePagerButtons()
+    Dim upLabel As MSForms.label
+    Dim downLabel As MSForms.label
+    Dim canPageUp As Boolean
+    Dim canPageDown As Boolean
+    Dim totalRecords As Long
+
+    Set upLabel = TryGetLabel("lblUP")
+    Set downLabel = TryGetLabel("lblDOWN")
+
+    totalRecords = mTotalRecords
+    If totalRecords < mMemberCount Then totalRecords = mMemberCount
+
+    If totalRecords <= 0 Then
+        canPageUp = False
+        canPageDown = False
+    Else
+        canPageUp = mStartIndex > 1
+        canPageDown = (mStartIndex + PAGE_SIZE - 1) < totalRecords
+    End If
+
+    If Not upLabel Is Nothing Then
+        upLabel.Enabled = canPageUp
+    End If
+
+    If Not downLabel Is Nothing Then
+        downLabel.Enabled = canPageDown
+    End If
 End Sub
 
 Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As MSForms.label
@@ -1447,56 +1560,26 @@ Private Sub EnsureSelectedIndexVisible()
     EnsureMemberRecordsLoaded
 
     If mMemberCount = 0 Then
-        mFirstVisibleMemberIndex = 1
-        RenderMemberPage
+        mStartIndex = 1
+        RefreshPage
         Exit Sub
     End If
 
-    If mFirstVisibleMemberIndex < 1 Then mFirstVisibleMemberIndex = 1
+    If mStartIndex < 1 Then mStartIndex = 1
 
-    maxStart = mMemberCount - MEMBERS_PER_PAGE + 1
+    maxStart = mMemberCount - PAGE_SIZE + 1
     If maxStart < 1 Then maxStart = 1
 
-    If mSelectedMemberIndex < mFirstVisibleMemberIndex Then
-        mFirstVisibleMemberIndex = mSelectedMemberIndex
-    ElseIf mSelectedMemberIndex > mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1 Then
-        mFirstVisibleMemberIndex = mSelectedMemberIndex - MEMBERS_PER_PAGE + 1
+    If mSelectedMemberIndex < mStartIndex Then
+        mStartIndex = mSelectedMemberIndex
+    ElseIf mSelectedMemberIndex > mStartIndex + PAGE_SIZE - 1 Then
+        mStartIndex = mSelectedMemberIndex - PAGE_SIZE + 1
     End If
 
-    If mFirstVisibleMemberIndex > maxStart Then mFirstVisibleMemberIndex = maxStart
-    If mFirstVisibleMemberIndex < 1 Then mFirstVisibleMemberIndex = 1
+    If mStartIndex > maxStart Then mStartIndex = maxStart
+    If mStartIndex < 1 Then mStartIndex = 1
 
-    RenderMemberPage
-End Sub
-
-Private Sub ScrollMembers(ByVal delta As Long)
-    Dim maxStart As Long
-    Dim newStart As Long
-
-    EnsureMemberRecordsLoaded
-
-    If mMemberCount = 0 Then Exit Sub
-    If delta = 0 Then Exit Sub
-
-    maxStart = mMemberCount - MEMBERS_PER_PAGE + 1
-    If maxStart < 1 Then maxStart = 1
-
-    newStart = mFirstVisibleMemberIndex + delta
-    If newStart < 1 Then newStart = 1
-    If newStart > maxStart Then newStart = maxStart
-
-    If newStart = mFirstVisibleMemberIndex Then Exit Sub
-
-    mFirstVisibleMemberIndex = newStart
-    RenderMemberPage
-
-    If mSelectedMemberIndex < mFirstVisibleMemberIndex Then
-        SelectedMemberIndex = mFirstVisibleMemberIndex
-    ElseIf mSelectedMemberIndex > mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1 Then
-        SelectedMemberIndex = mFirstVisibleMemberIndex + MEMBERS_PER_PAGE - 1
-    Else
-        ApplyBodyPlaceholders mSelectedMemberIndex
-    End If
+    RefreshPage
 End Sub
 
 Private Function DisplayIndexToMemberIndex(ByVal displayIndex As Long) As Long
@@ -1506,7 +1589,7 @@ Private Function DisplayIndexToMemberIndex(ByVal displayIndex As Long) As Long
 
     If displayIndex < 1 Then Exit Function
 
-    memberIndex = mFirstVisibleMemberIndex + displayIndex - 1
+    memberIndex = mStartIndex + displayIndex - 1
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
 
     DisplayIndexToMemberIndex = memberIndex
@@ -1515,8 +1598,8 @@ End Function
 Private Function MemberIndexToDisplayIndex(ByVal memberIndex As Long) As Long
     Dim displayIndex As Long
 
-    displayIndex = memberIndex - mFirstVisibleMemberIndex + 1
-    If displayIndex < 1 Or displayIndex > MEMBERS_PER_PAGE Then Exit Function
+    displayIndex = memberIndex - mStartIndex + 1
+    If displayIndex < 1 Or displayIndex > PAGE_SIZE Then Exit Function
 
     MemberIndexToDisplayIndex = displayIndex
 End Function
@@ -1847,6 +1930,10 @@ Private Function DetermineMaxMemberIndex() As Long
     DetermineMaxMemberIndex = mMemberCount
 End Function
 
+Private Function GetRedBoardCount() As Long
+    GetRedBoardCount = DetermineMaxMemberIndex()
+End Function
+
 Private Function ExtractIndex(ByVal controlName As String, ByVal prefix As String) As Long
     Dim upperName As String
     Dim upperPrefix As String
@@ -1941,11 +2028,35 @@ Private Sub ClearActiveHoverLabel()
 End Sub
 
 Private Sub lblUP_Click()
-    ScrollMembers -1
+    Dim maxStart As Long
+
+    EnsureMemberRecordsLoaded
+    If mMemberCount = 0 Then Exit Sub
+
+    mStartIndex = mStartIndex - PAGE_SIZE
+    If mStartIndex < 1 Then mStartIndex = 1
+
+    maxStart = mMemberCount - PAGE_SIZE + 1
+    If maxStart < 1 Then maxStart = 1
+    If mStartIndex > maxStart Then mStartIndex = maxStart
+
+    RefreshPage
 End Sub
 
 Private Sub lblDOWN_Click()
-    ScrollMembers 1
+    Dim maxStart As Long
+
+    EnsureMemberRecordsLoaded
+    If mMemberCount = 0 Then Exit Sub
+
+    maxStart = mMemberCount - PAGE_SIZE + 1
+    If maxStart < 1 Then maxStart = 1
+
+    mStartIndex = mStartIndex + PAGE_SIZE
+    If mStartIndex > maxStart Then mStartIndex = maxStart
+    If mStartIndex < 1 Then mStartIndex = 1
+
+    RefreshPage
 End Sub
 
 Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
@@ -2772,7 +2883,7 @@ Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
     If mMemberCount = 0 Then Exit Sub
 
     If memberIndex < 1 Then
-        memberIndex = mFirstVisibleMemberIndex
+        memberIndex = mStartIndex
     End If
 
     If memberIndex < 1 Then
