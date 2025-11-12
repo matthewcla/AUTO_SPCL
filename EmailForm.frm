@@ -2161,7 +2161,6 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     Dim baseText As String
     Dim targetIndex As Long
     Dim placeholderPairs As Variant
-    Dim activeControl As MSForms.Control
 
     EnsureMemberRecordsLoaded
 
@@ -2200,17 +2199,8 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
 
     TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
 
-    ' Reset the caret only if the body textbox already has focus so we don't
-    ' steal focus from other controls while navigating records.
-    On Error Resume Next
-    Set activeControl = Me.ActiveControl
-    On Error GoTo 0
-
-    If Not activeControl Is Nothing Then
-        If activeControl Is mTxtbody Then
-            FocusTextTop mTxtbody ' Keep caret at top after record load.
-        End If
-    End If
+    ' Sets focus and scrolls textbox to top after record load.
+    FocusTextTop mTxtbody
 End Sub
 
 Private Sub ApplySubjectPlaceholders(ByRef placeholderPairs As Variant)
