@@ -534,7 +534,7 @@ Private Function BuildDraftPlaceholderReplacements(ByVal personName As String, _
     BuildDraftPlaceholderReplacements = Array( _
         "Name", personName, _
         "EligiblesNote", noteText, _
-        "ISSUES", noteText, _
+        "ISSUES_SUMMARY", noteText, _
         "ISSUE", noteText _
     )
 End Function
