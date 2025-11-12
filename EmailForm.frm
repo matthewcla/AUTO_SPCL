@@ -284,6 +284,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     Dim matchedRow As Long
     Dim issueDescription As String
     Dim emailBody As String
+    Dim replacedBody As String
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: displayIndex=" & displayIndex
 
@@ -349,14 +350,19 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     End If
 
     emailBody = GetTextBoxText(mTxtbody, False)
+    Debug.Print "Template before replace: " & emailBody
+    Debug.Print "Searching for placeholder {Issues}"
+
     If InStr(1, emailBody, ISSUE_PLACEHOLDER, vbTextCompare) = 0 Then
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder not present in body"
         Exit Sub
     End If
 
-    emailBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
+    Debug.Print "Issue text to insert: " & issueDescription
+    replacedBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
+    Debug.Print "Template after replace: " & replacedBody
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder replaced"
-    SetTextBoxText mTxtbody, emailBody
+    SetTextBoxText mTxtbody, replacedBody
 End Sub
 
 Private Function FindMemberRowIndex(ByVal memberName As String, ByVal nameColumn As Range) As Long
