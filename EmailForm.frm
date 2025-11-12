@@ -291,6 +291,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     Dim candidate As String
     Dim normalizedCandidate As String
     Dim replacementOutcome As String
+    Dim replacementsApplied As Long
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: displayIndex=" & displayIndex
 
@@ -361,6 +362,7 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
 
     normalizedTarget = NormalizeBraceToken(ISSUE_PLACEHOLDER)
     replacementOutcome = "No changes applied"
+    replacementsApplied = 0
 
     position = 1
     Do While position > 0
@@ -373,19 +375,27 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
         candidate = Mid$(emailBody, placeholderStart, placeholderEnd - placeholderStart + 1)
         normalizedCandidate = NormalizeBraceToken(candidate)
 
+        position = placeholderEnd + 1
+
         If LenB(normalizedCandidate) > 0 Then
             If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
                 Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder match='" & candidate & "' at position=" & placeholderStart
                 emailBody = Left$(emailBody, placeholderStart - 1) & issueDescription & Mid$(emailBody, placeholderEnd + 1)
-                replacementOutcome = "Placeholder replaced"
-                Exit Do
+                replacementsApplied = replacementsApplied + 1
+                position = placeholderStart + Len(issueDescription)
             End If
         End If
-
-        position = placeholderEnd + 1
     Loop
 
-    If StrComp(replacementOutcome, "Placeholder replaced", vbBinaryCompare) <> 0 Then
+    If replacementsApplied > 0 Then
+        If replacementsApplied = 1 Then
+            replacementOutcome = "Placeholder replaced"
+        Else
+            replacementOutcome = "Placeholder replaced (" & replacementsApplied & " matches)"
+        End If
+    End If
+
+    If replacementsApplied = 0 Then
         If LenB(issueDescription) > 0 Then
             If LenB(emailBody) > 0 Then
                 emailBody = emailBody & vbNewLine & vbNewLine & "Issues:" & vbNewLine & issueDescription
