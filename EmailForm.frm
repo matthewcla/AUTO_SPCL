@@ -180,21 +180,13 @@ Private Sub FocusComposerField()
 End Sub
 
 Private Sub FocusTextTop(ByVal tb As MSForms.TextBox)
-    On Error GoTo FocusFail
-
+    On Error Resume Next
     If tb Is Nothing Then Exit Sub
-    If tb.Visible = False Then Exit Sub
-    If tb.Enabled = False Then Exit Sub
+    If Not tb.Visible Or Not tb.Enabled Then Exit Sub
 
     tb.SetFocus
-    ' Reset selection so the caret stays at the first character and the view remains anchored to the top.
     tb.SelStart = 0
     tb.SelLength = 0
-    Exit Sub
-
-FocusFail:
-    Debug.Print "[EmailForm] FocusTextTop error: " & Err.Number & " - " & Err.Description
-    Err.Clear
 End Sub
 
 Private Sub txtBody_Enter()
@@ -449,6 +441,9 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
     Debug.Print "[EmailForm] HandleRowClick: selected row=" & rowIndex & _
                 " name='" & rowName & "' ssn='" & rowSsn & _
                 "' worksheetRow=" & worksheetRow & " txtTO='" & recipients & "'"
+
+    ' Keep caret at top after record load
+    FocusTextTop txtBody
 End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
