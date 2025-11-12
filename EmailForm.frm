@@ -40,6 +40,8 @@ Private mbSUB As MSForms.CommandButton
 
 Private mTemplateFieldWarningsShown As Object
 Private mTemplateAvailabilityWarningShown As Boolean
+Private mIsLoading As Boolean
+Private mInitialized As Boolean
 
 Private Type MemberRecord
     Name As String
@@ -272,26 +274,11 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
 End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
-    Const ISSUE_PLACEHOLDER As String = "{Issues}"
-    Const DEFAULT_ISSUE_DESCRIPTION As String = "Issue details currently unavailable."
-
     Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
     Dim memberName As String
-    Dim lo As ListObject
-    Dim nameColumn As Range
-    Dim issueColumn As Range
-    Dim matchIndex As Variant
-    Dim matchedRow As Long
+    Dim memberSSN As String
     Dim issueDescription As String
-    Dim emailBody As String
-    Dim normalizedTarget As String
-    Dim position As Long
-    Dim placeholderStart As Long
-    Dim placeholderEnd As Long
-    Dim candidate As String
-    Dim normalizedCandidate As String
-    Dim replacementOutcome As String
-    Dim replacementsApplied As Long
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: displayIndex=" & displayIndex
 
@@ -302,58 +289,134 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     End If
 
     memberName = Trim$(SafeText(nameLabel.caption))
-    Debug.Print "[EmailForm] UpdateIssuePlaceholder: memberName='" & memberName & "'"
 
-    If LenB(memberName) = 0 Then
-        Debug.Print "[EmailForm] UpdateIssuePlaceholder: member name empty"
+    Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
+    If ssnLabel Is Nothing Then
+        memberSSN = vbNullString
+    Else
+        memberSSN = Trim$(SafeText(ssnLabel.caption))
+    End If
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: memberName='" & memberName & "'"
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: memberSSN='" & memberSSN & "'"
+
+    If LenB(memberName) = 0 And LenB(memberSSN) = 0 Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: member identifiers unavailable"
         Exit Sub
     End If
+
+    issueDescription = GetIssuesFromRedBoard(memberName, memberSSN)
+    If LenB(issueDescription) = 0 Then
+        Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue lookup returned empty result"
+        Exit Sub
+    End If
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: issueText='" & issueDescription & "'"
+
+    UpdateIssuePlaceholder issueDescription
+End Sub
+
+Private Function GetIssuesFromRedBoard(ByVal memberName As String, _
+                                       ByVal memberSSN As String) As String
+    Const DEFAULT_ISSUE_DESCRIPTION As String = "Issue details currently unavailable."
+
+    Dim lo As ListObject
+    Dim nameColumn As Range
+    Dim ssnColumn As Range
+    Dim issueColumn As Range
+    Dim matchIndex As Variant
+    Dim matchedRow As Long
+    Dim resolvedName As String
+    Dim resolvedSSN As String
+    Dim issueDescription As String
+
+    resolvedName = Trim$(SafeText(memberName))
+    resolvedSSN = Trim$(SafeText(memberSSN))
 
     Set lo = TryGetListObject("RED_Board")
     If lo Is Nothing Then
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: table 'RED_Board' not found"
-        Exit Sub
+        Exit Function
     End If
 
     On Error Resume Next
     Set nameColumn = lo.ListColumns(1).DataBodyRange
+    Set ssnColumn = lo.ListColumns(2).DataBodyRange
     Set issueColumn = lo.ListColumns(3).DataBodyRange
     On Error GoTo 0
 
-    If nameColumn Is Nothing Then
-        Debug.Print "[EmailForm] UpdateIssuePlaceholder: name column unavailable"
-        Exit Sub
-    End If
-
     If issueColumn Is Nothing Then
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue column unavailable"
-        Exit Sub
+        Exit Function
     End If
 
-    matchIndex = Application.Match(memberName, nameColumn, 0)
-    If IsError(matchIndex) Then
-        Debug.Print "[EmailForm] UpdateIssuePlaceholder: Application.Match failed; attempting manual search"
-        matchedRow = FindMemberRowIndex(memberName, nameColumn)
-    Else
-        matchedRow = CLng(matchIndex)
+    matchedRow = 0
+
+    If LenB(resolvedSSN) > 0 Then
+        If Not ssnColumn Is Nothing Then
+            matchIndex = Application.Match(resolvedSSN, ssnColumn, 0)
+            If IsError(matchIndex) Then
+                Debug.Print "[EmailForm] UpdateIssuePlaceholder: Application.Match by SSN failed; attempting manual search"
+                matchedRow = FindMemberRowIndexBySSN(resolvedSSN, ssnColumn)
+            Else
+                matchedRow = CLng(matchIndex)
+            End If
+        Else
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: SSN column unavailable"
+        End If
+    End If
+
+    If matchedRow = 0 Then
+        If nameColumn Is Nothing Then
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: name column unavailable"
+        ElseIf LenB(resolvedName) > 0 Then
+            matchIndex = Application.Match(resolvedName, nameColumn, 0)
+            If IsError(matchIndex) Then
+                Debug.Print "[EmailForm] UpdateIssuePlaceholder: Application.Match failed; attempting manual search"
+                matchedRow = FindMemberRowIndex(resolvedName, nameColumn)
+            Else
+                matchedRow = CLng(matchIndex)
+            End If
+        Else
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: member name empty; skipping name lookup"
+        End If
     End If
 
     If matchedRow <= 0 Or matchedRow > issueColumn.Rows.Count Then
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: member not found in table; using default description"
         issueDescription = DEFAULT_ISSUE_DESCRIPTION
     Else
-        issueDescription = SafeText(issueColumn.Cells(matchedRow, 1).value)
+        issueDescription = SafeText(issueColumn.Cells(matchedRow, 1).Value)
         If LenB(issueDescription) = 0 Then
             Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description empty; using default description"
             issueDescription = DEFAULT_ISSUE_DESCRIPTION
         End If
     End If
 
-    Debug.Print "[EmailForm] UpdateIssuePlaceholder: issueText='" & issueDescription & "'"
+    GetIssuesFromRedBoard = issueDescription
+End Function
+
+Private Sub UpdateIssuePlaceholder(ByVal issueDescription As String)
+    Const ISSUE_PLACEHOLDER As String = "{Issues}"
+
+    Dim bodyControl As MSForms.TextBox
+    Dim emailBody As String
+    Dim normalizedTarget As String
+    Dim position As Long
+    Dim placeholderStart As Long
+    Dim placeholderEnd As Long
+    Dim candidate As String
+    Dim normalizedCandidate As String
+    Dim replacementOutcome As String
+    Dim replacementsApplied As Long
 
     If mTxtbody Is Nothing Then
-        Debug.Print "[EmailForm] UpdateIssuePlaceholder: txtbody control missing"
-        Exit Sub
+        Set bodyControl = TryGetTextBox("txtbody")
+        If bodyControl Is Nothing Then
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: txtbody control missing"
+            Exit Sub
+        End If
+        Set mTxtbody = bodyControl
     End If
 
     emailBody = GetBodyText()
@@ -465,6 +528,42 @@ Private Function FindMemberRowIndex(ByVal memberName As String, ByVal nameColumn
     Next cell
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: manual search did not find member '" & memberName & "'"
+End Function
+
+Private Function FindMemberRowIndexBySSN(ByVal memberSSN As String, ByVal ssnColumn As Range) As Long
+    Dim cell As Range
+    Dim normalizedTarget As String
+    Dim normalizedCandidate As String
+    Dim indexCounter As Long
+
+    normalizedTarget = NormalizeSSNValue(memberSSN)
+    If LenB(normalizedTarget) = 0 Then Exit Function
+
+    For Each cell In ssnColumn.Cells
+        indexCounter = indexCounter + 1
+        normalizedCandidate = NormalizeSSNValue(SafeText(cell.Value))
+
+        If LenB(normalizedCandidate) = 0 Then GoTo NextCell
+
+        If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
+            FindMemberRowIndexBySSN = indexCounter
+            Exit Function
+        End If
+
+NextCell:
+    Next cell
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: manual SSN search did not find member with SSN '" & memberSSN & "'"
+End Function
+
+Private Function NormalizeSSNValue(ByVal value As String) As String
+    Dim cleaned As String
+
+    cleaned = SafeText(value)
+    cleaned = Replace$(cleaned, "-", vbNullString)
+    cleaned = Replace$(cleaned, " ", vbNullString)
+
+    NormalizeSSNValue = cleaned
 End Function
 
 Private Function TryGetListObject(ByVal tableName As String) As ListObject
@@ -605,9 +704,14 @@ End Sub
 Private Function GetBodyText() As String
     Dim normalized As String
 
-    If mTxtbody Is Nothing Then Exit Function
+    If Not mTxtbody Is Nothing Then
+        normalized = CStr(mTxtbody.Value)
+    Else
+        On Error Resume Next
+        normalized = CStr(Me.txtbody.Value)
+        On Error GoTo 0
+    End If
 
-    normalized = CStr(mTxtbody.value)
     normalized = Replace$(normalized, vbCrLf, vbLf)
     normalized = Replace$(normalized, vbCr, vbLf)
     GetBodyText = Replace$(normalized, vbLf, vbCrLf)
@@ -616,11 +720,17 @@ End Function
 Private Sub SetBodyText(ByVal value As String)
     Dim normalized As String
 
-    If mTxtbody Is Nothing Then Exit Sub
-
     normalized = Replace$(value, vbCrLf, vbLf)
     normalized = Replace$(normalized, vbCr, vbLf)
-    mTxtbody.value = Replace$(normalized, vbLf, vbCrLf)
+    normalized = Replace$(normalized, vbLf, vbCrLf)
+
+    If Not mTxtbody Is Nothing Then
+        mTxtbody.Value = normalized
+    Else
+        On Error Resume Next
+        Me.txtbody.Value = normalized
+        On Error GoTo 0
+    End If
 End Sub
 
 Private Sub EnsureTemplateWarningCache()
@@ -957,6 +1067,10 @@ Private Sub UserForm_Initialize()
 
     On Error GoTo CleanFail
 
+    mIsLoading = True
+    mInitialized = False
+    Debug.Print "[EmailForm] Initialize start"
+
     SetCursorWait
 
     Dim templateKey As String
@@ -1141,12 +1255,18 @@ NextLabel:
 
     UpdateToFieldFromHighlightedRecord
 
+    PopulateFromIndex 1
+
     ' The first member index represents worksheet row 2 because row 1 stores headers.
     ' We highlight that row silently so reviewers land on the initial record without prompts.
 
     CenterUserFormOnActiveMonitor Me
 
+    mInitialized = True
+    Debug.Print "[EmailForm] Initialize done"
+
 CleanExit:
+    mIsLoading = False
     SetCursorDefault
     If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
     Exit Sub
@@ -1155,6 +1275,8 @@ CleanFail:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    mInitialized = False
+    Debug.Print "[EmailForm] Initialize error: " & errDescription
     Resume CleanExit
 End Sub
 
@@ -2664,6 +2786,11 @@ Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
     ApplyBodyPlaceholders mSelectedMemberIndex
 End Sub
 
+Private Sub PopulateFromIndex(ByVal idx As Long)
+    Debug.Print "[EmailForm] PopulateFromIndex idx=" & idx
+    UpdateIssuePlaceholderForDisplayIndex idx
+End Sub
+
 Private Sub bBE_Click()
     HandleEmailToggleClick SelectedMemberIndex
 End Sub
@@ -2673,8 +2800,9 @@ Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL1_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 1
-    UpdateIssuePlaceholderForDisplayIndex 1
+    PopulateFromIndex 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2682,8 +2810,9 @@ Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL2_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 2
-    UpdateIssuePlaceholderForDisplayIndex 2
+    PopulateFromIndex 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2691,8 +2820,9 @@ Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL3_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 3
-    UpdateIssuePlaceholderForDisplayIndex 3
+    PopulateFromIndex 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2700,8 +2830,9 @@ Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL4_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 4
-    UpdateIssuePlaceholderForDisplayIndex 4
+    PopulateFromIndex 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2709,8 +2840,9 @@ Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL5_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 5
-    UpdateIssuePlaceholderForDisplayIndex 5
+    PopulateFromIndex 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2718,8 +2850,9 @@ Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL6_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 6
-    UpdateIssuePlaceholderForDisplayIndex 6
+    PopulateFromIndex 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2727,8 +2860,9 @@ Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL7_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 7
-    UpdateIssuePlaceholderForDisplayIndex 7
+    PopulateFromIndex 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -2736,8 +2870,9 @@ Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL8_Click()
+    If mIsLoading Then Exit Sub
     HandleLabelClickByIndex 8
-    UpdateIssuePlaceholderForDisplayIndex 8
+    PopulateFromIndex 8
 End Sub
 
 
