@@ -265,6 +265,9 @@ Public Function ReadDefaultEmailTemplate() As EmailTemplate
         Exit Function
     End If
 
+    Debug.Print "[EmailTemplates] ReadDefaultEmailTemplate: Using worksheet '" & ws.Name & _
+                "' row " & DEFAULT_ROW_INDEX
+
     Set headerMap = GetEmailTemplateHeaderMap(ws)
     If headerMap Is Nothing Then
         EF_DebugPrint "ReadDefaultEmailTemplate: Header map unavailable; returning labelled default."
@@ -786,6 +789,8 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     If ws Is Nothing Then Exit Function
 
     normalizedKey = NormaliseTemplateKey(templateKey, ws)
+    Debug.Print "[EmailTemplates] LoadEmailTemplateIntoControls: RequestedKey='" & templateKey & _
+                "' NormalizedKey='" & normalizedKey & "'"
 
     ClearTemplateControls txtTo, txtCc, lstAttachments, txtSubject, txtBody
 
@@ -806,6 +811,8 @@ Public Function LoadEmailTemplateIntoControls(ByVal templateKey As String, _
     If Not IsMissing(resolvedTemplateKey) Then
         resolvedTemplateKey = resolvedKey
     End If
+
+    Debug.Print "[EmailTemplates] LoadEmailTemplateIntoControls: ResolvedKey='" & resolvedKey & "'"
 End Function
 
 Private Function TryPopulateTemplateFromDefaultColumn(ByRef ws As Worksheet, _
@@ -821,6 +828,10 @@ Private Function TryPopulateTemplateFromDefaultColumn(ByRef ws As Worksheet, _
 
     If defaultColumn < 1 Then Exit Function
     If ws Is Nothing Then Exit Function
+
+    Debug.Print "[EmailTemplates] TryPopulateTemplateFromDefaultColumn: Using sheet '" & ws.Name & _
+                "' default column index " & defaultColumn
+
     If defaultColumn > ws.Columns.Count Then Exit Function
 
     TryPopulateTemplateFromDefaultColumn = PopulateTemplateControlsFromColumn(ws, defaultColumn, _
@@ -846,6 +857,7 @@ Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
     Dim ccValue As String
     Dim subjectValue As String
     Dim bodyValue As String
+    Dim finalBodyValue As String
     Dim attachmentValue As String
     Dim attachmentEntries As Collection
     Dim userAttachmentEntries As Collection
@@ -872,6 +884,10 @@ Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
     bodyValue = Trim$(CStrSafe(ws.Cells(rowBody, templateColumn).Value))
     attachmentValue = Trim$(CStrSafe(ws.Cells(rowAttachments, templateColumn).Value))
 
+    Debug.Print "[EmailTemplates] PopulateTemplateControlsFromColumn: TemplateKey='" & _
+                Trim$(CStrSafe(ws.Cells(1, templateColumn).Value)) & "'"
+    Debug.Print "[EmailTemplates] PopulateTemplateControlsFromColumn: Raw body value='" & bodyValue & "'"
+
     Set attachmentEntries = ValidateTemplateAttachmentPaths(ws, templateColumn, attachmentValue)
     Set userAttachmentEntries = ReadUserAttachmentEntriesFromWorksheet(ws, templateColumn)
     Set combinedAttachments = CombineAttachmentCollections(attachmentEntries, userAttachmentEntries)
@@ -880,7 +896,9 @@ Private Function PopulateTemplateControlsFromColumn(ByRef ws As Worksheet, _
     AssignTemplateTextBoxValue txtCc, ccValue
     AssignTemplateTextBoxValue txtSubject, subjectValue
     AssignAttachmentList lstAttachments, combinedAttachments
-    AssignTemplateTextBoxValue txtBody, BuildBodyValue(bodyValue)
+    finalBodyValue = BuildBodyValue(bodyValue)
+    Debug.Print "[EmailTemplates] PopulateTemplateControlsFromColumn: Final body value after BuildBodyValue='" & finalBodyValue & "'"
+    AssignTemplateTextBoxValue txtBody, finalBodyValue
 
     resolvedKey = Trim$(CStrSafe(ws.Cells(1, templateColumn).Value))
     If LenB(resolvedKey) = 0 Then
@@ -1233,7 +1251,9 @@ EnsureDefault:
 End Function
 
 Private Function BuildBodyValue(ByVal bodyValue As String) As String
+    Debug.Print "[EmailTemplates] BuildBodyValue: Input='" & bodyValue & "'"
     BuildBodyValue = modEmailPlaceholders.CombineTemplateSections(bodyValue)
+    Debug.Print "[EmailTemplates] BuildBodyValue: Output='" & BuildBodyValue & "'"
 End Function
 
 '-------------------------------------------------------------------------------
