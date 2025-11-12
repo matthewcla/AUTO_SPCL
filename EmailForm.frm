@@ -261,7 +261,15 @@ Private Sub HandleRowClick(ByVal rowIndex As Integer)
     End If
 
     If LenB(rowName) = 0 Then
-        Debug.Print "[EmailForm] HandleRowClick: row " & rowIndex & " has no associated name."
+        Debug.Print "[EmailForm] HandleRowClick: row " & rowIndex & " has no associated name; clearing selection."
+
+        HandleLabelClickByIndex rowIndex
+        PopulateFromIndex rowIndex
+
+        recipients = PopulateToFieldFromName(vbNullString)
+
+        Debug.Print "[EmailForm] HandleRowClick: cleared selection for row=" & rowIndex & _
+                    " txtTO='" & recipients & "'"
         Exit Sub
     End If
 
