@@ -284,7 +284,14 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     Dim matchedRow As Long
     Dim issueDescription As String
     Dim emailBody As String
-    Dim replacedBody As String
+    Dim normalizedTarget As String
+    Dim position As Long
+    Dim placeholderStart As Long
+    Dim placeholderEnd As Long
+    Dim candidate As String
+    Dim normalizedCandidate As String
+    Dim replacementOutcome As String
+    Dim replacementsApplied As Long
 
     Debug.Print "[EmailForm] UpdateIssuePlaceholder: displayIndex=" & displayIndex
 
@@ -339,10 +346,10 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
         If LenB(issueDescription) = 0 Then
             Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description empty; using default description"
             issueDescription = DEFAULT_ISSUE_DESCRIPTION
-        Else
-            Debug.Print "[EmailForm] UpdateIssuePlaceholder: issue description='" & issueDescription & "'"
         End If
     End If
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: issueText='" & issueDescription & "'"
 
     If mTxtbody Is Nothing Then
         Debug.Print "[EmailForm] UpdateIssuePlaceholder: txtbody control missing"
@@ -350,20 +357,94 @@ Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
     End If
 
     emailBody = GetTextBoxText(mTxtbody, False)
-    Debug.Print "Template before replace: " & emailBody
-    Debug.Print "Searching for placeholder {Issues}"
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: bodyLength=" & Len(emailBody)
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: bodyPreview='" & Left$(emailBody, 200) & "'"
 
-    If InStr(1, emailBody, ISSUE_PLACEHOLDER, vbTextCompare) = 0 Then
-        Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder not present in body"
-        Exit Sub
+    normalizedTarget = NormalizeBraceToken(ISSUE_PLACEHOLDER)
+    replacementOutcome = "No changes applied"
+    replacementsApplied = 0
+
+    position = 1
+    Do While position > 0
+        placeholderStart = InStr(position, emailBody, "{", vbTextCompare)
+        If placeholderStart = 0 Then Exit Do
+
+        placeholderEnd = InStr(placeholderStart + 1, emailBody, "}", vbTextCompare)
+        If placeholderEnd = 0 Then Exit Do
+
+        candidate = Mid$(emailBody, placeholderStart, placeholderEnd - placeholderStart + 1)
+        normalizedCandidate = NormalizeBraceToken(candidate)
+
+        position = placeholderEnd + 1
+
+        If LenB(normalizedCandidate) > 0 Then
+            If StrComp(normalizedCandidate, normalizedTarget, vbBinaryCompare) = 0 Then
+                Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder match='" & candidate & "' at position=" & placeholderStart
+                emailBody = Left$(emailBody, placeholderStart - 1) & issueDescription & Mid$(emailBody, placeholderEnd + 1)
+                replacementsApplied = replacementsApplied + 1
+                position = placeholderStart + Len(issueDescription)
+            End If
+        End If
+    Loop
+
+    If replacementsApplied > 0 Then
+        If replacementsApplied = 1 Then
+            replacementOutcome = "Placeholder replaced"
+        Else
+            replacementOutcome = "Placeholder replaced (" & replacementsApplied & " matches)"
+        End If
     End If
 
-    Debug.Print "Issue text to insert: " & issueDescription
-    replacedBody = Replace(emailBody, ISSUE_PLACEHOLDER, issueDescription, 1, -1, vbTextCompare)
-    Debug.Print "Template after replace: " & replacedBody
-    Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder replaced"
-    SetTextBoxText mTxtbody, replacedBody
+    If replacementsApplied = 0 Then
+        If LenB(issueDescription) > 0 Then
+            If LenB(emailBody) > 0 Then
+                emailBody = emailBody & vbNewLine & vbNewLine & "Issues:" & vbNewLine & issueDescription
+            Else
+                emailBody = "Issues:" & vbNewLine & issueDescription
+            End If
+            replacementOutcome = "Issues section appended"
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: placeholder not found; appended Issues section"
+        Else
+            Debug.Print "[EmailForm] UpdateIssuePlaceholder: no issue text available; body left unchanged"
+        End If
+    End If
+
+    Debug.Print "[EmailForm] UpdateIssuePlaceholder: replacementOutcome=" & replacementOutcome
+    SetTextBoxText mTxtbody, emailBody
 End Sub
+
+Private Function NormalizeBraceToken(ByVal token As String) As String
+    Dim cleaned As String
+    Dim innerValue As String
+
+    cleaned = SafeText(token)
+    cleaned = Replace(cleaned, vbCr, " ")
+    cleaned = Replace(cleaned, vbLf, " ")
+    cleaned = Replace(cleaned, vbTab, " ")
+    cleaned = Trim$(cleaned)
+
+    If LenB(cleaned) = 0 Then
+        NormalizeBraceToken = vbNullString
+        Exit Function
+    End If
+
+    If Left$(cleaned, 1) = "{" And Right$(cleaned, 1) = "}" Then
+        innerValue = Mid$(cleaned, 2, Len(cleaned) - 2)
+    Else
+        innerValue = cleaned
+    End If
+
+    innerValue = Replace(innerValue, vbCr, " ")
+    innerValue = Replace(innerValue, vbLf, " ")
+    innerValue = Replace(innerValue, vbTab, " ")
+    innerValue = Trim$(innerValue)
+
+    If LenB(innerValue) = 0 Then
+        NormalizeBraceToken = vbNullString
+    Else
+        NormalizeBraceToken = "{" & UCase$(innerValue) & "}"
+    End If
+End Function
 
 Private Function FindMemberRowIndex(ByVal memberName As String, ByVal nameColumn As Range) As Long
     Dim cell As Range
