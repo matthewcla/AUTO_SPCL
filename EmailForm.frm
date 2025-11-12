@@ -179,6 +179,39 @@ Private Sub FocusComposerField()
     End If
 End Sub
 
+Private Sub FocusTextTop(ByVal tb As MSForms.TextBox)
+    On Error GoTo FocusFail
+
+    If tb Is Nothing Then Exit Sub
+    If tb.Visible = False Then Exit Sub
+    If tb.Enabled = False Then Exit Sub
+
+    tb.SetFocus
+    ' Reset selection so the caret stays at the first character and the view remains anchored to the top.
+    tb.SelStart = 0
+    tb.SelLength = 0
+    Exit Sub
+
+FocusFail:
+    Debug.Print "[EmailForm] FocusTextTop error: " & Err.Number & " - " & Err.Description
+    Err.Clear
+End Sub
+
+Private Sub txtBody_Enter()
+    ' Keep caret at first line when the body field gains focus.
+    FocusTextTop mTxtbody
+End Sub
+
+Private Sub txtTO_Enter()
+    ' Keep caret at first line when the TO field gains focus.
+    FocusTextTop mtxtTO
+End Sub
+
+Private Sub txtcc_Enter()
+    ' Keep caret at first line when the CC field gains focus.
+    FocusTextTop mTxtcc
+End Sub
+
 Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.label
     Dim labelName As String
 
@@ -1421,6 +1454,8 @@ NextLabel:
 
     PopulateFromIndex 1
 
+    FocusTextTop mTxtbody ' Keep caret at top when the form initializes.
+
     ' The first member index represents worksheet row 2 because row 1 stores headers.
     ' We highlight that row silently so reviewers land on the initial record without prompts.
 
@@ -2126,6 +2161,7 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     Dim baseText As String
     Dim targetIndex As Long
     Dim placeholderPairs As Variant
+    Dim activeControl As MSForms.Control
 
     EnsureMemberRecordsLoaded
 
@@ -2163,6 +2199,18 @@ Private Sub ApplyBodyPlaceholders(Optional ByVal memberIndex As Long = -1)
     ApplySubjectPlaceholders placeholderPairs
 
     TraceEmailFieldState "ApplyBodyPlaceholders", ResolveActiveTemplateKey(False)
+
+    ' Reset the caret only if the body textbox already has focus so we don't
+    ' steal focus from other controls while navigating records.
+    On Error Resume Next
+    Set activeControl = Me.ActiveControl
+    On Error GoTo 0
+
+    If Not activeControl Is Nothing Then
+        If activeControl Is mTxtbody Then
+            FocusTextTop mTxtbody ' Keep caret at top after record load.
+        End If
+    End If
 End Sub
 
 Private Sub ApplySubjectPlaceholders(ByRef placeholderPairs As Variant)
