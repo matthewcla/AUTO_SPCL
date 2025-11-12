@@ -24,6 +24,47 @@ Public Function GetIDSheet() As Worksheet
     Set GetIDSheet = wsID
 End Function
 
+Private Function TryGetLastIdRow(ByVal wsID As Worksheet, ByRef lastRow As Long) As Boolean
+    If wsID Is Nothing Then Exit Function
+
+    On Error Resume Next
+    lastRow = wsID.Cells(wsID.Rows.Count, "B").End(xlUp).Row
+    If Err.Number <> 0 Then
+        Debug.Print "[modDataAccess] TryGetLastIdRow: failed to read last row. Error " & _
+                    Err.Number & ": " & Err.Description
+        Err.Clear
+        lastRow = 0
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    If lastRow < 1 Then Exit Function
+
+    TryGetLastIdRow = True
+End Function
+
+Private Function ValidateRowIndex(ByVal wsID As Worksheet, _
+                                  ByVal rowIndex As Long, _
+                                  ByVal callerName As String) As Boolean
+    Dim lastRow As Long
+
+    If rowIndex < 1 Then
+        Debug.Print "[modDataAccess] " & callerName & ": invalid rowIndex " & rowIndex
+        Exit Function
+    End If
+
+    If Not TryGetLastIdRow(wsID, lastRow) Then Exit Function
+
+    If rowIndex > lastRow Then
+        Debug.Print "[modDataAccess] " & callerName & ": requested row " & rowIndex & _
+                    " exceeds last row " & lastRow
+        Exit Function
+    End If
+
+    ValidateRowIndex = True
+End Function
+
 Public Function FindIdRowByName(ByVal fullName As String) As Long
     Dim wsID As Worksheet
     Dim normalizedSearch As String
@@ -40,15 +81,7 @@ Public Function FindIdRowByName(ByVal fullName As String) As Long
     Set wsID = GetIDSheet()
     If wsID Is Nothing Then Exit Function
 
-    On Error Resume Next
-    lastRow = wsID.Cells(wsID.Rows.Count, "B").End(xlUp).Row
-    If Err.Number <> 0 Then
-        Debug.Print "[modDataAccess] FindIdRowByName: failed to read last row. Error " & Err.Number & ": " & Err.Description
-        Err.Clear
-        On Error GoTo 0
-        Exit Function
-    End If
-    On Error GoTo 0
+    If Not TryGetLastIdRow(wsID, lastRow) Then Exit Function
 
     For rowIndex = 1 To lastRow
         candidate = NormalizeValue(wsID.Cells(rowIndex, "B").Value)
@@ -88,6 +121,48 @@ Public Function GetSsnByName(ByVal fullName As String) As String
     GetSsnByName = value
 End Function
 
+Public Function GetSsnByRow(ByVal rowIndex As Long) As String
+    Dim wsID As Worksheet
+    Dim value As String
+
+    Set wsID = GetIDSheet()
+    If wsID Is Nothing Then Exit Function
+
+    If Not ValidateRowIndex(wsID, rowIndex, "GetSsnByRow") Then Exit Function
+
+    On Error Resume Next
+    value = NormalizeValue(wsID.Cells(rowIndex, "A").Value)
+    If Err.Number <> 0 Then
+        Debug.Print "[modDataAccess] GetSsnByRow: failed to read column A. Error " & Err.Number & ": " & Err.Description
+        Err.Clear
+        value = vbNullString
+    End If
+    On Error GoTo 0
+
+    GetSsnByRow = value
+End Function
+
+Public Function GetNameByRow(ByVal rowIndex As Long) As String
+    Dim wsID As Worksheet
+    Dim value As String
+
+    Set wsID = GetIDSheet()
+    If wsID Is Nothing Then Exit Function
+
+    If Not ValidateRowIndex(wsID, rowIndex, "GetNameByRow") Then Exit Function
+
+    On Error Resume Next
+    value = NormalizeValue(wsID.Cells(rowIndex, "B").Value)
+    If Err.Number <> 0 Then
+        Debug.Print "[modDataAccess] GetNameByRow: failed to read column B. Error " & Err.Number & ": " & Err.Description
+        Err.Clear
+        value = vbNullString
+    End If
+    On Error GoTo 0
+
+    GetNameByRow = value
+End Function
+
 Public Function GetEmailsByName(ByVal fullName As String) As String
     Dim wsID As Worksheet
     Dim rowIndex As Long
@@ -120,6 +195,37 @@ Public Function GetEmailsByName(ByVal fullName As String) As String
     Next columnIndex
 
     GetEmailsByName = recipients
+End Function
+
+Public Function GetEmailsByRow(ByVal rowIndex As Long) As String
+    Dim wsID As Worksheet
+    Dim columnIndex As Long
+    Dim part As String
+    Dim recipients As String
+
+    Set wsID = GetIDSheet()
+    If wsID Is Nothing Then Exit Function
+
+    If Not ValidateRowIndex(wsID, rowIndex, "GetEmailsByRow") Then Exit Function
+
+    For columnIndex = 3 To 6
+        On Error Resume Next
+        part = NormalizeValue(wsID.Cells(rowIndex, columnIndex).Value)
+        If Err.Number <> 0 Then
+            Debug.Print "[modDataAccess] GetEmailsByRow: failed to read column " & columnIndex & _
+                        ". Error " & Err.Number & ": " & Err.Description
+            Err.Clear
+            part = vbNullString
+        End If
+        On Error GoTo 0
+
+        If LenB(part) > 0 Then
+            If LenB(recipients) > 0 Then recipients = recipients & ";"
+            recipients = recipients & part
+        End If
+    Next columnIndex
+
+    GetEmailsByRow = recipients
 End Function
 
 Private Function NormalizeValue(ByVal value As Variant) As String
