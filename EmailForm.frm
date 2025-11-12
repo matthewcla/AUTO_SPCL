@@ -137,18 +137,18 @@ Private Function GetLabelByDisplayIndex(ByVal displayIndex As Long) As MSForms.l
 End Function
 
 Private Sub UpdateToFieldFromHighlightedRecord()
-    Dim ssnValue As String
+    Dim nameValue As String
     Dim selectedIndex As Long
     Dim displayIndex As Long
     Dim selectionLabel As MSForms.label
-    Dim ssnLabel As MSForms.label
+    Dim nameLabel As MSForms.label
 
     EnsureMemberRecordsLoaded
 
     selectedIndex = mSelectedMemberIndex
     If selectedIndex >= 1 And selectedIndex <= mMemberCount Then
-        ssnValue = SafeText(GetMemberSSNValue(selectedIndex))
-        PopulateToFieldFromSSN ssnValue
+        nameValue = Trim$(SafeText(GetMemberNameValue(selectedIndex)))
+        PopulateToFieldFromName nameValue
         Exit Sub
     End If
 
@@ -157,68 +157,41 @@ Private Sub UpdateToFieldFromHighlightedRecord()
         If selectionLabel Is Nothing Then GoTo nextSlot
 
         If selectionLabel.BorderColor = vbRed Then
-            Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
-            If Not ssnLabel Is Nothing Then
-                ssnValue = SafeText(ssnLabel.caption)
+            Set nameLabel = GetLabelControl("lblNM", displayIndex)
+            If Not nameLabel Is Nothing Then
+                nameValue = Trim$(SafeText(nameLabel.caption))
             Else
-                ssnValue = vbNullString
+                nameValue = vbNullString
             End If
 
-            PopulateToFieldFromSSN ssnValue
+            PopulateToFieldFromName nameValue
             Exit Sub
         End If
 
 nextSlot:
     Next displayIndex
 
-    PopulateToFieldFromSSN vbNullString
+    PopulateToFieldFromName vbNullString
 End Sub
 
-Private Sub PopulateToFieldFromSSN(ByVal ssnValue As String)
-    Dim ws As Worksheet
-    Dim searchRange As Range
-    Dim foundCell As Range
+Private Function PopulateToFieldFromName(ByVal fullName As String) As String
+    Dim normalizedName As String
     Dim recipients As String
-    Dim columnIndex As Long
-    Dim part As String
 
-    If mtxtTO Is Nothing Then Exit Sub
+    normalizedName = Trim$(SafeText(fullName))
 
-    recipients = vbNullString
-    ssnValue = Trim$(ssnValue)
-
-    If LenB(ssnValue) > 0 Then
-        On Error Resume Next
-        Set ws = ThisWorkbook.Worksheets("ID")
-        On Error GoTo 0
-
-        If Not ws Is Nothing Then
-            On Error Resume Next
-            Set searchRange = ws.Columns(1)
-            On Error GoTo 0
-
-            If Not searchRange Is Nothing Then
-                On Error Resume Next
-                Set foundCell = searchRange.Find(What:=ssnValue, LookIn:=xlValues, _
-                                                 LookAt:=xlWhole, SearchOrder:=xlByRows, _
-                                                 SearchDirection:=xlNext, MatchCase:=False)
-                On Error GoTo 0
-
-                If Not foundCell Is Nothing Then
-                    For columnIndex = 3 To 6
-                        part = SafeText(ws.Cells(foundCell.row, columnIndex).value)
-                        If LenB(part) > 0 Then
-                            If LenB(recipients) > 0 Then recipients = recipients & ";"
-                            recipients = recipients & part
-                        End If
-                    Next columnIndex
-                End If
-            End If
-        End If
+    If LenB(normalizedName) > 0 Then
+        recipients = modDataAccess.GetEmailsByName(normalizedName)
+    Else
+        recipients = vbNullString
     End If
 
     SetTextBoxText mtxtTO, recipients
-End Sub
+
+    Debug.Print "[EmailForm] PopulateToFieldFromName: name='" & normalizedName & "' recipients='" & recipients & "'"
+
+    PopulateToFieldFromName = recipients
+End Function
 
 Private Sub HandleLabelMouseMoveByIndex(ByVal displayIndex As Long)
     Dim target As MSForms.label
@@ -265,6 +238,52 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     End If
 
     RefreshSelectedMemberDetails memberIndex, resolvedDisplayIndex
+End Sub
+
+Private Sub HandleRowClick(ByVal rowIndex As Integer)
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim rowName As String
+    Dim rowSsn As String
+    Dim recipients As String
+
+    If mIsLoading Then Exit Sub
+    If rowIndex < 1 Or rowIndex > PAGE_SIZE Then
+        Debug.Print "[EmailForm] HandleRowClick: rowIndex out of range (" & rowIndex & ")"
+        Exit Sub
+    End If
+
+    Set nameLabel = GetLabelControl("lblNM", rowIndex)
+    Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
+
+    If Not nameLabel Is Nothing Then
+        rowName = Trim$(SafeText(nameLabel.caption))
+    End If
+
+    If LenB(rowName) = 0 Then
+        Debug.Print "[EmailForm] HandleRowClick: row " & rowIndex & " has no associated name; clearing selection."
+
+        HandleLabelClickByIndex rowIndex
+        PopulateFromIndex rowIndex
+
+        recipients = PopulateToFieldFromName(vbNullString)
+
+        Debug.Print "[EmailForm] HandleRowClick: cleared selection for row=" & rowIndex & _
+                    " txtTO='" & recipients & "'"
+        Exit Sub
+    End If
+
+    If Not ssnLabel Is Nothing Then
+        rowSsn = Trim$(SafeText(ssnLabel.caption))
+    End If
+
+    HandleLabelClickByIndex rowIndex
+    PopulateFromIndex rowIndex
+
+    recipients = PopulateToFieldFromName(rowName)
+
+    Debug.Print "[EmailForm] HandleRowClick: selected row=" & rowIndex & _
+                " name='" & rowName & "' ssn='" & rowSsn & "' txtTO='" & recipients & "'"
 End Sub
 
 Private Sub UpdateIssuePlaceholderForDisplayIndex(ByVal displayIndex As Long)
@@ -607,7 +626,6 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
     Dim statusLabel As MSForms.label
     Dim record As Object
     Dim nameText As String
-    Dim ssnText As String
     Dim statusText As String
 
     EnsureMemberRecordsLoaded
@@ -622,10 +640,6 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
                 nameText = SafeText(GetRecordValue(record, "PRIMARYNAME", "Primary", "PRIMARY"))
             End If
 
-            ssnText = SafeText( _
-                GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", _
-                               "SSN#", "LK", "Lookup", "2"))
-
             statusText = GetMemberStatusValue(memberIndex, record)
 
             Set nameLabel = GetLabelControl("lblNM", displayIndex)
@@ -635,7 +649,7 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
 
             Set ssnLabel = GetLabelControl("lblSSN", displayIndex)
             If Not ssnLabel Is Nothing Then
-                ssnLabel.caption = ssnText
+                ssnLabel.caption = ""
             End If
 
             Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
@@ -648,6 +662,7 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
 
 SkipLabelRefresh:
     UpdateToFieldFromHighlightedRecord
+    RefreshEightRowBlock
 End Sub
 
 Private Function EnsureRequiredControls() As Boolean
@@ -1535,6 +1550,8 @@ Private Sub RefreshPage()
         End If
     Next slotIndex
 
+    RefreshEightRowBlock
+
     If mMemberCount = 0 Then
         mSelectedMemberIndex = 0
         DeselectMemberSelectionLabels 0
@@ -1562,6 +1579,103 @@ Private Sub RefreshPage()
     UpdatePagerButtons
 End Sub
 
+Private Sub RefreshEightRowBlock()
+    Dim rowIndex As Long
+    Dim selectionLabel As MSForms.label
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim rowName As String
+    Dim resolvedSsn As String
+
+    For rowIndex = 1 To PAGE_SIZE
+        Set selectionLabel = GetLabelControl("lblL", rowIndex)
+        If Not selectionLabel Is Nothing Then
+            If LenB(selectionLabel.caption) <> 0 Then
+                selectionLabel.caption = ""
+            End If
+            On Error Resume Next
+            selectionLabel.MousePointer = fmMousePointerHand
+            selectionLabel.SpecialEffect = fmSpecialEffectFlat
+            On Error GoTo 0
+        End If
+
+        Set nameLabel = GetLabelControl("lblNM", rowIndex)
+        Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
+
+        rowName = vbNullString
+        resolvedSsn = vbNullString
+
+        If Not nameLabel Is Nothing Then
+            rowName = Trim$(SafeText(nameLabel.caption))
+        End If
+
+        If LenB(rowName) > 0 Then
+            resolvedSsn = modDataAccess.GetSsnByName(rowName)
+        End If
+
+        If Not ssnLabel Is Nothing Then
+            ssnLabel.caption = resolvedSsn
+        End If
+
+        Debug.Print "[EmailForm] RefreshEightRowBlock row=" & rowIndex & _
+                    " name='" & rowName & "' ssn='" & resolvedSsn & "'"
+    Next rowIndex
+End Sub
+
+Public Sub DebugValidateEightRowBindings()
+    Dim rowIndex As Long
+    Dim nameLabel As MSForms.label
+    Dim ssnLabel As MSForms.label
+    Dim selectLabel As MSForms.label
+    Dim labelName As String
+    Dim labelSsn As String
+    Dim resolvedSsn As String
+    Dim emails As String
+
+    For rowIndex = 1 To PAGE_SIZE
+        Set nameLabel = GetLabelControl("lblNM", rowIndex)
+        Set ssnLabel = GetLabelControl("lblSSN", rowIndex)
+        Set selectLabel = GetLabelControl("lblL", rowIndex)
+
+        If Not nameLabel Is Nothing Then
+            labelName = Trim$(SafeText(nameLabel.caption))
+        Else
+            labelName = vbNullString
+        End If
+
+        If Not ssnLabel Is Nothing Then
+            labelSsn = Trim$(SafeText(ssnLabel.caption))
+        Else
+            labelSsn = vbNullString
+        End If
+
+        If LenB(labelName) > 0 Then
+            resolvedSsn = modDataAccess.GetSsnByName(labelName)
+            emails = modDataAccess.GetEmailsByName(labelName)
+        Else
+            resolvedSsn = vbNullString
+            emails = vbNullString
+        End If
+
+        Debug.Print "[EmailForm] DebugValidateEightRowBindings row=" & rowIndex & _
+                    " name='" & labelName & "' lblSSN='" & labelSsn & _
+                    "' resolvedSSN='" & resolvedSsn & "' emails='" & emails & "'"
+
+        If StrComp(labelSsn, resolvedSsn, vbTextCompare) <> 0 Then
+            Debug.Print "  WARNING: SSN mismatch detected on row " & rowIndex
+        End If
+
+        If Not selectLabel Is Nothing Then
+            If LenB(selectLabel.caption) > 0 Then
+                Debug.Print "  WARNING: lblL" & rowIndex & _
+                            " caption should be empty but found '" & selectLabel.caption & "'"
+            End If
+        Else
+            Debug.Print "  WARNING: lblL" & rowIndex & " control not found."
+        End If
+    Next rowIndex
+End Sub
+
 Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     Dim nameLabel As MSForms.label
     Dim ssnLabel As MSForms.label
@@ -1569,7 +1683,6 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     Dim selectionLabel As MSForms.label
     Dim record As Object
     Dim nameText As String
-    Dim ssnText As String
     Dim statusText As String
 
     Set nameLabel = GetLabelControl("lblNM", displayIndex)
@@ -1584,17 +1697,16 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     End If
 
     nameText = SafeText(GetRecordValue(record, "Name", "Member Name", "DisplayName", "MEMBERNAME", "1"))
-    ssnText = SafeText(GetRecordValue(record, "SSN", "Member SSN", "Social Security Number", "SSN#", "LK", "Lookup", "2"))
     statusText = GetMemberStatusValue(memberIndex, record)
 
     If Not nameLabel Is Nothing Then nameLabel.caption = nameText
-    If Not ssnLabel Is Nothing Then ssnLabel.caption = ssnText
+    If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
     If Not statusLabel Is Nothing Then
         statusLabel.caption = statusText
         ApplyStatusColor statusLabel
     End If
     If Not selectionLabel Is Nothing Then
-        selectionLabel.caption = nameText
+        selectionLabel.caption = ""
     End If
 End Sub
 
@@ -1998,8 +2110,8 @@ End Function
 
 Private Function CollectIssueMap() As Object
     Dim dict As Object
-    Dim ctrl As MSForms.control
-    Dim idx As Long
+    Dim slotIndex As Long
+    Dim nameLabel As MSForms.label
     Dim caption As String
 
     Set dict = CreateObject("Scripting.Dictionary")
@@ -2007,17 +2119,15 @@ Private Function CollectIssueMap() As Object
     dict.CompareMode = vbTextCompare
     On Error GoTo 0
 
-    For Each ctrl In Me.controls
-        If TypeOf ctrl Is MSForms.label Then
-            idx = ExtractIndex(ctrl.Name, "lblL")
-            If idx > 0 Then
-                caption = SafeText(ctrl.caption)
-                If LenB(caption) > 0 Then
-                    dict(CStr(idx)) = caption
-                End If
+    For slotIndex = 1 To PAGE_SIZE
+        Set nameLabel = GetLabelControl("lblNM", slotIndex)
+        If Not nameLabel Is Nothing Then
+            caption = Trim$(SafeText(nameLabel.caption))
+            If LenB(caption) > 0 Then
+                dict(CStr(slotIndex)) = caption
             End If
         End If
-    Next ctrl
+    Next slotIndex
 
     Set CollectIssueMap = dict
 End Function
@@ -3078,9 +3188,7 @@ Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL1_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 1
-    PopulateFromIndex 1
+    HandleRowClick 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3088,9 +3196,7 @@ Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL2_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 2
-    PopulateFromIndex 2
+    HandleRowClick 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3098,9 +3204,7 @@ Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL3_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 3
-    PopulateFromIndex 3
+    HandleRowClick 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3108,9 +3212,7 @@ Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL4_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 4
-    PopulateFromIndex 4
+    HandleRowClick 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3118,9 +3220,7 @@ Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL5_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 5
-    PopulateFromIndex 5
+    HandleRowClick 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3128,9 +3228,7 @@ Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL6_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 6
-    PopulateFromIndex 6
+    HandleRowClick 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3138,9 +3236,7 @@ Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL7_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 7
-    PopulateFromIndex 7
+    HandleRowClick 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -3148,9 +3244,7 @@ Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByV
 End Sub
 
 Private Sub lblL8_Click()
-    If mIsLoading Then Exit Sub
-    HandleLabelClickByIndex 8
-    PopulateFromIndex 8
+    HandleRowClick 8
 End Sub
 
 
