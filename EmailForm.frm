@@ -2666,8 +2666,11 @@ Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
 
     If StrComp(currentStatus, DEFAULT_EMAIL_STATUS, vbTextCompare) = 0 Then
         newStatus = "Cancel"
-    Else
+    ElseIf StrComp(currentStatus, "Cancel", vbTextCompare) = 0 Then
         newStatus = DEFAULT_EMAIL_STATUS
+    Else
+        MsgBox "Unexpected status: " & currentStatus, vbExclamation, "Toggle Email Status"
+        Exit Sub
     End If
 
     SetMemberStatus memberIndex, newStatus, True
