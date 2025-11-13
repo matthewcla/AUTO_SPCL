@@ -3509,7 +3509,17 @@ Private Sub PopulateFromIndex(ByVal idx As Long)
 End Sub
 
 Private Sub bBE_Click()
-    HandleEmailToggleClick mSelectedMemberIndex
+    ' Toggle the status label and button caption directly when the BREAK/ENGAGE
+    ' button is clicked. The control captions serve as the single source of
+    ' truth for the current state, so we simply switch between the two
+    ' supported values without delegating to any additional helper routines.
+    If lblSTAT1.Caption = "Cancel" Then
+        lblSTAT1.Caption = "Draft"
+        bBE.Caption = "BREAK ENGAGE"
+    ElseIf lblSTAT1.Caption = "Draft" Then
+        lblSTAT1.Caption = "Cancel"
+        bBE.Caption = "RE-ENGAGE"
+    End If
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
