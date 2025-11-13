@@ -3509,7 +3509,7 @@ Private Sub PopulateFromIndex(ByVal idx As Long)
 End Sub
 
 Private Sub bBE_Click()
-    HandleEmailToggleClick SelectedMemberIndex
+    HandleEmailToggleClick mSelectedMemberIndex
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
