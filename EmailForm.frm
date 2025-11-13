@@ -53,6 +53,7 @@ Private mMemberCount As Long
 Private mStartIndex As Long
 Private mTotalRecords As Long
 Private mStatusCache As Object
+Private mStatusOverrides As Object
 Private mSlotWorksheetRows(1 To PAGE_SIZE) As Long
 
 Private Sub InitializeControlReferences()
@@ -1614,6 +1615,7 @@ Private Sub EnsureStatusCache(ByVal recordCount As Long)
             key = keys(idx)
             If Val(CStr(key)) > recordCount Then
                 mStatusCache.Remove key
+                ClearStatusOverrideByKey CStr(key)
             End If
         Next idx
     End If
@@ -1633,8 +1635,10 @@ Private Sub EnsureStatusCache(ByVal recordCount As Long)
         statusText = Trim$(statusText)
 
         If mStatusCache.Exists(key) Then
-            If StrComp(SafeText(mStatusCache(key)), statusText, vbTextCompare) <> 0 Then
-                mStatusCache(key) = statusText
+            If Not HasStatusOverride(idx) Then
+                If StrComp(SafeText(mStatusCache(key)), statusText, vbTextCompare) <> 0 Then
+                    mStatusCache(key) = statusText
+                End If
             End If
         Else
             mStatusCache.Add key, statusText
@@ -1664,6 +1668,55 @@ Private Sub CacheMemberStatus(ByVal memberIndex As Long, ByVal statusText As Str
         mStatusCache.Add key, statusText
     End If
 End Sub
+
+Private Sub MarkStatusOverride(ByVal memberIndex As Long)
+    Dim key As String
+
+    If memberIndex < 1 Then Exit Sub
+    key = CStr(memberIndex)
+
+    If mStatusOverrides Is Nothing Then
+        Set mStatusOverrides = CreateObject("Scripting.Dictionary")
+        If mStatusOverrides Is Nothing Then Exit Sub
+        On Error Resume Next
+        mStatusOverrides.CompareMode = vbTextCompare
+        On Error GoTo 0
+    End If
+
+    If mStatusOverrides.Exists(key) Then
+        mStatusOverrides(key) = True
+    Else
+        mStatusOverrides.Add key, True
+    End If
+End Sub
+
+Private Sub ClearStatusOverride(ByVal memberIndex As Long)
+    If memberIndex < 1 Then Exit Sub
+    ClearStatusOverrideByKey CStr(memberIndex)
+End Sub
+
+Private Sub ClearStatusOverrideByKey(ByVal key As String)
+    If LenB(key) = 0 Then Exit Sub
+    If mStatusOverrides Is Nothing Then Exit Sub
+
+    If mStatusOverrides.Exists(key) Then
+        mStatusOverrides.Remove key
+    End If
+
+    If mStatusOverrides.Count = 0 Then
+        Set mStatusOverrides = Nothing
+    End If
+End Sub
+
+Private Function HasStatusOverride(ByVal memberIndex As Long) As Boolean
+    Dim key As String
+
+    If memberIndex < 1 Then Exit Function
+    If mStatusOverrides Is Nothing Then Exit Function
+
+    key = CStr(memberIndex)
+    HasStatusOverride = mStatusOverrides.Exists(key)
+End Function
 
 Private Function ReadCachedStatus(ByVal memberIndex As Long) As String
     Dim key As String
@@ -2161,11 +2214,13 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
     Dim statusText As String
     Dim recordStatus As String
     Dim hasCachedStatus As Boolean
+    Dim shouldRestoreOverride As Boolean
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
 
     statusText = Trim$(ReadCachedStatus(memberIndex))
     hasCachedStatus = LenB(statusText) > 0
+    shouldRestoreOverride = HasStatusOverride(memberIndex)
 
     ' Only fall back to the source record when we do not already have a cached
     ' status for the member. This prevents freshly toggled statuses from being
@@ -2182,6 +2237,9 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
                 statusText = recordStatus
             End If
         End If
+
+        ClearStatusOverride memberIndex
+        shouldRestoreOverride = False
     End If
 
     If LenB(statusText) = 0 Then
@@ -2189,6 +2247,11 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
     End If
 
     CacheMemberStatus memberIndex, statusText
+
+    If shouldRestoreOverride Then
+        MarkStatusOverride memberIndex
+    End If
+
     GetMemberStatusValue = statusText
 End Function
 
@@ -2206,6 +2269,7 @@ Private Sub SetMemberStatus(ByVal memberIndex As Long, ByVal statusText As Strin
     End If
 
     CacheMemberStatus memberIndex, normalized
+    MarkStatusOverride memberIndex
 
     If Not updateUI Then Exit Sub
 
