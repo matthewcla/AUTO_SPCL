@@ -1623,11 +1623,13 @@ Private Sub EnsureStatusCache(ByVal recordCount As Long)
         statusText = DEFAULT_EMAIL_STATUS
         Set record = modRedBoardRecords.GetRedBoardRecord(idx)
         If Not record Is Nothing Then
-            statusText = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+            statusText = Trim$(SafeText(GetRecordValue(record, "Status", "STAT", "STATUS")))
             If LenB(statusText) = 0 Then
                 statusText = DEFAULT_EMAIL_STATUS
             End If
         End If
+
+        statusText = Trim$(statusText)
 
         If mStatusCache.Exists(key) Then
             If StrComp(SafeText(mStatusCache(key)), statusText, vbTextCompare) <> 0 Then
@@ -1652,6 +1654,8 @@ Private Sub CacheMemberStatus(ByVal memberIndex As Long, ByVal statusText As Str
         mStatusCache.CompareMode = vbTextCompare
         On Error GoTo 0
     End If
+
+    statusText = Trim$(statusText)
 
     If mStatusCache.Exists(key) Then
         mStatusCache(key) = statusText
@@ -2157,7 +2161,7 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
 
-    statusText = ReadCachedStatus(memberIndex)
+    statusText = Trim$(ReadCachedStatus(memberIndex))
 
     If record Is Nothing Then
         Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
@@ -2166,7 +2170,7 @@ Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
     If Not record Is Nothing Then
         Dim recordStatus As String
 
-        recordStatus = SafeText(GetRecordValue(record, "Status", "STAT", "STATUS"))
+        recordStatus = Trim$(SafeText(GetRecordValue(record, "Status", "STAT", "STATUS")))
         If LenB(recordStatus) > 0 Then
             statusText = recordStatus
         End If
@@ -2658,7 +2662,7 @@ Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Sub
 
-    currentStatus = GetMemberStatusValue(memberIndex)
+    currentStatus = Trim$(GetMemberStatusValue(memberIndex))
 
     If StrComp(currentStatus, DEFAULT_EMAIL_STATUS, vbTextCompare) = 0 Then
         newStatus = "Cancel"
