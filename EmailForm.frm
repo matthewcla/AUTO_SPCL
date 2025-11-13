@@ -911,18 +911,32 @@ End Function
 
 Private Sub SetBodyText(ByVal value As String)
     Dim normalized As String
+    Dim target As MSForms.TextBox
 
     normalized = Replace$(value, vbCrLf, vbLf)
     normalized = Replace$(normalized, vbCr, vbLf)
     normalized = Replace$(normalized, vbLf, vbCrLf)
 
     If Not mTxtbody Is Nothing Then
-        mTxtbody.Value = normalized
+        Set target = mTxtbody
     Else
         On Error Resume Next
-        Me.txtbody.Value = normalized
+        Set target = Me.txtbody
         On Error GoTo 0
     End If
+
+    If target Is Nothing Then Exit Sub
+
+    target.Value = normalized
+    ResetBodyTextCursor target
+End Sub
+
+Private Sub ResetBodyTextCursor(ByVal target As MSForms.TextBox)
+    On Error Resume Next
+    target.SelStart = 0
+    target.SelLength = 0
+    target.SetFocus
+    On Error GoTo 0
 End Sub
 
 Private Sub EnsureTemplateWarningCache()
