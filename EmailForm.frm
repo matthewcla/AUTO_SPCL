@@ -3552,6 +3552,7 @@ Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim displayIndex As Long
 
     If mIsHandlingEmailToggle Then Exit Sub
 
@@ -3575,6 +3576,11 @@ Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
     SelectedMemberIndex = memberIndex
     ToggleEmailStatus memberIndex
     ApplyBodyPlaceholders mSelectedMemberIndex
+
+    displayIndex = MemberIndexToDisplayIndex(mSelectedMemberIndex)
+    If displayIndex >= 1 Then
+        PopulateFromIndex displayIndex
+    End If
 
 ToggleCleanup:
     mIsHandlingEmailToggle = False
