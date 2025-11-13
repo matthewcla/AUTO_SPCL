@@ -37,6 +37,7 @@ Private mTxtbody As MSForms.TextBox
 Private mLstAT As MSForms.listBox
 Private mbADD As MSForms.CommandButton
 Private mbSUB As MSForms.CommandButton
+Private mbBE As MSForms.CommandButton
 
 Private mTemplateFieldWarningsShown As Object
 Private mTemplateAvailabilityWarningShown As Boolean
@@ -62,6 +63,7 @@ Private Sub InitializeControlReferences()
     Set mLstAT = TryGetListBox("lstAT")
     Set mbADD = TryGetButton("bADD")
     Set mbSUB = TryGetButton("bSUB")
+    Set mbBE = TryGetButton("bBE")
 End Sub
 
 Private Function TryGetControl(ByVal controlName As String) As MSForms.control
@@ -366,6 +368,7 @@ Private Sub HandleLabelClickByIndex(ByVal displayIndex As Long)
     If memberIndex = 0 Then
         DeselectMemberSelectionLabels 0
         UpdateToFieldFromHighlightedRecord
+        UpdateEmailToggleButton DEFAULT_EMAIL_STATUS
         Exit Sub
     End If
 
@@ -825,6 +828,14 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
     End If
 
 SkipLabelRefresh:
+    If LenB(statusText) = 0 Then
+        If memberIndex >= 1 And memberIndex <= mMemberCount Then
+            statusText = GetMemberStatusValue(memberIndex)
+        Else
+            statusText = DEFAULT_EMAIL_STATUS
+        End If
+    End If
+    UpdateEmailToggleButton statusText
     UpdateToFieldFromHighlightedRecord
     RefreshEightRowBlock
 End Sub
@@ -842,6 +853,7 @@ Private Function EnsureRequiredControls() As Boolean
     If mLstAT Is Nothing Then missing.Add "lstAT (ListBox)"
     If mbADD Is Nothing Then missing.Add "bADD (CommandButton)"
     If mbSUB Is Nothing Then missing.Add "bSUB (CommandButton)"
+    If mbBE Is Nothing Then missing.Add "bBE (CommandButton)"
 
     EnsureRequiredControls = missing.Count = 0
 
@@ -1760,6 +1772,12 @@ Private Sub RefreshPage()
 
     UpdateToFieldFromHighlightedRecord
     UpdatePagerButtons
+
+    If mMemberCount = 0 Or mSelectedMemberIndex < 1 Then
+        UpdateEmailToggleButton DEFAULT_EMAIL_STATUS
+    Else
+        UpdateEmailToggleButton GetMemberStatusValue(mSelectedMemberIndex)
+    End If
 End Sub
 
 Private Sub RefreshEightRowBlock()
@@ -2601,6 +2619,37 @@ Private Sub lblDOWN_Click()
     RefreshPage
 End Sub
 
+Private Sub UpdateEmailToggleButton(Optional ByVal statusText As String = vbNullString)
+    Dim resolvedStatus As String
+    Dim newCaption As String
+
+    If mbBE Is Nothing Then
+        Set mbBE = TryGetButton("bBE")
+    End If
+
+    If mbBE Is Nothing Then Exit Sub
+
+    resolvedStatus = Trim$(statusText)
+
+    If LenB(resolvedStatus) = 0 Then
+        If mMemberCount > 0 And mSelectedMemberIndex >= 1 Then
+            resolvedStatus = GetMemberStatusValue(mSelectedMemberIndex)
+        Else
+            resolvedStatus = DEFAULT_EMAIL_STATUS
+        End If
+    End If
+
+    If StrComp(resolvedStatus, "Cancel", vbTextCompare) = 0 Then
+        newCaption = "RE-ENGAGE"
+    Else
+        newCaption = "BREAK ENGAGE"
+    End If
+
+    If StrComp(mbBE.caption, newCaption, vbBinaryCompare) <> 0 Then
+        mbBE.caption = newCaption
+    End If
+End Sub
+
 Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
     Dim currentStatus As String
     Dim newStatus As String
@@ -2618,6 +2667,7 @@ Private Sub ToggleEmailStatus(ByVal memberIndex As Long)
     End If
 
     SetMemberStatus memberIndex, newStatus, True
+    UpdateEmailToggleButton newStatus
 End Sub
 
 Private Sub ApplyStatusColor(ByVal statusLabel As MSForms.label)
