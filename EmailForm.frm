@@ -41,6 +41,7 @@ Private mbBE As MSForms.CommandButton
 
 Private mTemplateFieldWarningsShown As Object
 Private mTemplateAvailabilityWarningShown As Boolean
+Private mIsHandlingEmailToggle As Boolean
 Private mIsLoading As Boolean
 Private mInitialized As Boolean
 
@@ -3484,9 +3485,18 @@ Private Function NormalizeDraftWhitelistValue(ByVal value As String) As String
     NormalizeDraftWhitelistValue = UCase$(Trim$(value))
 End Function
 Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    If mIsHandlingEmailToggle Then Exit Sub
+
+    mIsHandlingEmailToggle = True
+    On Error GoTo ToggleError
+
     EnsureMemberRecordsLoaded
 
-    If mMemberCount = 0 Then Exit Sub
+    If mMemberCount = 0 Then GoTo ToggleCleanup
 
     If memberIndex < 1 Then
         memberIndex = mStartIndex
@@ -3501,6 +3511,17 @@ Private Sub HandleEmailToggleClick(ByVal memberIndex As Long)
     SelectedMemberIndex = memberIndex
     ToggleEmailStatus memberIndex
     ApplyBodyPlaceholders mSelectedMemberIndex
+
+ToggleCleanup:
+    mIsHandlingEmailToggle = False
+    Exit Sub
+
+ToggleError:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    mIsHandlingEmailToggle = False
+    Err.Raise errNumber, errSource, errDescription
 End Sub
 
 Private Sub PopulateFromIndex(ByVal idx As Long)
