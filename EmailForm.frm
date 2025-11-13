@@ -1736,6 +1736,9 @@ Private Sub RefreshPage()
                 selectionLabel.BorderStyle = fmBorderStyleSingle
                 selectionLabel.BorderColor = vbRed
             End If
+
+            ' Ensure the Issues placeholder is refreshed for the highlighted record
+            PopulateFromIndex selectionDisplayIndex
         Else
             DeselectMemberSelectionLabels 0
         End If
