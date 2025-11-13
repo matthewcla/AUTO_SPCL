@@ -2158,21 +2158,28 @@ End Function
 Private Function GetMemberStatusValue(ByVal memberIndex As Long, _
                                       Optional ByVal record As Object = Nothing) As String
     Dim statusText As String
+    Dim recordStatus As String
+    Dim hasCachedStatus As Boolean
 
     If memberIndex < 1 Or memberIndex > mMemberCount Then Exit Function
 
     statusText = Trim$(ReadCachedStatus(memberIndex))
+    hasCachedStatus = LenB(statusText) > 0
 
-    If record Is Nothing Then
-        Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
-    End If
+    ' Only fall back to the source record when we do not already have a cached
+    ' status for the member. This prevents freshly toggled statuses from being
+    ' overwritten by stale record values (which are often one click behind when
+    ' the toggle button triggers additional refresh logic).
+    If Not hasCachedStatus Then
+        If record Is Nothing Then
+            Set record = modRedBoardRecords.GetRedBoardRecord(memberIndex)
+        End If
 
-    If Not record Is Nothing Then
-        Dim recordStatus As String
-
-        recordStatus = Trim$(SafeText(GetRecordValue(record, "Status", "STAT", "STATUS")))
-        If LenB(recordStatus) > 0 Then
-            statusText = recordStatus
+        If Not record Is Nothing Then
+            recordStatus = Trim$(SafeText(GetRecordValue(record, "Status", "STAT", "STATUS")))
+            If LenB(recordStatus) > 0 Then
+                statusText = recordStatus
+            End If
         End If
     End If
 
