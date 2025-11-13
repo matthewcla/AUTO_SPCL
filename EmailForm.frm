@@ -814,7 +814,11 @@ Private Sub RefreshSelectedMemberDetails(ByVal memberIndex As Long, ByVal displa
 
             Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
             If Not statusLabel Is Nothing Then
-                statusLabel.caption = statusText
+                If LenB(Trim$(nameText)) > 0 Then
+                    statusLabel.caption = statusText
+                Else
+                    statusLabel.caption = ""
+                End If
                 ApplyStatusColor statusLabel
             End If
         End If
@@ -1895,7 +1899,11 @@ Private Sub BindSlot(ByVal displayIndex As Long, ByVal memberIndex As Long)
     If Not nameLabel Is Nothing Then nameLabel.caption = nameText
     If Not ssnLabel Is Nothing Then ssnLabel.caption = ""
     If Not statusLabel Is Nothing Then
-        statusLabel.caption = statusText
+        If LenB(Trim$(nameText)) > 0 Then
+            statusLabel.caption = statusText
+        Else
+            statusLabel.caption = ""
+        End If
         ApplyStatusColor statusLabel
     End If
     If Not selectionLabel Is Nothing Then
@@ -1995,6 +2003,18 @@ Private Function GetLabelControl(ByVal prefix As String, ByVal index As Long) As
     End If
 
     Set GetLabelControl = ctrl
+End Function
+
+Private Function SlotHasRecord(ByVal displayIndex As Long) As Boolean
+    Dim nameLabel As MSForms.label
+    Dim caption As String
+
+    Set nameLabel = TryGetLabel("lblNM" & CStr(displayIndex))
+    If nameLabel Is Nothing Then Exit Function
+
+    caption = Trim$(SafeText(nameLabel.caption))
+
+    SlotHasRecord = LenB(caption) > 0
 End Function
 
 Private Sub ReportMissingEmailFormControl(ByVal controlName As String)
@@ -2148,7 +2168,11 @@ Private Sub SetMemberStatus(ByVal memberIndex As Long, ByVal statusText As Strin
     Set statusLabel = GetLabelControl("lblSTAT", displayIndex)
     If statusLabel Is Nothing Then Exit Sub
 
-    statusLabel.caption = normalized
+    If SlotHasRecord(displayIndex) Then
+        statusLabel.caption = normalized
+    Else
+        statusLabel.caption = ""
+    End If
     ApplyStatusColor statusLabel
 End Sub
 
@@ -3408,66 +3432,114 @@ Private Sub bBE_Click()
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(1) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 1
 End Sub
 
 Private Sub lblL1_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(1) Then Exit Sub
+
     HandleRowClick 1
 End Sub
 
 Private Sub lblL2_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(2) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 2
 End Sub
 
 Private Sub lblL2_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(2) Then Exit Sub
+
     HandleRowClick 2
 End Sub
 
 Private Sub lblL3_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(3) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 3
 End Sub
 
 Private Sub lblL3_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(3) Then Exit Sub
+
     HandleRowClick 3
 End Sub
 
 Private Sub lblL4_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(4) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 4
 End Sub
 
 Private Sub lblL4_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(4) Then Exit Sub
+
     HandleRowClick 4
 End Sub
 
 Private Sub lblL5_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(5) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 5
 End Sub
 
 Private Sub lblL5_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(5) Then Exit Sub
+
     HandleRowClick 5
 End Sub
 
 Private Sub lblL6_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(6) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 6
 End Sub
 
 Private Sub lblL6_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(6) Then Exit Sub
+
     HandleRowClick 6
 End Sub
 
 Private Sub lblL7_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(7) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 7
 End Sub
 
 Private Sub lblL7_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(7) Then Exit Sub
+
     HandleRowClick 7
 End Sub
 
 Private Sub lblL8_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(8) Then Exit Sub
+
     HandleLabelMouseMoveByIndex 8
 End Sub
 
 Private Sub lblL8_Click()
+    ' Do nothing if this slot has no record (name label is empty)
+    If Not SlotHasRecord(8) Then Exit Sub
+
     HandleRowClick 8
 End Sub
 
