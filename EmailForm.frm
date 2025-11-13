@@ -3509,7 +3509,17 @@ Private Sub PopulateFromIndex(ByVal idx As Long)
 End Sub
 
 Private Sub bBE_Click()
-    HandleEmailToggleClick SelectedMemberIndex
+    ' Toggle the status between "Draft" and "Cancel" and update the button caption accordingly
+    If lblSTAT1.caption = "Cancel" Then
+        lblSTAT1.caption = "Draft"
+        bBE.caption = "BREAK ENGAGE"
+    ElseIf lblSTAT1.caption = "Draft" Then
+        lblSTAT1.caption = "Cancel"
+        bBE.caption = "RE-ENGAGE"
+    End If
+
+    ' Perform any additional actions after the toggle, if necessary.
+    ' If you need to update other components or data, place that logic here.
 End Sub
 
 Private Sub lblL1_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
