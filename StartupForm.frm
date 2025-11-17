@@ -362,7 +362,7 @@ Private Sub bEmail_Click()
 End Sub
 
 Private Sub bSettings_Click()
-    ToggleThisWorkbookVisibility
+    ToggleStartupFormVisibility
 End Sub
 
 '--- Small utilities ----------------------------------------------------------
