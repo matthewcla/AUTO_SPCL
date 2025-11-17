@@ -4,18 +4,7 @@ Attribute VB_Name = "modStartupForm"
 '======================
 Option Explicit
 
-
-#If VBA7 Then
-    Private Declare PtrSafe Function FindWindowA Lib "user32" _
-        (ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
-    Private Declare PtrSafe Function SetForegroundWindow Lib "user32" _
-        (ByVal hWnd As LongPtr) As Long
-#Else
-    Private Declare Function FindWindowA Lib "user32" _
-        (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-    Private Declare Function SetForegroundWindow Lib "user32" _
-        (ByVal hWnd As Long) As Long
-#End If
+Private Const STARTUP_FORM_NAME As String = "StartupForm"
 
 ' Prevents auto-show during visibility flips / activation churn
 Public g_SuspendStartupAutoShow As Boolean
@@ -24,36 +13,38 @@ Public g_SuspendStartupAutoShow As Boolean
 Public m_StartupShownOnce As Boolean
 
 ' === Visibility control ===
-Public Sub SetWorkbookVisibility(ByVal wb As Workbook, ByVal makeVisible As Boolean)
-    Dim i As Long
-    On Error GoTo CleanFail
+Public Sub SetStartupFormVisibility(ByVal makeVisible As Boolean)
+    Dim frm As Access.Form
+    On Error GoTo CleanExit
 
-    ' Avoid Activate/Deactivate-triggered autoshow while we change visibility
+    ' Avoid auto-show loops while changing visibility
     BeginSuspendAutoShow
 
-    If wb Is Nothing Then GoTo CleanExit
-    If wb.Windows.Count = 0 Then wb.Activate
-
-    For i = 1 To wb.Windows.Count
-        wb.Windows(i).Visible = makeVisible
-    Next i
+    If makeVisible Then
+        If StartupFormLoaded() Then
+            Set frm = Forms(STARTUP_FORM_NAME)
+            frm.Visible = True
+            modUIHelpers.EnsureFormFocus frm
+        Else
+            DoCmd.OpenForm STARTUP_FORM_NAME, WindowMode:=acWindowNormal
+        End If
+    Else
+        If StartupFormLoaded() Then
+            Forms(STARTUP_FORM_NAME).Visible = False
+        End If
+    End If
 
     BringStartupToFrontIfLoaded
 
 CleanExit:
     EndSuspendAutoShow
-    Exit Sub
-CleanFail:
-    EndSuspendAutoShow
 End Sub
 
-Public Function IsWorkbookVisible(ByVal wb As Workbook) As Boolean
-    Dim i As Long
+Public Function IsStartupFormVisible() As Boolean
     On Error Resume Next
-    If wb Is Nothing Then Exit Function
-    For i = 1 To wb.Windows.Count
-        If wb.Windows(i).Visible Then IsWorkbookVisible = True: Exit Function
-    Next i
+    If StartupFormLoaded() Then
+        IsStartupFormVisible = Forms(STARTUP_FORM_NAME).Visible
+    End If
 End Function
 
 ' === StartupForm single-instance helpers ===
@@ -65,80 +56,52 @@ Public Sub HandleSplashComplete()
 End Sub
 
 Public Sub ShowStartupFormOnce(Optional ByVal forceShow As Boolean = False)
-    Dim uf As Object
-    If ThisWorkbook.IsShuttingDown Then Exit Sub
-    If Not forceShow Then
-        If Not ThisWorkbookIsFrontCandidate() Then Exit Sub
-    End If
+    Dim frm As Access.Form
+    If g_SuspendStartupAutoShow Then Exit Sub
+    If m_StartupShownOnce And Not forceShow Then Exit Sub
 
     ' If already up, just bring to front
     If StartupFormLoaded() Then
-        Set uf = GetLoadedStartupForm
-        If Not uf Is Nothing Then
-            If uf.Visible = False Then uf.Show vbModeless
-            modUIHelpers.EnsureFormFocus uf
-        End If
+        Set frm = Forms(STARTUP_FORM_NAME)
+        If Not frm.Visible Then frm.Visible = True
+        modUIHelpers.EnsureFormFocus frm
         Exit Sub
     End If
 
-    ' Not loaded: show modeless one time
-    StartupForm.Show vbModeless
+    ' Not loaded: open the Access form modelessly
+    DoCmd.OpenForm STARTUP_FORM_NAME, WindowMode:=acWindowNormal
+    m_StartupShownOnce = True
 End Sub
 
 Public Sub HideAndReleaseStartupForm()
-    Dim uf As Object
     If StartupFormLoaded() Then
-        Set uf = GetLoadedStartupForm
-        If Not uf Is Nothing Then Unload uf
+        DoCmd.Close acForm, STARTUP_FORM_NAME, acSaveNo
     End If
 End Sub
 
 Public Function StartupFormLoaded() As Boolean
-    Dim uf As Object
-    For Each uf In VBA.UserForms
-        If StrComp(TypeName(uf), "StartupForm", vbTextCompare) = 0 Then
-            StartupFormLoaded = True
-            Exit Function
-        End If
-    Next uf
+    On Error GoTo ExitCheck
+    StartupFormLoaded = (SysCmd(acSysCmdGetObjectState, acForm, STARTUP_FORM_NAME) <> 0)
+ExitCheck:
 End Function
 
-' === Safe toggle for THIS workbook ===
-Public Sub ToggleThisWorkbookVisibility(Optional ByVal keepFormOnTop As Boolean = True)
+' === Safe toggle for startup form ===
+Public Sub ToggleStartupFormVisibility(Optional ByVal keepFormOnTop As Boolean = True)
     Dim makeVisible As Boolean
-    makeVisible = Not IsWorkbookVisible(ThisWorkbook)
-    SetWorkbookVisibility ThisWorkbook, makeVisible
+    makeVisible = Not IsStartupFormVisible()
+    SetStartupFormVisibility makeVisible
 
     If keepFormOnTop Then BringStartupToFrontIfLoaded
 End Sub
 
-' Return the live StartupForm instance (or Nothing) as the correct type
-Private Function GetLoadedStartupForm() As StartupForm
-    Dim f As Object
-    For Each f In VBA.UserForms
-        If TypeOf f Is StartupForm Then
-            Set GetLoadedStartupForm = f
-            Exit Function
-        End If
-    Next f
-End Function
-
-
 Private Sub BringStartupToFrontIfLoaded()
-    Dim uf As Object, hWndForm As LongPtr
-    Set uf = GetLoadedStartupForm()
-    If Not uf Is Nothing Then
-        If uf.Visible Then
-            hWndForm = FindWindowA(vbNullString, uf.Caption)
-            If hWndForm <> 0 Then SetForegroundWindow hWndForm
-        End If
+    If StartupFormLoaded() Then
+        On Error Resume Next
+        DoCmd.SelectObject acForm, STARTUP_FORM_NAME, False
+        Forms(STARTUP_FORM_NAME).SetFocus
+        On Error GoTo 0
     End If
 End Sub
-
-Private Function ThisWorkbookIsFrontCandidate() As Boolean
-    ' Only auto-show if this workbook actually has a visible window (not hidden/add-in)
-    ThisWorkbookIsFrontCandidate = IsWorkbookVisible(ThisWorkbook)
-End Function
 
 ' === AutoShow suspend guards (useful while changing visibility) ===
 Public Sub BeginSuspendAutoShow()
@@ -150,4 +113,3 @@ Public Sub EndSuspendAutoShow()
     On Error Resume Next
     g_SuspendStartupAutoShow = False
 End Sub
-
