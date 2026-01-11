@@ -4,23 +4,13 @@ Option Explicit
 Private mWaitCursorDepth As Long
 Private Const DEFAULT_MESSAGE_TITLE As String = "AUTO_SPCL"
 
-#If VBA7 Then
-    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
-        ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
-    Private Declare PtrSafe Function GetWindowLong Lib "user32" Alias "GetWindowLongPtrA" ( _
-        ByVal hWnd As LongPtr, ByVal nIndex As Long) As LongPtr
-    Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
-        ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
-    Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
-#Else
-    Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" ( _
-        ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-    Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" ( _
-        ByVal hWnd As Long, ByVal nIndex As Long) As Long
-    Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" ( _
-        ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
-    Private Declare Function DrawMenuBar Lib "user32" (ByVal hWnd As Long) As Long
-#End If
+Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+    ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
+Private Declare PtrSafe Function GetWindowLong Lib "user32" Alias "GetWindowLongPtrA" ( _
+    ByVal hWnd As LongPtr, ByVal nIndex As Long) As LongPtr
+Private Declare PtrSafe Function SetWindowLong Lib "user32" Alias "SetWindowLongPtrA" ( _
+    ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
+Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
 
 Private Const GWL_STYLE As Long = -16
 Private Const WS_CAPTION As Long = &HC00000
@@ -150,15 +140,9 @@ End Sub
 Public Sub HideUserFormTitleBar(ByVal targetForm As Object, _
                                 ByRef titleBarHiddenFlag As Boolean, _
                                 Optional ByVal captionPrefix As String = "form")
-#If VBA7 Then
     Dim hWnd As LongPtr
     Dim currentStyle As LongPtr
     Dim newStyle As LongPtr
-#Else
-    Dim hWnd As Long
-    Dim currentStyle As Long
-    Dim newStyle As Long
-#End If
     Dim originalCaption As String
     Dim tempCaption As String
 
