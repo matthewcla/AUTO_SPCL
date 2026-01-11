@@ -10,11 +10,6 @@ Option Explicit
         (ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
     Private Declare PtrSafe Function SetForegroundWindow Lib "user32" _
         (ByVal hWnd As LongPtr) As Long
-#Else
-    Private Declare Function FindWindowA Lib "user32" _
-        (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-    Private Declare Function SetForegroundWindow Lib "user32" _
-        (ByVal hWnd As Long) As Long
 #End If
 
 ' Prevents auto-show during visibility flips / activation churn
