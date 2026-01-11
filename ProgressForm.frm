@@ -19,14 +19,6 @@ Option Explicit
     Private Declare PtrSafe Function GetFocus Lib "user32" () As LongPtr
     Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As LongPtr) As LongPtr
     Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
-#Else
-    Private Declare Function SendMessageLongPtr Lib "user32" Alias "SendMessageA" ( _
-        ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
-    Private Declare Function SendMessageByRef Lib "user32" Alias "SendMessageA" ( _
-        ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
-    Private Declare Function GetFocus Lib "user32" () As Long
-    Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hwnd As Long) As Long
-    Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 #End If
 
 Private Type POINTAPI
@@ -705,4 +697,3 @@ End Sub
 Private Sub UserForm_Activate()
     modUIHelpers.HideUserFormTitleBar Me, mTitleBarHidden, "progress"
 End Sub
-
