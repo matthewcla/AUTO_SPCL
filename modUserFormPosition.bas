@@ -14,14 +14,7 @@ Option Explicit
     Private Declare PtrSafe Function GetDeviceCaps Lib "gdi32" ( _
         ByVal hDC As LongPtr, ByVal nIndex As Long) As Long
 #Else
-    Private Declare Function MonitorFromWindow Lib "user32" ( _
-        ByVal hWnd As Long, ByVal dwFlags As Long) As Long
-    Private Declare Function GetMonitorInfoW Lib "user32" ( _
-        ByVal hMonitor As Long, ByRef lpmi As MONITORINFO) As Long
-    Private Declare Function GetDC Lib "user32" (ByVal hWnd As Long) As Long
-    Private Declare Function ReleaseDC Lib "user32" (ByVal hWnd As Long, ByVal hDC As Long) As Long
-    Private Declare Function GetDeviceCaps Lib "gdi32" ( _
-        ByVal hDC As Long, ByVal nIndex As Long) As Long
+    ' This module requires VBA7 (Office 2010+) for LongPtr/PtrSafe API declarations.
 #End If
 
 Private Const MONITOR_DEFAULTTONEAREST As Long = 2
@@ -43,12 +36,9 @@ Private Type MONITORINFO
 End Type
 
 ' --- Pixel -> Point conversion using system DPI (Excel is system-DPI aware) ---
-Private Function PixelsToPointsX(ByVal px As Long) As Double
 #If VBA7 Then
+Private Function PixelsToPointsX(ByVal px As Long) As Double
     Dim hDC As LongPtr
-#Else
-    Dim hDC As Long
-#End If
     Dim dpi As Long
     hDC = GetDC(0&)
     dpi = GetDeviceCaps(hDC, LOGPIXELSX)
@@ -57,11 +47,7 @@ Private Function PixelsToPointsX(ByVal px As Long) As Double
 End Function
 
 Private Function PixelsToPointsY(ByVal py As Long) As Double
-#If VBA7 Then
     Dim hDC As LongPtr
-#Else
-    Dim hDC As Long
-#End If
     Dim dpi As Long
     hDC = GetDC(0&)
     dpi = GetDeviceCaps(hDC, LOGPIXELSY)
@@ -71,13 +57,8 @@ End Function
 
 ' Public API: center a form on the monitor containing the active Excel window
 Public Sub CenterUserFormOnActiveMonitor(ByVal frm As Object)
-#If VBA7 Then
     Dim hWndXL As LongPtr
     Dim hMon As LongPtr
-#Else
-    Dim hWndXL As Long
-    Dim hMon As Long
-#End If
     Dim mi As MONITORINFO
 
     ' Identify the monitor that contains the Excel main window
@@ -102,6 +83,13 @@ Public Sub CenterUserFormOnActiveMonitor(ByVal frm As Object)
     frm.Left = workLeftPts + (workWidthPts - frm.Width) / 2
     frm.Top = workTopPts + (workHeightPts - frm.Height) / 2
 End Sub
+#Else
+' Public API: center a form on the monitor containing the active Excel window
+Public Sub CenterUserFormOnActiveMonitor(ByVal frm As Object)
+    Err.Raise vbObjectError + 513, "modUserFormPosition", _
+        "modUserFormPosition requires VBA7 (LongPtr/PtrSafe)."
+End Sub
+#End If
 '======== End Module ========
 
 
