@@ -133,11 +133,6 @@ End Function
 Private Sub Class_Initialize()
     Dim logBox As MSForms.TextBox
 
-    If Not EnsureRequiredControls() Then
-        Err.Raise vbObjectError + 801, "ProgressForm.Class_Initialize", _
-                  "Required controls are missing from ProgressForm."
-    End If
-
     Set mLogTextBox = Nothing
     Set logBox = GetLogTextBox()
     If Not logBox Is Nothing Then
@@ -542,6 +537,11 @@ Private Sub UserForm_Initialize()
     SetCursorWait
 
     modProgressUI.Progress_ResetTimerState
+
+    If Not EnsureRequiredControls() Then
+        Err.Raise vbObjectError + 801, "ProgressForm.UserForm_Initialize", _
+                  "Required controls are missing from ProgressForm."
+    End If
 
     Set logBox = GetLogTextBox()
     If Not logBox Is Nothing Then
