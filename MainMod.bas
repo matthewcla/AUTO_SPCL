@@ -54,6 +54,8 @@ Public Sub A_Record_Review(Optional ByVal Reserved As Boolean = False)
     Dim nm As String, id As String
     Dim runWasCancelled As Boolean
     Dim progressClosed As Boolean
+    Dim errNumber As Long
+    Dim errDescription As String
 
     On Error GoTo CleanFail
     ResetRunState
@@ -164,6 +166,16 @@ CleanOK:
     Exit Sub
 
 CleanFail:
+    errNumber = Err.Number
+    errDescription = Err.Description
+
+    If errNumber <> 0 Then
+        If Len(errDescription) = 0 Then
+            errDescription = "Unknown error."
+        End If
+        modUIHelpers.ShowErrorMessage "Record review failed (" & errNumber & "): " & errDescription
+    End If
+
     Resume CleanOK
 End Sub
 
